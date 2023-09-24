@@ -96,10 +96,10 @@ const CreatePreviewElement = (name, val, format) => {
   }
 
 const gif_preview = {
-    name: 'AnimateDiff.gif_preview',
+    name: 'VideoHelperSuite.gif_preview',
     async beforeRegisterNodeDef(nodeType, nodeData, app) {
         switch (nodeData.name) {
-            case 'ADE_AnimateDiffCombine':{
+            case 'VHS_VideoCombine':{
                 const onExecuted = nodeType.prototype.onExecuted
                 nodeType.prototype.onExecuted = function (message) {
                 const prefix = 'ad_gif_preview_'
