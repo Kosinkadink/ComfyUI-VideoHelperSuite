@@ -10,16 +10,18 @@ from PIL.PngImagePlugin import PngInfo
 import folder_paths
 from .logger import logger
 
+ffmpeg_path = shutil.which("ffmpeg")
+if ffmpeg_path is None:
+    logger.warning("ffmpeg could not be found. Outputs that require it have been disabled")
+
 class VideoCombine:
     @classmethod
     def INPUT_TYPES(s):
-        ffmpeg_path = shutil.which("ffmpeg")
         #Hide ffmpeg formats if ffmpeg isn't available
         if ffmpeg_path is not None:
             ffmpeg_formats = ["video/"+x[:-5] for x in folder_paths.get_filename_list("video_formats")]
         else:
             ffmpeg_formats = []
-            logger.warning("ffmpeg could not be found. Outputs that require it have been disabled")
         return {
             "required": {
                 "images": ("IMAGE",),
