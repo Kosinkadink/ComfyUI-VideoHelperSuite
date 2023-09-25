@@ -2,8 +2,11 @@ import os
 import json
 import subprocess
 import shutil
+import re
+import time
 import numpy as np
 from typing import List
+import torch
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 
@@ -198,9 +201,80 @@ class VideoCombine:
         ]
         return {"ui": {"gifs": previews}}
 
+class LoadVideo:
+    @classmethod
+    def INPUT_TYPES(s):
+        video_extensions = ['webm', 'mp4', 'mkv']
+        input_dir = folder_paths.get_input_directory()
+        files = []
+        for f in os.listdir(input_dir):
+            if os.path.isfile(os.path.join(input_dir, f)):
+                file_parts = f.split('.')
+                if len(file_parts) > 1 and (file_parts[-1] in video_extensions):
+                    files.append(f)
+        return {"required":
+                    {"video": (sorted(files), {"video_upload": True})},
+                }
+
+    CATEGORY = "Video Helper Suite"
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "load_video"
+    def load_video(self, video):
+        video_path = folder_paths.get_annotated_filepath(video)
+        args_dummy = ["ffmpeg", "-i", video_path, "-f", "null", "-"]
+        with subprocess.Popen(args_dummy, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE) as proc:
+            for line in proc.stderr.readlines():
+                match = re.search(", ([1-9]|\\d{2,})x(\\d+),",line.decode('ascii'))
+                if match is not None:
+                    size = (int(match.group(1)), int(match.group(2)))
+                    break
+        args_all_frames = ["ffmpeg", "-i", video_path, "-v", "error",
+                             "-pix_fmt", "rgb24", "-f", "rawvideo", "-"]
+        images = []
+        with subprocess.Popen(args_all_frames, stdout=subprocess.PIPE) as proc:
+            #Manually buffer enough bytes for an image
+            bpi = size[0]*size[1]*3
+            current_bytes = bytearray(bpi)
+            current_offset=0
+            while True:
+                bytes_read = proc.stdout.read(bpi - current_offset)
+                if bytes_read is None:#sleep to wait for more data
+                    time.sleep(.2)
+                    continue
+                if len(bytes_read) == 0:#EOF
+                    break
+                current_bytes[current_offset:len(bytes_read)] = bytes_read
+                current_offset+=len(bytes_read)
+                if current_offset == bpi:
+                    images.append(np.array(current_bytes, dtype=np.float32).reshape(size[0], size[1], 3) / 255.0)
+                    current_offset = 0
+            if current_offset != 0:
+                logger.warn(f'{current_offset} bytes left over when loading image')
+
+        images = torch.from_numpy(np.stack(images))
+        return (images,)
+
+    @classmethod
+    def IS_CHANGED(s, image):
+        image_path = folder_paths.get_annotated_filepath(image)
+        m = hashlib.sha256()
+        with open(image_path, 'rb') as f:
+            m.update(f.read())
+        return m.digest().hex()
+
+    @classmethod
+    def VALIDATE_INPUTS(s, video):
+        if not folder_paths.exists_annotated_filepath(video):
+            return "Invalid image file: {}".format(video)
+
+        return True
+
 NODE_CLASS_MAPPINGS = {
     "VHS_VideoCombine": VideoCombine,
+    "VHS_LoadVideo": LoadVideo,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_VideoCombine": "Video Combine",
+    "VHS_LoadVideo": "Load Video",
 }
