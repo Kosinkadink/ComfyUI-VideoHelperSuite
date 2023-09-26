@@ -213,24 +213,43 @@ class LoadVideo:
                 if len(file_parts) > 1 and (file_parts[-1] in video_extensions):
                     files.append(f)
         return {"required":
-                    {"video": (sorted(files), {"video_upload": True})},
-                }
+                    {"video": (sorted(files), {"video_upload": True}),
+                     "force_rate": ("INT", {"default": 0, "min": 0, "max": 24, "step": 1}),
+                     "force_size": (["Disabled", "256x?", "?x256", "256x256", "512x?", "?x512", "512x512"],),
+                     #Consider adding start_frame/total_frames here?
+                     #Might be a bit finicky since ffmpeg usually works in time/duration, not frame numbers
+                     },}
 
     CATEGORY = "Video Helper Suite"
 
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "load_video"
-    def load_video(self, video):
+    def load_video(self, video, force_rate, force_size):
         video_path = folder_paths.get_annotated_filepath(video)
         args_dummy = ["ffmpeg", "-i", video_path, "-f", "null", "-"]
         with subprocess.Popen(args_dummy, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE) as proc:
             for line in proc.stderr.readlines():
                 match = re.search(", ([1-9]|\\d{2,})x(\\d+),",line.decode('ascii'))
                 if match is not None:
-                    size = (int(match.group(1)), int(match.group(2)))
+                    size = [int(match.group(1)), int(match.group(2))]
                     break
         args_all_frames = ["ffmpeg", "-i", video_path, "-v", "error",
-                             "-pix_fmt", "rgb24", "-f", "rawvideo", "-"]
+                             "-pix_fmt", "rgb24"]
+
+        if force_rate != 0:
+            args_all_frames += ["-r", str(force_rate)]
+        #manually calculate aspect ratio to ensure reads remain aligned
+        if force_size != "Disabled":
+            force_size = force_size.split("x")
+            if force_size[0] == "?":
+                size[0] = (size[0]*int(force_size[1]))//size[1]
+                size[1] = int(force_size[1])
+            elif force_size[1] == "?":
+                size[1] = (size[1]*int(force_size[0]))//size[0]
+                size[0] = int(force_size[0])
+            args_all_frames += ["-vf", f"scale={size[0]}:{size[1]}"]
+
+        args_all_frames += ["-f", "rawvideo", "-"]
         images = []
         with subprocess.Popen(args_all_frames, stdout=subprocess.PIPE) as proc:
             #Manually buffer enough bytes for an image
@@ -264,7 +283,7 @@ class LoadVideo:
         return m.digest().hex()
 
     @classmethod
-    def VALIDATE_INPUTS(s, video):
+    def VALIDATE_INPUTS(s, video, force_rate, force_size):
         if not folder_paths.exists_annotated_filepath(video):
             return "Invalid image file: {}".format(video)
 
