@@ -102,7 +102,7 @@ const gif_preview = {
             case 'VHS_VideoCombine':{
                 const onExecuted = nodeType.prototype.onExecuted
                 nodeType.prototype.onExecuted = function (message) {
-                const prefix = 'ad_gif_preview_'
+                const prefix = 'vhs_gif_preview_'
                 const r = onExecuted ? onExecuted.apply(this, message) : undefined
 
                 if (this.widgets) {

@@ -266,7 +266,7 @@ class LoadVideo:
                 current_bytes[current_offset:len(bytes_read)] = bytes_read
                 current_offset+=len(bytes_read)
                 if current_offset == bpi:
-                    images.append(np.array(current_bytes, dtype=np.float32).reshape(size[0], size[1], 3) / 255.0)
+                    images.append(np.array(current_bytes, dtype=np.float32).reshape(size[1], size[0], 3) / 255.0)
                     current_offset = 0
             if current_offset != 0:
                 logger.warn(f'{current_offset} bytes left over when loading image')
