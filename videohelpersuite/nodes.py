@@ -229,15 +229,16 @@ class LoadVideo:
         args_dummy = ["ffmpeg", "-i", video_path, "-f", "null", "-"]
         with subprocess.Popen(args_dummy, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE) as proc:
             for line in proc.stderr.readlines():
-                match = re.search(", ([1-9]|\\d{2,})x(\\d+),",line.decode('ascii'))
+                match = re.search(", ([1-9]|\\d{2,})x(\\d+)",line.decode('ascii'))
                 if match is not None:
                     size = [int(match.group(1)), int(match.group(2))]
                     break
         args_all_frames = ["ffmpeg", "-i", video_path, "-v", "error",
                              "-pix_fmt", "rgb24"]
 
+        vfilters = []
         if force_rate != 0:
-            args_all_frames += ["-r", str(force_rate)]
+            vfilters.append("fps="+str(force_rate))
         #manually calculate aspect ratio to ensure reads remain aligned
         if force_size != "Disabled":
             force_size = force_size.split("x")
@@ -247,7 +248,9 @@ class LoadVideo:
             elif force_size[1] == "?":
                 size[1] = (size[1]*int(force_size[0]))//size[0]
                 size[0] = int(force_size[0])
-            args_all_frames += ["-vf", f"scale={size[0]}:{size[1]}"]
+            vfilters.append(f"scale={size[0]}:{size[1]}")
+        if len(vfilters) > 0:
+            args_all_frames += ["-vf", ",".join(vfilters)]
 
         args_all_frames += ["-f", "rawvideo", "-"]
         images = []
