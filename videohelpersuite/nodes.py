@@ -229,7 +229,7 @@ class LoadVideo:
         args_dummy = ["ffmpeg", "-i", video_path, "-f", "null", "-"]
         with subprocess.Popen(args_dummy, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE) as proc:
             for line in proc.stderr.readlines():
-                match = re.search(", ([1-9]|\\d{2,})x(\\d+)",line.decode('ascii'))
+                match = re.search(", ([1-9]|\\d{2,})x(\\d+)",line.decode('utf-8'))
                 if match is not None:
                     size = [int(match.group(1)), int(match.group(2))]
                     break
