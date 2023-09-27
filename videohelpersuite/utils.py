@@ -1,13 +1,23 @@
 import hashlib
 import os
+from typing import Iterable
 
 
-def get_sorted_dir_files_from_directory(directory: str, skip_first_images: int=0, select_every_nth: int=1):
+def get_sorted_dir_files_from_directory(directory: str, skip_first_images: int=0, select_every_nth: int=1, extensions: Iterable=None):
     directory = directory.strip()
     dir_files = os.listdir(directory)
     dir_files = sorted(dir_files)
     dir_files = [os.path.join(directory, x) for x in dir_files]
     dir_files = list(filter(lambda filepath: os.path.isfile(filepath), dir_files))
+    # filter by extension, if needed
+    if extensions is not None:
+        extensions = list(extensions)
+        new_dir_files = []
+        for filepath in dir_files:
+            ext = "." + filepath.split(".")[-1]
+            if ext.lower() in extensions:
+                new_dir_files.append(filepath)
+        dir_files = new_dir_files
     # start at skip_first_images
     dir_files = dir_files[skip_first_images:]
     dir_files = dir_files[0::select_every_nth]

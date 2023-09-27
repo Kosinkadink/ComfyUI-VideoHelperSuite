@@ -11,6 +11,7 @@ import torch
 from PIL import Image, ImageOps
 from PIL.PngImagePlugin import PngInfo
 
+from comfy.k_diffusion.utils import FolderOfImages
 import folder_paths
 from .logger import logger
 from .image_latent_nodes import MergeImages, MergeLatents, SelectEveryNthImage, SelectEveryNthLatent, SplitLatents, SplitImages
@@ -320,7 +321,7 @@ class LoadImagesFromDirectory:
         if not os.path.isdir(directory):
             raise FileNotFoundError(f"Directory '{directory} cannot be found.")
 
-        dir_files = get_sorted_dir_files_from_directory(directory, skip_first_images, select_every_nth)
+        dir_files = get_sorted_dir_files_from_directory(directory, skip_first_images, select_every_nth, FolderOfImages.IMG_EXTENSIONS)
 
         if len(dir_files) == 0:
             raise FileNotFoundError(f"No files in directory '{directory}'.")
@@ -361,7 +362,7 @@ class LoadImagesFromDirectory:
         if not os.path.isdir(directory):
             return False
         
-        dir_files = get_sorted_dir_files_from_directory(directory, skip_first_images, select_every_nth)
+        dir_files = get_sorted_dir_files_from_directory(directory, skip_first_images, select_every_nth, FolderOfImages.IMG_EXTENSIONS)
         dir_files = dir_files[:image_load_cap]
 
         m = hashlib.sha256()
