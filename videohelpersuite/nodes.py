@@ -1,4 +1,5 @@
 import os
+import hashlib
 import json
 import subprocess
 import shutil
@@ -7,11 +8,13 @@ import time
 import numpy as np
 from typing import List
 import torch
-from PIL import Image
+from PIL import Image, ImageOps
 from PIL.PngImagePlugin import PngInfo
 
 import folder_paths
 from .logger import logger
+from .image_latent_nodes import MergeImages, MergeLatents, SelectEveryNthImage, SelectEveryNthLatent, SplitLatents, SplitImages
+from .utils import calculate_file_hash, get_sorted_dir_files_from_directory
 
 ffmpeg_path = shutil.which("ffmpeg")
 if ffmpeg_path is None:
@@ -292,11 +295,113 @@ class LoadVideo:
 
         return True
 
+
+class LoadImagesFromDirectory:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "directory": ("STRING", {"default": "ZZZ:/directory/absolute/to/load", "multiline": True}),
+            },
+            "optional": {
+                "image_load_cap": ("INT", {"default": 0, "min": 0, "step": 1}),
+                "skip_first_images": ("INT", {"default": 0, "min": 0, "step": 1}),
+                "select_every_nth": ("INT", {"default": 1, "min": 1, "step": 1}),
+            }
+        }
+    
+    RETURN_TYPES = ("IMAGE", "MASK", "INT")
+    FUNCTION = "load_images"
+
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
+
+    def load_images(self, directory: str, image_load_cap: int = 0, skip_first_images: int = 0, select_every_nth: int = 1):
+        directory = directory.strip()
+        if not os.path.isdir(directory):
+            raise FileNotFoundError(f"Directory '{directory} cannot be found.")
+
+        dir_files = get_sorted_dir_files_from_directory(directory, skip_first_images, select_every_nth)
+
+        if len(dir_files) == 0:
+            raise FileNotFoundError(f"No files in directory '{directory}'.")
+
+        images = []
+        masks = []
+
+        limit_images = False
+        if image_load_cap > 0:
+            limit_images = True
+        image_count = 0
+
+        for image_path in dir_files:
+            if limit_images and image_count >= image_load_cap:
+                break
+            i = Image.open(image_path)
+            i = ImageOps.exif_transpose(i)
+            image = i.convert("RGB")
+            image = np.array(image).astype(np.float32) / 255.0
+            image = torch.from_numpy(image)[None,]
+            if 'A' in i.getbands():
+                mask = np.array(i.getchannel('A')).astype(np.float32) / 255.0
+                mask = 1. - torch.from_numpy(mask)
+            else:
+                mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
+            images.append(image)
+            masks.append(mask)
+            image_count += 1
+        
+        if len(images) == 0:
+            raise FileNotFoundError(f"No images could be loaded from directory '{directory}'.")
+
+        return (torch.cat(images, dim=0), torch.stack(masks, dim=0), image_count)
+    
+    @classmethod
+    def IS_CHANGED(s, directory: str, image_load_cap: int = 0, skip_first_images: int = 0, select_every_nth: int = 1):
+        directory = directory.strip()
+        if not os.path.isdir(directory):
+            return False
+        
+        dir_files = get_sorted_dir_files_from_directory(directory, skip_first_images, select_every_nth)
+        dir_files = dir_files[:image_load_cap]
+
+        m = hashlib.sha256()
+        for filepath in dir_files:
+            m.update(calculate_file_hash(filepath).encode()) # strings must be encoded before hashing
+        return m.digest().hex()
+
+    @classmethod
+    def VALIDATE_INPUTS(s, directory: str, **kwargs):
+        directory = directory.strip()
+        if not os.path.isdir(directory):
+            return f"Directory '{directory}' cannot be found."
+        dir_files = os.listdir(directory)
+        if len(dir_files) == 0:
+            return f"No files in directory '{directory}'."
+
+        return True
+
+
 NODE_CLASS_MAPPINGS = {
     "VHS_VideoCombine": VideoCombine,
     "VHS_LoadVideo": LoadVideo,
+    "VHS_LoadImages": LoadImagesFromDirectory,
+    # Latent and Image nodes
+    "VHS_SplitLatents": SplitLatents,
+    "VHS_SplitImages": SplitImages,
+    "VHS_MergeLatents": MergeLatents,
+    "VHS_MergeImages": MergeImages,
+    "VHS_SelectEveryNthLatent": SelectEveryNthLatent,
+    "VHS_SelectEveryNthImage": SelectEveryNthImage,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_VideoCombine": "Video Combine",
     "VHS_LoadVideo": "Load Video",
+    "VHS_LoadImages": "Load Images 🎥🅥🅗🅢",
+    # Latent and Image nodes
+    "VHS_SplitLatents": "Split Latent Batch 🎥🅥🅗🅢",
+    "VHS_SplitImages": "Split Image Batch 🎥🅥🅗🅢",
+    "VHS_MergeLatents": "Merge Latent Batches 🎥🅥🅗🅢",
+    "VHS_MergeImages": "Merge Image Batches 🎥🅥🅗🅢",
+    "VHS_SelectEveryNthLatent": "Select Every Nth Latent 🎥🅥🅗🅢",
+    "VHS_SelectEveryNthImage": "Select Every Nth Image 🎥🅥🅗🅢",
 }
