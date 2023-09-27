@@ -196,7 +196,6 @@ class SelectEveryNthLatent:
 
     def select_latents(self, latents: dict, select_every_nth: int):
         sub_latents = latents.copy()["samples"][0::select_every_nth]
-        
         return ({"samples": sub_latents}, sub_latents.size(0))
     
 
@@ -218,8 +217,45 @@ class SelectEveryNthImage:
 
     def select_images(self, images: Tensor, select_every_nth: int):
         sub_images = images[0::select_every_nth]
-        
         return (sub_images, sub_images.size(0))
+
+
+class GetLatentCount:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "latents": ("LATENT",),
+            }
+        }
+    
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢/latent"
+
+    RETURN_TYPES = ("INT",)
+    RETURN_NAMES = ("count",)
+    FUNCTION = "count_input"
+
+    def count_input(self, latents: dict):
+        return (latents["samples"].size(0),)
+
+
+class GetImageCount:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "images": ("IMAGE",),
+            }
+        }
+    
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢/image"
+
+    RETURN_TYPES = ("INT",)
+    RETURN_NAMES = ("count",)
+    FUNCTION = "count_input"
+
+    def count_input(self, images: Tensor):
+        return (images.size(0),)
 
 
 # class SelectLatents:

@@ -14,7 +14,7 @@ from PIL.PngImagePlugin import PngInfo
 from comfy.k_diffusion.utils import FolderOfImages
 import folder_paths
 from .logger import logger
-from .image_latent_nodes import MergeImages, MergeLatents, SelectEveryNthImage, SelectEveryNthLatent, SplitLatents, SplitImages
+from .image_latent_nodes import GetImageCount, GetLatentCount, MergeImages, MergeLatents, SelectEveryNthImage, SelectEveryNthLatent, SplitLatents, SplitImages
 from .utils import calculate_file_hash, get_sorted_dir_files_from_directory
 
 ffmpeg_path = shutil.which("ffmpeg")
@@ -393,6 +393,8 @@ NODE_CLASS_MAPPINGS = {
     "VHS_MergeImages": MergeImages,
     "VHS_SelectEveryNthLatent": SelectEveryNthLatent,
     "VHS_SelectEveryNthImage": SelectEveryNthImage,
+    "VHS_GetLatentCount": GetLatentCount,
+    "VHS_GetImageCount": GetImageCount,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_VideoCombine": "Video Combine",
@@ -405,4 +407,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_MergeImages": "Merge Image Batches 🎥🅥🅗🅢",
     "VHS_SelectEveryNthLatent": "Select Every Nth Latent 🎥🅥🅗🅢",
     "VHS_SelectEveryNthImage": "Select Every Nth Image 🎥🅥🅗🅢",
+    "VHS_GetLatentCount": "Get Latent Count 🎥🅥🅗🅢",
+    "VHS_GetImageCount": "Get Image Count 🎥🅥🅗🅢",
 }
