@@ -14,6 +14,7 @@ import cv2
 
 import folder_paths
 from .logger import logger
+from comfy.utils import common_upscale
 
 ffmpeg_path = shutil.which("ffmpeg")
 if ffmpeg_path is None:
@@ -217,7 +218,7 @@ class LoadVideo:
                     files.append(f)
         return {"required": {
                     "video": (sorted(files), {"video_upload": True}),
-                     #"force_rate": ("INT", {"default": 0, "min": 0, "max": 24, "step": 1}),
+                     "force_rate": ("INT", {"default": 0, "min": 0, "max": 24, "step": 1}),
                      "force_size": (["Disabled", "256x?", "?x256", "256x256", "512x?", "?x512", "512x512"],),
                      "frame_load_cap": ("INT", {"default": 0, "min": 0, "step": 1}),
                      "skip_first_frames": ("INT", {"default": 0, "min": 0, "step": 1}),
@@ -235,7 +236,22 @@ class LoadVideo:
         file_parts = filename.split('.')
         return len(file_parts) > 1 and file_parts[-1] == "gif"
 
-    def load_video_cv_fallback(self, video, force_size, frame_load_cap, skip_first_frames):
+    def target_size(self, width, height, force_size):
+        if force_size != "Disabled":
+            force_size = force_size.split("x")
+            if force_size[0] == "?":
+                width = (width*int(force_size[1]))//height
+                #Limit to a multple of 8 for latent conversion
+                #TODO: Consider instead cropping and centering to main aspect ratio
+                width = int(width)+4 & ~7
+                height = int(force_size[1])
+            elif force_size[1] == "?":
+                height = (height*int(force_size[0]))//width
+                height = int(height)+4 & ~7
+                width = int(force_size[0])
+        return (width, height)
+
+    def load_video_cv_fallback(self, video, force_rate, force_size, frame_load_cap, skip_first_frames):
         try:
             video_cap = cv2.VideoCapture(folder_paths.get_annotated_filepath(video))
             if not video_cap.isOpened():
@@ -244,16 +260,26 @@ class LoadVideo:
             images = []
             total_frame_count = 0
             frames_added = 0
+            base_frame_time = 1/video_cap.get(cv2.CAP_PROP_FPS)
+            width = video_cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+            height = video_cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+            if force_rate == 0:
+                target_frame_time = base_frame_time
+            else:
+                target_frame_time = 1/force_rate
+            time_offset=0.0
             while video_cap.isOpened():
-                # if cap exists and we've reached it, stop processing frames
-                if frame_load_cap > 0 and frames_added >= frame_load_cap:
-                    break
-                is_returned, frame = video_cap.read()
-                # if didn't return frame, video has ended
-                if not is_returned:
-                    break 
+                if time_offset < target_frame_time:
+                    is_returned, frame = video_cap.read()
+                    # if didn't return frame, video has ended
+                    if not is_returned:
+                        break
+                    time_offset += base_frame_time
+                    total_frame_count += 1
+                if time_offset < target_frame_time:
+                    continue
+                time_offset -= target_frame_time
                 # if not at start_index, skip doing anything with frame
-                total_frame_count += 1
                 if total_frame_count <= skip_first_frames:
                     continue
                 # TODO: do whatever operations need to happen, like force_size, etc
@@ -264,14 +290,24 @@ class LoadVideo:
                 # convert frame to comfyui's expected format (taken from comfy's load image code)
                 image = Image.fromarray(frame)
                 image = ImageOps.exif_transpose(image)
-                image = np.array(image, dtype=np.float) / 255.0
+                image = np.array(image, dtype=np.float32) / 255.0
                 image = torch.from_numpy(image)[None,]
                 images.append(image)
                 frames_added += 1
+                # if cap exists and we've reached it, stop processing frames
+                if frame_load_cap > 0 and frames_added >= frame_load_cap:
+                    break
         finally:
             video_cap.release()
+        images = torch.cat(images, dim=0)
+        if force_size != "Disabled":
+            new_size = self.target_size(width, height, force_size)
+            if new_size[0] != width or new_size[1] != height:
+                s = images.movedim(-1,1)
+                s = common_upscale(s, new_size[0], new_size[1], "lanczos", "disabled")
+                images = s.movedim(1,-1)
         # TODO: raise an error maybe if no frames were loaded?
-        return (torch.cat(images, dim=0), frames_added)
+        return (images, frames_added)
 
     def load_video(self, video, force_rate, force_size, frame_load_cap, skip_first_frames):
         # check if video is a gif - will need to use cv fallback to read frames
@@ -295,13 +331,7 @@ class LoadVideo:
             vfilters.append("fps="+str(force_rate))
         #manually calculate aspect ratio to ensure reads remain aligned
         if force_size != "Disabled":
-            force_size = force_size.split("x")
-            if force_size[0] == "?":
-                size[0] = (size[0]*int(force_size[1]))//size[1]
-                size[1] = int(force_size[1])
-            elif force_size[1] == "?":
-                size[1] = (size[1]*int(force_size[0]))//size[0]
-                size[0] = int(force_size[0])
+            size = self.target_size(size[0], size[1], force_size)
             vfilters.append(f"scale={size[0]}:{size[1]}")
         if len(vfilters) > 0:
             args_all_frames += ["-vf", ",".join(vfilters)]
@@ -323,7 +353,12 @@ class LoadVideo:
                 current_bytes[current_offset:len(bytes_read)] = bytes_read
                 current_offset+=len(bytes_read)
                 if current_offset == bpi:
-                    images.append(np.array(current_bytes, dtype=np.float32).reshape(size[1], size[0], 3) / 255.0)
+                    if skip_first_frames > 0:
+                        skip_first_frames -= 1
+                    else:
+                        if len(images) >= frame_load_cap:
+                            break
+                        images.append(np.array(current_bytes, dtype=np.float32).reshape(size[1], size[0], 3) / 255.0)
                     current_offset = 0
             if current_offset != 0:
                 logger.warn(f'{current_offset} bytes left over when loading image')
@@ -340,7 +375,7 @@ class LoadVideo:
         return m.digest().hex()
 
     @classmethod
-    def VALIDATE_INPUTS(s, video, force_size, frame_load_cap, skip_first_frames):
+    def VALIDATE_INPUTS(s, video, **kwargs):
         if not folder_paths.exists_annotated_filepath(video):
             return "Invalid image file: {}".format(video)
 
