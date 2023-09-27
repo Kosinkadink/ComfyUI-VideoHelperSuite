@@ -274,11 +274,11 @@ class LoadVideo:
                     if not is_returned:
                         break
                     time_offset += base_frame_time
-                    total_frame_count += 1
                 if time_offset < target_frame_time:
                     continue
                 time_offset -= target_frame_time
                 # if not at start_index, skip doing anything with frame
+                total_frame_count += 1
                 if total_frame_count <= skip_first_frames:
                     continue
                 # TODO: do whatever operations need to happen, like force_size, etc
@@ -330,10 +330,10 @@ class LoadVideo:
                              "-pix_fmt", "rgb24"]
 
         vfilters = []
-        if skip_first_frames > 0:
-            vfilters.append(f"select=gt(n\\,{skip_first_frames})")
         if force_rate != 0:
             vfilters.append("fps="+str(force_rate))
+        if skip_first_frames > 0:
+            vfilters.append(f"select=gt(n\\,{skip_first_frames-1})")
         if frame_load_cap > 0:
             vfilters.append(f"select=gt({frame_load_cap}\\,n)")
         #manually calculate aspect ratio to ensure reads remain aligned
