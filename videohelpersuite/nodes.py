@@ -145,7 +145,6 @@ class VideoCombine:
             )
         else:
             # Use ffmpeg to save a video
-            ffmpeg_path = shutil.which("ffmpeg")
             if ffmpeg_path is None:
                 #Should never be reachable
                 raise ProcessLookupError("Could not find ffmpeg")
@@ -230,7 +229,7 @@ class LoadVideo:
 
     RETURN_TYPES = ("IMAGE", "INT",)
     RETURN_NAMES = ("IMAGE", "frame_count",)
-    FUNCTION = "load_video_cv_fallback"
+    FUNCTION = "load_video"
 
     def is_gif(self, filename):
         file_parts = filename.split('.')
@@ -312,23 +311,31 @@ class LoadVideo:
     def load_video(self, video, force_rate, force_size, frame_load_cap, skip_first_frames):
         # check if video is a gif - will need to use cv fallback to read frames
         # use cv fallback if ffmpeg not installed or gif
-        if ffmpeg_path is None or self.is_gif(video):
-            return self.load_video_cv_fallback(video, force_size, frame_load_cap, skip_first_frames)
+        if ffmpeg_path is None:
+            return self.load_video_cv_fallback(video, force_rate, force_size, frame_load_cap, skip_first_frames)
         # otherwise, continue with ffmpeg
         video_path = folder_paths.get_annotated_filepath(video)
-        args_dummy = ["ffmpeg", "-i", video_path, "-f", "null", "-"]
-        with subprocess.Popen(args_dummy, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE) as proc:
-            for line in proc.stderr.readlines():
-                match = re.search(", ([1-9]|\\d{2,})x(\\d+)",line.decode('utf-8'))
-                if match is not None:
-                    size = [int(match.group(1)), int(match.group(2))]
-                    break
-        args_all_frames = ["ffmpeg", "-i", video_path, "-v", "error",
+        args_dummy = [ffmpeg_path, "-i", video_path, "-f", "null", "-"]
+        try:
+            with subprocess.Popen(args_dummy, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE) as proc:
+                for line in proc.stderr.readlines():
+                    match = re.search(", ([1-9]|\\d{2,})x(\\d+)",line.decode('utf-8'))
+                    if match is not None:
+                        size = [int(match.group(1)), int(match.group(2))]
+                        break
+        except Exception as e:
+            logger.info(f"Retrying with opencv due to ffmpeg error: {e}")
+            return self.load_video_cv_fallback(video, force_rate, force_size, frame_load_cap, skip_first_frames)
+        args_all_frames = [ffmpeg_path, "-i", video_path, "-v", "error",
                              "-pix_fmt", "rgb24"]
 
         vfilters = []
+        if skip_first_frames > 0:
+            vfilters.append(f"select=gt(n\\,{skip_first_frames})")
         if force_rate != 0:
             vfilters.append("fps="+str(force_rate))
+        if frame_load_cap > 0:
+            vfilters.append(f"select=gt({frame_load_cap}\\,n)")
         #manually calculate aspect ratio to ensure reads remain aligned
         if force_size != "Disabled":
             size = self.target_size(size[0], size[1], force_size)
@@ -338,30 +345,27 @@ class LoadVideo:
 
         args_all_frames += ["-f", "rawvideo", "-"]
         images = []
-        with subprocess.Popen(args_all_frames, stdout=subprocess.PIPE) as proc:
-            #Manually buffer enough bytes for an image
-            bpi = size[0]*size[1]*3
-            current_bytes = bytearray(bpi)
-            current_offset=0
-            while True:
-                bytes_read = proc.stdout.read(bpi - current_offset)
-                if bytes_read is None:#sleep to wait for more data
-                    time.sleep(.2)
-                    continue
-                if len(bytes_read) == 0:#EOF
-                    break
-                current_bytes[current_offset:len(bytes_read)] = bytes_read
-                current_offset+=len(bytes_read)
-                if current_offset == bpi:
-                    if skip_first_frames > 0:
-                        skip_first_frames -= 1
-                    else:
-                        if len(images) >= frame_load_cap:
-                            break
+        try:
+            with subprocess.Popen(args_all_frames, stdout=subprocess.PIPE) as proc:
+                #Manually buffer enough bytes for an image
+                bpi = size[0]*size[1]*3
+                current_bytes = bytearray(bpi)
+                current_offset=0
+                while True:
+                    bytes_read = proc.stdout.read(bpi - current_offset)
+                    if bytes_read is None:#sleep to wait for more data
+                        time.sleep(.2)
+                        continue
+                    if len(bytes_read) == 0:#EOF
+                        break
+                    current_bytes[current_offset:len(bytes_read)] = bytes_read
+                    current_offset+=len(bytes_read)
+                    if current_offset == bpi:
                         images.append(np.array(current_bytes, dtype=np.float32).reshape(size[1], size[0], 3) / 255.0)
-                    current_offset = 0
-            if current_offset != 0:
-                logger.warn(f'{current_offset} bytes left over when loading image')
+                        current_offset = 0
+        except Exception as e:
+            logger.info(f"Retrying with opencv due to ffmpeg error: {e}")
+            return self.load_video_cv_fallback(video, force_rate, force_size, frame_load_cap, skip_first_frames)
 
         images = torch.from_numpy(np.stack(images))
         return (images, images.size(0))
