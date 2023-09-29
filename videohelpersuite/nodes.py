@@ -22,7 +22,9 @@ from .utils import calculate_file_hash, get_sorted_dir_files_from_directory
 
 ffmpeg_path = shutil.which("ffmpeg")
 if ffmpeg_path is None:
-    logger.warning("ffmpeg could not be found. Outputs that require it have been disabled")
+    logger.info("ffmpeg could not be found. Using ffmpeg from imageio-ffmpeg.")
+    from imageio_ffmpeg import get_ffmpeg_exe
+    ffmpeg_path = get_ffmpeg_exe()
 
 
 class VideoCombine:
@@ -30,7 +32,7 @@ class VideoCombine:
     def INPUT_TYPES(s):
         #Hide ffmpeg formats if ffmpeg isn't available
         if ffmpeg_path is not None:
-            ffmpeg_formats = ["video/"+x[:-5] for x in folder_paths.get_filename_list("video_formats")]
+            ffmpeg_formats = ["video/"+x[:-5] for x in os.listdir(Path(__file__, "../../video_formats").resolve())]
         else:
             ffmpeg_formats = []
         return {
@@ -153,7 +155,7 @@ class VideoCombine:
                 #Should never be reachable
                 raise ProcessLookupError("Could not find ffmpeg")
 
-            video_format_path = folder_paths.get_full_path("video_formats", format_ext + ".json")
+            video_format_path = Path(__file__, "../../video_formats", format_ext + ".json").resolve()
             with open(video_format_path, 'r') as stream:
                 video_format = json.load(stream)
             file = f"{filename}_{counter:05}_.{video_format['extension']}"
