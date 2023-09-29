@@ -10,6 +10,7 @@ from typing import List
 import torch
 from PIL import Image, ImageOps
 from PIL.PngImagePlugin import PngInfo
+from pathlib import Path
 
 from comfy.k_diffusion.utils import FolderOfImages
 import folder_paths
@@ -322,7 +323,7 @@ class LoadImagesFromDirectory:
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
 
     def load_images(self, directory: str, image_load_cap: int = 0, skip_first_images: int = 0, select_every_nth: int = 1):
-        directory = directory.strip()
+        directory = folder_paths.get_annotated_filepath(directory.strip())
         if not os.path.isdir(directory):
             raise FileNotFoundError(f"Directory '{directory} cannot be found.")
 
@@ -363,7 +364,7 @@ class LoadImagesFromDirectory:
     
     @classmethod
     def IS_CHANGED(s, directory: str, image_load_cap: int = 0, skip_first_images: int = 0, select_every_nth: int = 1):
-        directory = directory.strip()
+        directory = folder_paths.get_annotated_filepath(directory.strip())
         if not os.path.isdir(directory):
             return False
         
@@ -377,7 +378,7 @@ class LoadImagesFromDirectory:
 
     @classmethod
     def VALIDATE_INPUTS(s, directory: str, **kwargs):
-        directory = directory.strip()
+        directory = folder_paths.get_annotated_filepath(directory.strip())
         if not os.path.isdir(directory):
             return f"Directory '{directory}' cannot be found."
         dir_files = os.listdir(directory)
