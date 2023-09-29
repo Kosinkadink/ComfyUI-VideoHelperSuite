@@ -24,7 +24,10 @@ ffmpeg_path = shutil.which("ffmpeg")
 if ffmpeg_path is None:
     logger.info("ffmpeg could not be found. Using ffmpeg from imageio-ffmpeg.")
     from imageio_ffmpeg import get_ffmpeg_exe
-    ffmpeg_path = get_ffmpeg_exe()
+    try:
+        ffmpeg_path = get_ffmpeg_exe()
+    except:
+        logger.warning("ffmpeg could not be found. Outputs that require it have been disabled")
 
 
 class VideoCombine:
