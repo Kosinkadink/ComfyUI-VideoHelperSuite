@@ -258,6 +258,55 @@ class GetImageCount:
         return (images.size(0),)
 
 
+class DuplicateLatents:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "latents": ("LATENT",),
+                "multiply_by": ("INT", {"default": 1, "min": 1, "step": 1})
+            }
+        }
+    
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢/latent"
+
+    RETURN_TYPES = ("LATENT", "INT",)
+    RETURN_NAMES = ("LATENT", "count",)
+    FUNCTION = "duplicate_input"
+
+    def duplicate_input(self, latents: dict[str, Tensor], multiply_by: int):
+        new_latents = latents.copy()
+        full_latents = []
+        for n in range(0, multiply_by):
+            full_latents.append(new_latents["samples"])
+        new_latents["samples"] = torch.cat(full_latents, dim=0)
+        return (new_latents, new_latents["samples"].size(0),)
+
+
+class DuplicateImages:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "images": ("IMAGE",),
+                "multiply_by": ("INT", {"default": 1, "min": 1, "step": 1})
+            }
+        }
+    
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢/image"
+
+    RETURN_TYPES = ("IMAGE", "INT",)
+    RETURN_NAMES = ("IMAGE", "count",)
+    FUNCTION = "duplicate_input"
+
+    def duplicate_input(self, images: Tensor, multiply_by: int):
+        full_images = []
+        for n in range(0, multiply_by):
+            full_images.append(images)
+        new_images = torch.cat(full_images, dim=0)
+        return (new_images, new_images.size(0),)
+
+
 # class SelectLatents:
 #     @classmethod
 #     def INPUT_TYPES(s):
