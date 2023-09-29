@@ -390,6 +390,30 @@ class LoadVideo:
         return True
 
 
+class SaveImageSequence:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "images": ("IMAGE",),
+            }
+        }
+    
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
+
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("directory",)
+    FUNCTION = "save_images"
+    
+    def save_images(self, images: torch.Tensor):
+        # goal: save image sequence,
+        # allowing user to choose padding amount and starting fraame number
+        # as well as subdirectory in output to save it as.
+        # Output directory should have option to either be a set name, or be dynamically
+        # generated with timestamp.
+        pass
+
+
 class LoadImagesFromDirectory:
     @classmethod
     def INPUT_TYPES(s):
