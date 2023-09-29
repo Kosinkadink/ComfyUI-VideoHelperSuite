@@ -375,7 +375,7 @@ class LoadVideo:
         return (images, images.size(0))
 
     @classmethod
-    def IS_CHANGED(s, video, force_size, frame_load_cap, skip_first_frames):
+    def IS_CHANGED(s, video, **kwargs):
         image_path = folder_paths.get_annotated_filepath(video)
         m = hashlib.sha256()
         with open(image_path, 'rb') as f:
