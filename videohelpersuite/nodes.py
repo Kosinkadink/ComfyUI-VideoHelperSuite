@@ -212,15 +212,22 @@ class LoadVideo:
     @classmethod
     def INPUT_TYPES(s):
         video_extensions = ['webm', 'mp4', 'mkv', 'gif']
-        input_dir = folder_paths.get_input_directory()
-        files = []
-        for f in os.listdir(input_dir):
-            if os.path.isfile(os.path.join(input_dir, f)):
-                file_parts = f.split('.')
-                if len(file_parts) > 1 and (file_parts[-1] in video_extensions):
-                    files.append(f)
+        input_dirs = [folder_paths.get_input_directory(), folder_paths.get_output_directory(), folder_paths.get_temp_directory()]
+        files_list = []
+        for source in input_dirs:
+            files = []
+            if not os.path.exists(source):
+                files_list.append(files)
+                continue
+            for f in os.listdir(source):
+                if os.path.isfile(os.path.join(source, f)):
+                    file_parts = f.split('.')
+                    if len(file_parts) > 1 and (file_parts[-1] in video_extensions):
+                        files.append(f)
+            files_list.append(sorted(files))
         return {"required": {
-                    "video": (sorted(files), {"video_upload": True}),
+                    "video": (files_list, {"video_upload": True}),
+                    "search_folder": (["input","output","temp"],),
                      "force_rate": ("INT", {"default": 0, "min": 0, "max": 24, "step": 1}),
                      "force_size": (["Disabled", "256x?", "?x256", "256x256", "512x?", "?x512", "512x512"],),
                      "frame_load_cap": ("INT", {"default": 0, "min": 0, "step": 1}),
@@ -254,9 +261,9 @@ class LoadVideo:
                 width = int(force_size[0])
         return (width, height)
 
-    def load_video_cv_fallback(self, video, force_rate, force_size, frame_load_cap, skip_first_frames):
+    def load_video_cv_fallback(self, video, search_folder, force_rate, force_size, frame_load_cap, skip_first_frames):
         try:
-            video_cap = cv2.VideoCapture(folder_paths.get_annotated_filepath(video))
+            video_cap = cv2.VideoCapture(folder_paths.get_annotated_filepath(video, default_dir=search_folder))
             if not video_cap.isOpened():
                 raise ValueError(f"{video} could not be loaded with cv fallback.")
             # set video_cap to look at start_index frame
@@ -312,13 +319,13 @@ class LoadVideo:
         # TODO: raise an error maybe if no frames were loaded?
         return (images, frames_added)
 
-    def load_video(self, video, force_rate, force_size, frame_load_cap, skip_first_frames):
+    def load_video(self, video, search_folder, force_rate, force_size, frame_load_cap, skip_first_frames):
         # check if video is a gif - will need to use cv fallback to read frames
         # use cv fallback if ffmpeg not installed or gif
         if ffmpeg_path is None:
-            return self.load_video_cv_fallback(video, force_rate, force_size, frame_load_cap, skip_first_frames)
+            return self.load_video_cv_fallback(video, search_folder, force_rate, force_size, frame_load_cap, skip_first_frames)
         # otherwise, continue with ffmpeg
-        video_path = folder_paths.get_annotated_filepath(video)
+        video_path = folder_paths.get_annotated_filepath(video, default_dir=search_folder)
         args_dummy = [ffmpeg_path, "-i", video_path, "-f", "null", "-"]
         try:
             with subprocess.Popen(args_dummy, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE) as proc:
@@ -329,7 +336,7 @@ class LoadVideo:
                         break
         except Exception as e:
             logger.info(f"Retrying with opencv due to ffmpeg error: {e}")
-            return self.load_video_cv_fallback(video, force_rate, force_size, frame_load_cap, skip_first_frames)
+            return self.load_video_cv_fallback(video, search_folder, force_rate, force_size, frame_load_cap, skip_first_frames)
         args_all_frames = [ffmpeg_path, "-i", video_path, "-v", "error",
                              "-pix_fmt", "rgb24"]
 
@@ -369,7 +376,7 @@ class LoadVideo:
                         current_offset = 0
         except Exception as e:
             logger.info(f"Retrying with opencv due to ffmpeg error: {e}")
-            return self.load_video_cv_fallback(video, force_rate, force_size, frame_load_cap, skip_first_frames)
+            return self.load_video_cv_fallback(video, search_folder, force_rate, force_size, frame_load_cap, skip_first_frames)
 
         images = torch.from_numpy(np.stack(images))
         return (images, images.size(0))
@@ -383,8 +390,8 @@ class LoadVideo:
         return m.digest().hex()
 
     @classmethod
-    def VALIDATE_INPUTS(s, video, **kwargs):
-        if not folder_paths.exists_annotated_filepath(video):
+    def VALIDATE_INPUTS(s, video, search_folder,  **kwargs):
+        if not folder_paths.exists_annotated_filepath(video + f" [{search_folder}]"):
             return "Invalid image file: {}".format(video)
 
         return True
