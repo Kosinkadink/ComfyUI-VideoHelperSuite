@@ -20,9 +20,21 @@ from .logger import logger
 from .image_latent_nodes import DuplicateImages, DuplicateLatents, GetImageCount, GetLatentCount, MergeImages, MergeLatents, SelectEveryNthImage, SelectEveryNthLatent, SplitLatents, SplitImages
 from .utils import calculate_file_hash, get_sorted_dir_files_from_directory
 
+folder_paths.folder_names_and_paths["video_formats"] = (
+    [
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "video_formats"),
+    ],
+    [".json"]
+)
+
 ffmpeg_path = shutil.which("ffmpeg")
 if ffmpeg_path is None:
-    logger.warning("ffmpeg could not be found. Outputs that require it have been disabled")
+    logger.info("ffmpeg could not be found. Using ffmpeg from imageio-ffmpeg.")
+    from imageio_ffmpeg import get_ffmpeg_exe
+    try:
+        ffmpeg_path = get_ffmpeg_exe()
+    except:
+        logger.warning("ffmpeg could not be found. Outputs that require it have been disabled")
 
 
 class VideoCombine:
