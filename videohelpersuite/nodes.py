@@ -20,6 +20,13 @@ from .logger import logger
 from .image_latent_nodes import DuplicateImages, DuplicateLatents, GetImageCount, GetLatentCount, MergeImages, MergeLatents, SelectEveryNthImage, SelectEveryNthLatent, SplitLatents, SplitImages
 from .utils import calculate_file_hash, get_sorted_dir_files_from_directory
 
+folder_paths.folder_names_and_paths["video_formats"] = (
+    [
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "video_formats"),
+    ],
+    [".json"]
+)
+
 ffmpeg_path = shutil.which("ffmpeg")
 if ffmpeg_path is None:
     logger.info("ffmpeg could not be found. Using ffmpeg from imageio-ffmpeg.")
@@ -35,7 +42,7 @@ class VideoCombine:
     def INPUT_TYPES(s):
         #Hide ffmpeg formats if ffmpeg isn't available
         if ffmpeg_path is not None:
-            ffmpeg_formats = ["video/"+x[:-5] for x in os.listdir(Path(__file__, "../../video_formats").resolve())]
+            ffmpeg_formats = ["video/"+x[:-5] for x in folder_paths.get_filename_list("video_formats")]
         else:
             ffmpeg_formats = []
         return {
@@ -158,7 +165,7 @@ class VideoCombine:
                 #Should never be reachable
                 raise ProcessLookupError("Could not find ffmpeg")
 
-            video_format_path = Path(__file__, "../../video_formats", format_ext + ".json").resolve()
+            video_format_path = folder_paths.get_full_path("video_formats", format_ext + ".json")
             with open(video_format_path, 'r') as stream:
                 video_format = json.load(stream)
             file = f"{filename}_{counter:05}_.{video_format['extension']}"
