@@ -3,12 +3,47 @@ import { api } from '../../../scripts/api.js'
 import { ComfyWidgets } from "../../../scripts/widgets.js"
 
 function videoUpload(node, inputName, inputData, app) {
-    const imageWidget = node.widgets.find((w) => w.name === "video");
-    let uploadWidget;
+    const pathWidget = node.widgets.find((w) => w.name === "video");
+    const folderWidget = node.widgets.find((w) => w.name === "search_folder");
 
-    var default_value = imageWidget.value;
-    Object.defineProperty(imageWidget, "value", {
+    folderWidget.content_index = 0;
+    let uploadWidget;
+    pathWidget.contentlists = inputData[1]
+    Object.defineProperty(folderWidget, "value", {
         set : function(value) {
+            this.content_index = this.options.values.indexOf(value);
+            if (this.content_index == -1) {
+                this.content_index = 0
+            }
+            pathWidget.options.values = pathWidget.contentlists[this.content_index];
+            if (pathWidget.options.values.length == 0) {
+                pathWidget.value = "None";
+            } else {
+                pathWidget.value = pathWidget.options.values[0];
+            }
+            this._value = value;
+        },
+        get : function() {
+            return this._value;
+        }
+    });
+
+    var default_value = "None";
+    if (inputData[1][0].length > 0) {
+        default_value = inputData[1][0][0];
+    }
+    Object.defineProperty(pathWidget, "value", {
+        set : function(value) {
+            if (typeof(value) == 'object') {
+                //refresh event
+                this.contentlists = this.options.values;
+                this.options.values = this.contentlists[folderWidget.content_index];
+                if (this.options.values.length > 0) {
+                    value = this.options.values[0];
+                } else {
+                    value = "None";
+                }
+            }
             this._real_value = value;
         },
 
@@ -52,12 +87,12 @@ function videoUpload(node, inputName, inputData, app) {
                 let path = data.name;
                 if (data.subfolder) path = data.subfolder + "/" + path;
 
-                if (!imageWidget.options.values.includes(path)) {
-                    imageWidget.options.values.push(path);
+                if (!pathWidget.options.values.includes(path)) {
+                    pathWidget.options.values.push(path);
                 }
 
                 if (updateNode) {
-                    imageWidget.value = path;
+                    pathWidget.value = path;
                 }
             } else {
                 alert(resp.status + " - " + resp.statusText);
@@ -90,11 +125,11 @@ function videoUpload(node, inputName, inputData, app) {
 ComfyWidgets.VIDEOUPLOAD = videoUpload;
 
 app.registerExtension({
-	name: "VideoHelperSuit.UploadVideo",
+	name: "VideoHelperSuite.UploadVideo",
 	async beforeRegisterNodeDef(nodeType, nodeData, app) {
 		if (nodeData?.name == "VHS_LoadVideo") {
-            console.log("test")
-			nodeData.input.required.upload = ["VIDEOUPLOAD"];
+			nodeData.input.required.upload = ["VIDEOUPLOAD", nodeData.input.required.video[0]];
+            nodeData.input.required.video[1] = nodeData.input.required.video[1][0]
 		}
 	},
 });

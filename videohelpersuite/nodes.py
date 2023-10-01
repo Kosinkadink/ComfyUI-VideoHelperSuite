@@ -224,15 +224,22 @@ class LoadVideo:
     @classmethod
     def INPUT_TYPES(s):
         video_extensions = ['webm', 'mp4', 'mkv', 'gif']
-        input_dir = folder_paths.get_input_directory()
-        files = []
-        for f in os.listdir(input_dir):
-            if os.path.isfile(os.path.join(input_dir, f)):
-                file_parts = f.split('.')
-                if len(file_parts) > 1 and (file_parts[-1] in video_extensions):
-                    files.append(f)
+        input_dirs = [folder_paths.get_input_directory(), folder_paths.get_output_directory(), folder_paths.get_temp_directory()]
+        files_list = []
+        for source in input_dirs:
+            files = []
+            if not os.path.exists(source):
+                files_list.append(files)
+                continue
+            for f in os.listdir(source):
+                if os.path.isfile(os.path.join(source, f)):
+                    file_parts = f.split('.')
+                    if len(file_parts) > 1 and (file_parts[-1] in video_extensions):
+                        files.append(f)
+            files_list.append(sorted(files))
         return {"required": {
-                    "video": (sorted(files), {"video_upload": True}),
+                    "video": (files_list, {"video_upload": True}),
+                    "search_folder": (["input","output","temp"],),
                      "force_rate": ("INT", {"default": 0, "min": 0, "max": 24, "step": 1}),
                      "force_size": (["Disabled", "256x?", "?x256", "256x256", "512x?", "?x512", "512x512"],),
                      "frame_load_cap": ("INT", {"default": 0, "min": 0, "step": 1}),
@@ -266,9 +273,9 @@ class LoadVideo:
                 width = int(force_size[0])
         return (width, height)
 
-    def load_video_cv_fallback(self, video, force_rate, force_size, frame_load_cap, skip_first_frames):
+    def load_video_cv_fallback(self, video, search_folder, force_rate, force_size, frame_load_cap, skip_first_frames):
         try:
-            video_cap = cv2.VideoCapture(folder_paths.get_annotated_filepath(video))
+            video_cap = cv2.VideoCapture(folder_paths.get_annotated_filepath(video, default_dir=search_folder))
             if not video_cap.isOpened():
                 raise ValueError(f"{video} could not be loaded with cv fallback.")
             # set video_cap to look at start_index frame
@@ -324,13 +331,13 @@ class LoadVideo:
         # TODO: raise an error maybe if no frames were loaded?
         return (images, frames_added)
 
-    def load_video(self, video, force_rate, force_size, frame_load_cap, skip_first_frames):
+    def load_video(self, video, search_folder, force_rate, force_size, frame_load_cap, skip_first_frames):
         # check if video is a gif - will need to use cv fallback to read frames
         # use cv fallback if ffmpeg not installed or gif
         if ffmpeg_path is None:
-            return self.load_video_cv_fallback(video, force_rate, force_size, frame_load_cap, skip_first_frames)
+            return self.load_video_cv_fallback(video, search_folder, force_rate, force_size, frame_load_cap, skip_first_frames)
         # otherwise, continue with ffmpeg
-        video_path = folder_paths.get_annotated_filepath(video)
+        video_path = folder_paths.get_annotated_filepath(video, default_dir=search_folder)
         args_dummy = [ffmpeg_path, "-i", video_path, "-f", "null", "-"]
         try:
             with subprocess.Popen(args_dummy, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE) as proc:
@@ -341,7 +348,7 @@ class LoadVideo:
                         break
         except Exception as e:
             logger.info(f"Retrying with opencv due to ffmpeg error: {e}")
-            return self.load_video_cv_fallback(video, force_rate, force_size, frame_load_cap, skip_first_frames)
+            return self.load_video_cv_fallback(video, search_folder, force_rate, force_size, frame_load_cap, skip_first_frames)
         args_all_frames = [ffmpeg_path, "-i", video_path, "-v", "error",
                              "-pix_fmt", "rgb24"]
 
@@ -381,7 +388,7 @@ class LoadVideo:
                         current_offset = 0
         except Exception as e:
             logger.info(f"Retrying with opencv due to ffmpeg error: {e}")
-            return self.load_video_cv_fallback(video, force_rate, force_size, frame_load_cap, skip_first_frames)
+            return self.load_video_cv_fallback(video, search_folder, force_rate, force_size, frame_load_cap, skip_first_frames)
 
         images = torch.from_numpy(np.stack(images))
         return (images, images.size(0))
@@ -395,9 +402,69 @@ class LoadVideo:
         return m.digest().hex()
 
     @classmethod
-    def VALIDATE_INPUTS(s, video, **kwargs):
-        if not folder_paths.exists_annotated_filepath(video):
+    def VALIDATE_INPUTS(s, video, search_folder,  **kwargs):
+        if not folder_paths.exists_annotated_filepath(video + f" [{search_folder}]"):
             return "Invalid image file: {}".format(video)
+
+        return True
+
+
+class SaveImageSequence:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "images": ("IMAGE",),
+                "timestamp_directory": ("BOOLEAN", {"default": False}),
+                "directory_name": ("STRING", {"default": "AnimateDiff"}),
+                "filename_prefix": ("STRING", {"default": "image"}),
+                "starting_number": ("INT", {"default": 0, "min": 0, "step": 1}),
+                "padding": ("INT", {"default": 0, "min": 0, "step": 1}),
+            },
+            "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
+        }
+
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
+
+    OUTPUT_NODE = True
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("directory",)
+    FUNCTION = "save_images"
+
+    def save_images(self, images: torch.Tensor, timestamp_directory, directory_name,
+                    filename_prefix, starting_number, padding, prompt = None, extra_pnginfo=None):
+        #NOTE: timestamp_directory is an unused placeholder for javascript
+        # If set, client code will automatically set the directory name
+        # goal: save image sequence,
+        # allowing user to choose padding amount and starting fraame number
+        # as well as subdirectory in output to save it as.
+        # Output directory should have option to either be a set name, or be dynamically
+        # generated with timestamp.
+        output_dir = os.path.join(folder_paths.get_output_directory(), directory_name)
+        os.makedirs(output_dir, exist_ok=True)
+        metadata = PngInfo()
+        if prompt is not None:
+            metadata.add_text("prompt", json.dumps(prompt))
+        if extra_pnginfo is not None:
+            for x in extra_pnginfo:
+                metadata.add_text(x, json.dumps(extra_pnginfo[x]))
+
+        for i, image in enumerate(images):
+            img = 255.0 * image.cpu().numpy()
+            img = Image.fromarray(np.clip(img, 0, 255).astype(np.uint8))
+            file = f"{filename_prefix}{{0:0{padding}d}}.png".format(i+starting_number)
+            file_path = os.path.join(output_dir, file)
+            img.save(file_path, pnginfo=metadata, compress_level=4)
+
+        return output_dir
+
+
+    @classmethod
+    def VALIDATE_INPUTS(s, **kwargs):
+        if kwargs['directory_name'].startswith('/') or '..' in kwargs['directory_name']:
+            return "Invalid, potentially dangerous directory name: " + kwargs['directory_name']
+        if kwargs['filename_prefix'].startswith('/') or '..' in kwargs['filename_prefix']:
+            return "Invalid, potentially dangerous prefix name: " + kwargs['filename_prefix']
 
         return True
 
@@ -507,6 +574,7 @@ NODE_CLASS_MAPPINGS = {
     "VHS_GetImageCount": GetImageCount,
     "VHS_DuplicateLatents": DuplicateLatents,
     "VHS_DuplicateImages": DuplicateImages,
+    "VHS_SaveImageSequence": SaveImageSequence,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_VideoCombine": "Video Combine 🎥🅥🅗🅢",
@@ -523,4 +591,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_GetImageCount": "Get Image Count 🎥🅥🅗🅢",
     "VHS_DuplicateLatents": "Duplicate Latent Batch 🎥🅥🅗🅢",
     "VHS_DuplicateImages": "Duplicate Image Batch 🎥🅥🅗🅢",
+    "VHS_SaveImageSequence": "Save Image Sequence 🎥🅥🅗🅢",
 }

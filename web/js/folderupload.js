@@ -54,7 +54,6 @@ function folderUpload(node, inputName, inputData, app) {
             if (i > 0) {
                 directoryWidget.value = directory.slice(0,directory.lastIndexOf('/'))
             }
-            app.file = fileInput.files[0]
         },
     });
     document.body.append(fileInput);
