@@ -47,5 +47,35 @@ app.registerExtension({
 				return r;
 			};
 		}
+		if (nodeData?.name == "VHS_SaveImageSequence") {
+			const onNodeCreated = nodeType.prototype.onNodeCreated;
+			nodeType.prototype.onNodeCreated = function () {
+				const r = onNodeCreated ? onNodeCreated.apply(this, arguments) : undefined;
+
+				const directoryWidget = this.widgets.find((w) => w.name === "directory_name");
+				const timestampWidget = this.widgets.find((w) => w.name === "timestamp_directory");
+                directoryWidget.serializeValue = () => {
+                    if (timestampWidget.value) {
+                        //ignore actual value and return timestamp
+                        return formatDate("yyyy-MM-ddThh:mm:ss", new Date());
+                    }
+                    return directoryWidget.value
+                };
+                directoryWidget._value = directoryWidget.value;
+                Object.defineProperty(directoryWidget, "value", {
+                    set : function(value) {
+                        directoryWidget._value = value;
+                    },
+                    get : function() {
+                        if (timestampWidget.value) {
+                            return "yyyy-MM-ddThh:mm:ss";
+                        }
+                        return directoryWidget._value;
+                    }
+                });
+
+				return r;
+			};
+		}
     },
 });
