@@ -396,22 +396,58 @@ class SaveImageSequence:
         return {
             "required": {
                 "images": ("IMAGE",),
-            }
+                "timestamp_directory": ("BOOLEAN", {"default": False}),
+                "directory_name": ("STRING", {"default": "AnimateDiff"}),
+                "filename_prefix": ("STRING", {"default": "image"}),
+                "starting_number": ("INT", {"default": 0, "min": 0, "step": 1}),
+                "padding": ("INT", {"default": 0, "min": 0, "step": 1}),
+            },
+            "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
         }
-    
+
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
 
+    OUTPUT_NODE = True
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("directory",)
     FUNCTION = "save_images"
-    
-    def save_images(self, images: torch.Tensor):
+
+    def save_images(self, images: torch.Tensor, timestamp_directory, directory_name,
+                    filename_prefix, starting_number, padding, prompt = None, extra_pnginfo=None):
+        #NOTE: timestamp_directory is an unused placeholder for javascript
+        # If set, client code will automatically set the directory name
         # goal: save image sequence,
         # allowing user to choose padding amount and starting fraame number
         # as well as subdirectory in output to save it as.
         # Output directory should have option to either be a set name, or be dynamically
         # generated with timestamp.
-        pass
+        output_dir = os.path.join(folder_paths.get_output_directory(), directory_name)
+        os.makedirs(output_dir, exist_ok=True)
+        metadata = PngInfo()
+        if prompt is not None:
+            metadata.add_text("prompt", json.dumps(prompt))
+        if extra_pnginfo is not None:
+            for x in extra_pnginfo:
+                metadata.add_text(x, json.dumps(extra_pnginfo[x]))
+
+        for i, image in enumerate(images):
+            img = 255.0 * image.cpu().numpy()
+            img = Image.fromarray(np.clip(img, 0, 255).astype(np.uint8))
+            file = f"{filename_prefix}{{0:0{padding}d}}.png".format(i+starting_number)
+            file_path = os.path.join(output_dir, file)
+            img.save(file_path, pnginfo=metadata, compress_level=4)
+
+        return output_dir
+
+
+    @classmethod
+    def VALIDATE_INPUTS(s, **kwargs):
+        if kwargs['directory_name'].startswith('/') or '..' in kwargs['directory_name']:
+            return "Invalid, potentially dangerous directory name: " + kwargs['directory_name']
+        if kwargs['filename_prefix'].startswith('/') or '..' in kwargs['filename_prefix']:
+            return "Invalid, potentially dangerous prefix name: " + kwargs['filename_prefix']
+
+        return True
 
 
 class LoadImagesFromDirectory:
@@ -519,6 +555,7 @@ NODE_CLASS_MAPPINGS = {
     "VHS_GetImageCount": GetImageCount,
     "VHS_DuplicateLatents": DuplicateLatents,
     "VHS_DuplicateImages": DuplicateImages,
+    "VHS_SaveImageSequence": SaveImageSequence,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_VideoCombine": "Video Combine 🎥🅥🅗🅢",
@@ -535,4 +572,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_GetImageCount": "Get Image Count 🎥🅥🅗🅢",
     "VHS_DuplicateLatents": "Duplicate Latent Batch 🎥🅥🅗🅢",
     "VHS_DuplicateImages": "Duplicate Image Batch 🎥🅥🅗🅢",
+    "VHS_SaveImageSequence": "Save Image Sequence 🎥🅥🅗🅢",
 }
