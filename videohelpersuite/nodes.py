@@ -357,7 +357,7 @@ class LoadVideo:
                     size = [int(match.group(1)), int(match.group(2))]
                     break
         args_all_frames = [ffmpeg_path, "-an", "-i", video_path, "-v", "error",
-                             "-pix_fmt", "rgb24", "-fps_mode", "drop"]
+                             "-pix_fmt", "rgb24", "-vsync", "2"]
 
         vfilters = []
         if force_rate != 0:
