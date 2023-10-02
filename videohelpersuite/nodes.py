@@ -282,7 +282,7 @@ class LoadVideo:
                 target_frame_time = base_frame_time
             else:
                 target_frame_time = 1/force_rate
-            time_offset=0.0
+            time_offset=target_frame_time - base_frame_time
             while video_cap.isOpened():
                 if time_offset < target_frame_time:
                     is_returned, frame = video_cap.read()
@@ -342,22 +342,21 @@ class LoadVideo:
         except Exception as e:
             logger.info(f"Retrying with opencv due to ffmpeg error: {e}")
             return self.load_video_cv_fallback(video, force_rate, force_size, frame_load_cap, skip_first_frames)
-        args_all_frames = [ffmpeg_path, "-i", video_path, "-v", "error",
-                             "-pix_fmt", "rgb24"]
+        args_all_frames = [ffmpeg_path, "-an", "-i", video_path, "-v", "error",
+                             "-pix_fmt", "rgb24", "-fps_mode", "vfr"]
 
         vfilters = []
         if force_rate != 0:
-            vfilters.append("fps="+str(force_rate))
+            vfilters.append("fps=fps="+str(force_rate) + ":round=up")
         if skip_first_frames > 0:
             vfilters.append(f"select=gt(n\\,{skip_first_frames-1})")
-        if frame_load_cap > 0:
-            vfilters.append(f"select=gt({frame_load_cap}\\,n)")
-        #manually calculate aspect ratio to ensure reads remain aligned
         if force_size != "Disabled":
             size = self.target_size(size[0], size[1], force_size)
             vfilters.append(f"scale={size[0]}:{size[1]}")
         if len(vfilters) > 0:
             args_all_frames += ["-vf", ",".join(vfilters)]
+        if frame_load_cap > 0:
+            args_all_frames += ["-frames:v", str(frame_load_cap)]
 
         args_all_frames += ["-f", "rawvideo", "-"]
         images = []
