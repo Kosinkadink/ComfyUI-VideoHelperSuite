@@ -35,14 +35,15 @@ def target_size(width, height, force_size) -> tuple[int, int]:
 
 
 
-def load_video_cv(video, force_rate, force_size, frame_load_cap, skip_first_frames):
+def load_video_cv(video: str, force_rate: int, force_size: str, frame_load_cap: int, skip_first_frames: int, select_every_nth: int):
     try:
-        video_cap = cv2.VideoCapture(folder_paths.get_annotated_filepath(video))
+        video_cap = cv2.VideoCapture(folder_paths.get_annotated_filepath(video.strip("\"")))
         if not video_cap.isOpened():
             raise ValueError(f"{video} could not be loaded with cv.")
         # set video_cap to look at start_index frame
         images = []
         total_frame_count = 0
+        total_frames_evaluated = -1
         frames_added = 0
         base_frame_time = 1/video_cap.get(cv2.CAP_PROP_FPS)
         width = video_cap.get(cv2.CAP_PROP_FRAME_WIDTH)
@@ -65,6 +66,12 @@ def load_video_cv(video, force_rate, force_size, frame_load_cap, skip_first_fram
             # if not at start_index, skip doing anything with frame
             total_frame_count += 1
             if total_frame_count <= skip_first_frames:
+                continue
+            else:
+                total_frames_evaluated += 1
+
+            # if should not be selected, skip doing anything with frame
+            if total_frames_evaluated%select_every_nth != 0:
                 continue
 
             # opencv loads images in BGR format (yuck), so need to convert to RGB for ComfyUI use
@@ -111,6 +118,7 @@ class LoadVideoUpload:
                      "force_size": (["Disabled", "256x?", "?x256", "256x256", "512x?", "?x512", "512x512"],),
                      "frame_load_cap": ("INT", {"default": 0, "min": 0, "step": 1}),
                      "skip_first_frames": ("INT", {"default": 0, "min": 0, "step": 1}),
+                     "select_every_nth": ("INT", {"default": 1, "min": 1, "step": 1}),
                      },}
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
@@ -148,6 +156,7 @@ class LoadVideoPath:
                 "force_size": (["Disabled", "256x?", "?x256", "256x256", "512x?", "?x512", "512x512"],),
                 "frame_load_cap": ("INT", {"default": 0, "min": 0, "step": 1}),
                 "skip_first_frames": ("INT", {"default": 0, "min": 0, "step": 1}),
+                "select_every_nth": ("INT", {"default": 1, "min": 1, "step": 1}),
             },
         }
 
@@ -166,10 +175,10 @@ class LoadVideoPath:
 
     @classmethod
     def IS_CHANGED(s, video, **kwargs):
-        return calculate_file_hash(video)
+        return calculate_file_hash(video.strip("\""))
 
     @classmethod
     def VALIDATE_INPUTS(s, video, **kwargs):
-        if not os.path.isfile(video):
+        if not os.path.isfile(video.strip("\"")):
             return "Invalid video file: {}".format(video)
         return True
