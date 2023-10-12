@@ -107,8 +107,12 @@ const gif_preview = {
               nodeType.prototype.onNodeCreated = function () {
                 this.addWidget("button", "Sync playback", null, () => {
                   const videoElements = document.querySelectorAll('video');
+                  const gifElements = document.querySelectorAll('img');
                   videoElements.forEach(video => {
                     video.currentTime = 0;
+                  });
+                  gifElements.forEach(gif => {
+                    gif.src = gif.src;
                   });
                 });
               }
