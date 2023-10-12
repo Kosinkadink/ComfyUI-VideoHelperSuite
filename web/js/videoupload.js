@@ -90,7 +90,7 @@ function videoUpload(node, inputName, inputData, app) {
 ComfyWidgets.VIDEOUPLOAD = videoUpload;
 
 app.registerExtension({
-	name: "VideoHelperSuit.UploadVideo",
+	name: "VideoHelperSuite.UploadVideo",
 	async beforeRegisterNodeDef(nodeType, nodeData, app) {
 		if (nodeData?.name == "VHS_LoadVideo") {
             console.log("test")
