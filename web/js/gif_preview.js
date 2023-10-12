@@ -92,6 +92,10 @@ const CreatePreviewElement = (name, val, format) => {
       w.inputRatio = w.inputEl.naturalWidth / w.inputEl.naturalHeight
     }
     document.body.appendChild(w.inputEl)
+    const videoElements = document.querySelectorAll('video');
+      videoElements.forEach(video => {
+        video.currentTime = 0;
+      });
     return w
   }
 
@@ -100,6 +104,14 @@ const gif_preview = {
     async beforeRegisterNodeDef(nodeType, nodeData, app) {
         switch (nodeData.name) {
             case 'VHS_VideoCombine':{
+              nodeType.prototype.onNodeCreated = function () {
+                this.addWidget("button", "Sync playback", null, () => {
+                  const videoElements = document.querySelectorAll('video');
+                  videoElements.forEach(video => {
+                    video.currentTime = 0;
+                  });
+                });
+              }
                 const onExecuted = nodeType.prototype.onExecuted
                 nodeType.prototype.onExecuted = function (message) {
                 const prefix = 'vhs_gif_preview_'
