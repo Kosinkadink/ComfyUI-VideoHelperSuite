@@ -82,7 +82,9 @@ const CreatePreviewElement = (name, val, format) => {
 
     w.inputEl = document.createElement(type === 'video' ? 'video' : 'img')
     w.inputEl.src = w.value
+    w.inputEl.id = 'vhs_gif_preview';
     if (type === 'video') {
+      w.inputEl.id = 'vhs_video_preview';
       w.inputEl.setAttribute('type', 'video/webm');
       w.inputEl.autoplay = true
       w.inputEl.loop = true
@@ -106,8 +108,8 @@ const gif_preview = {
             case 'VHS_VideoCombine':{
               nodeType.prototype.onNodeCreated = function () {
                 this.addWidget("button", "Sync playback", null, () => {
-                  const videoElements = document.querySelectorAll('video');
-                  const gifElements = document.querySelectorAll('img');
+                  const videoElements = document.querySelectorAll('#vhs_video_preview');
+                  const gifElements = document.querySelectorAll('#vhs_gif_preview');
                   videoElements.forEach(video => {
                     video.currentTime = 0;
                   });
