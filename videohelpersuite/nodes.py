@@ -10,7 +10,7 @@ from PIL.PngImagePlugin import PngInfo
 import folder_paths
 from .logger import logger
 from .image_latent_nodes import DuplicateImages, DuplicateLatents, GetImageCount, GetLatentCount, MergeImages, MergeLatents, SelectEveryNthImage, SelectEveryNthLatent, SplitLatents, SplitImages
-from .load_video_nodes import LoadVideoUpload, LoadVideoPath
+from .load_video_nodes import LoadVideo, UploadVideo, OutVideoInfo
 from .load_images_nodes import LoadImagesFromDirectoryUpload, LoadImagesFromDirectoryPath
 
 folder_paths.folder_names_and_paths["video_formats"] = (
@@ -219,10 +219,11 @@ class VideoCombine:
 
 NODE_CLASS_MAPPINGS = {
     "VHS_VideoCombine": VideoCombine,
-    "VHS_LoadVideo": LoadVideoUpload,
-    "VHS_LoadVideoPath": LoadVideoPath,
+    "VHS_LoadVideo": LoadVideo,
+    "VHS_OutVideoInfo": OutVideoInfo,
     "VHS_LoadImages": LoadImagesFromDirectoryUpload,
     "VHS_LoadImagesPath": LoadImagesFromDirectoryPath,
+    "VHS_UploadVideo": UploadVideo,
     # Latent and Image nodes
     "VHS_SplitLatents": SplitLatents,
     "VHS_SplitImages": SplitImages,
@@ -237,10 +238,11 @@ NODE_CLASS_MAPPINGS = {
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_VideoCombine": "Video Combine 🎥🅥🅗🅢",
-    "VHS_LoadVideo": "Load Video (Upload) 🎥🅥🅗🅢",
-    "VHS_LoadVideoPath": "Load Video (Path) 🎥🅥🅗🅢",
+    "VHS_LoadVideo": "Load Video 🎥🅥🅗🅢",
+    "VHS_OutVideoInfo": "Output Video Info 🎥🅥🅗🅢",
     "VHS_LoadImages": "Load Images (Upload) 🎥🅥🅗🅢",
     "VHS_LoadImagesPath": "Load Images (Path) 🎥🅥🅗🅢",
+    "VHS_UploadVideo": "Upload Video 🎥🅥🅗🅢",
     # Latent and Image nodes
     "VHS_SplitLatents": "Split Latent Batch 🎥🅥🅗🅢",
     "VHS_SplitImages": "Split Image Batch 🎥🅥🅗🅢",
