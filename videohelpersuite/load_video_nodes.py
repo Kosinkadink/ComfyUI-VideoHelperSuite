@@ -17,31 +17,31 @@ ACCEPTED_IMAGE_EXTENSIONS = ['gif', 'webp', 'apng', 'mjpeg']
 class VideoInfo:
     
     def __init__(self):
-        self.input_frame_count = 0
-        self.input_fps = 0.0
-        self.input_video_duration = 0.0
-        self.input_frame_time = 0.0
+        self.original_frame_count = 0
+        self.original_fps = 0.0
+        self.original_video_duration = 0.0
+        self.original_frame_time = 0.0
         
-        self.effective_frame_count = 0
-        self.effective_fps = 0.0
-        self.effective_video_duration = 0.0
-        self.effective_frame_time = 0.0
+        self.actual_frame_count = 0
+        self.actual_fps = 0.0
+        self.actual_video_duration = 0.0
+        self.actual_frame_time = 0.0
         
     @staticmethod
-    def build_video_info(input_fps, input_frame_count, desired_frame_rate, frames_added):
+    def build_video_info(original_fps, original_frame_count, desired_frame_rate, frames_added):
         
         video_info = VideoInfo()
         
-        video_info.input_fps = input_fps
-        video_info.input_frame_count = input_frame_count
-        video_info.input_video_duration = input_frame_count / input_fps
-        video_info.input_frame_time = 1 / input_fps
+        video_info.original_fps = original_fps
+        video_info.original_frame_count = original_frame_count
+        video_info.original_video_duration = original_frame_count / original_fps
+        video_info.original_frame_time = 1 / original_fps
         
-        effective_fps = desired_frame_rate if desired_frame_rate > 0.001 else input_fps
-        video_info.effective_fps = effective_fps
-        video_info.effective_frame_count = frames_added
-        video_info.effective_video_duration = frames_added / effective_fps
-        video_info.effective_frame_time = 1 / effective_fps
+        actual_fps = desired_frame_rate if desired_frame_rate > 0.001 else original_fps
+        video_info.actual_fps = actual_fps
+        video_info.actual_frame_count = frames_added
+        video_info.actual_video_duration = frames_added / actual_fps
+        video_info.actual_frame_time = 1 / actual_fps
         
         return video_info
 
@@ -80,26 +80,75 @@ class OutVideoInfo:
     )
     
     RETURN_NAMES = (
-        "input_frame_count", "input_fps", 
-        "input_video_duration", "input_frame_time", 
+        "original_frame_count", "original_fps", 
+        "original_video_duration", "original_frame_time", 
         
-        "effective_frame_count", "effective_fps", 
-        "effective_video_duration", "effective_frame_time", 
+        "actual_frame_count", "actual_fps", 
+        "actual_video_duration", "actual_frame_time", 
     )
     
     FUNCTION = "output_video_info"
 
     def output_video_info(self, in_video_info : VideoInfo):
         out = (
-            in_video_info.input_frame_count, in_video_info.input_fps, 
-            in_video_info.input_video_duration, in_video_info.input_frame_time,
+            in_video_info.original_frame_count, in_video_info.original_fps, 
+            in_video_info.original_video_duration, in_video_info.original_frame_time,
             
-            in_video_info.effective_frame_count, in_video_info.effective_fps, 
-            in_video_info.effective_video_duration, in_video_info.effective_frame_time
+            in_video_info.actual_frame_count, in_video_info.actual_fps, 
+            in_video_info.actual_video_duration, in_video_info.actual_frame_time
         )
-        print(out)
+        #print(out)
         return out
+    
+class LoadVideoUpload:
+    @classmethod
+    def INPUT_TYPES(s):
+        files = []
+        for input_type in UploadVideo.INPUT_DIR_TYPE_NAMES:
+            input_dir = UploadVideo.get_selected_upload_directory(input_type)
+            if not os.path.isdir(input_dir):
+                continue
+            for f in os.listdir(input_dir):
+                if os.path.isfile(os.path.join(input_dir, f)):
+                    file_parts = f.split('.')
+                    if len(file_parts) > 1 and (file_parts[-1] in ACCEPTED_VIDEO_EXTENSIONS + ACCEPTED_IMAGE_EXTENSIONS):
+                        files.append(f"{input_type}/{UploadVideo.UPLOAD_SUBDIRECTORY}/{f}")
+        return {"required": {
+                    "video": (sorted(files), {"video_upload": True}),
+                    "upload_to_directory": (UploadVideo.INPUT_DIR_TYPE_NAMES,),
+                    "desired_frame_rate": ("FLOAT", {"default": 0, "min": 0, "step": 1}),
+                     "force_size": (["Disabled", "256x?", "?x256", "256x256", "512x?", "?x512", "512x512"],),
+                     "frame_load_cap": ("INT", {"default": 0, "min": 0, "step": 1}),
+                     "skip_first_frames": ("INT", {"default": 0, "min": 0, "step": 1}),
+                     "select_every_nth": ("INT", {"default": 1, "min": 1, "step": 1}),
+                     },}
 
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
+
+    RETURN_TYPES = ("IMAGE", "INT", "VHS_VIDEO_INFO",)
+    RETURN_NAMES = ("IMAGE", "frame_count", "video_info",)
+    FUNCTION = "load_video"
+
+    known_exceptions = []
+    def load_video(self, video, upload_to_directory, **kwargs):
+        try:
+            return LoadVideo.load_video_cv(video, **kwargs)
+        except Exception as e:
+            raise RuntimeError(f"Failed to load video: {video}\ndue to: {e.__str__()}")
+
+    @classmethod
+    def IS_CHANGED(s, video, upload_to_directory, **kwargs):
+        if video is None: # If "video" is a pin
+            print(f'running IS_CHANGED, video is None')
+            return ''
+        return calculate_file_hash(UploadVideo.get_full_path(video, upload_to_directory))
+
+    @classmethod
+    def VALIDATE_INPUTS(s, video, upload_to_directory, **kwargs):
+        full_path = UploadVideo.get_full_path(video, upload_to_directory)
+        if not os.path.isfile(full_path):
+            return f"Invalid video file: {full_path}"
+        return True
 
 class LoadVideo:
     @classmethod
@@ -117,8 +166,8 @@ class LoadVideo:
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
 
-    RETURN_TYPES = ("IMAGE", "VHS_VIDEO_INFO",)
-    RETURN_NAMES = ("IMAGE", "video_info",)
+    RETURN_TYPES = ("IMAGE", "INT", "VHS_VIDEO_INFO",)
+    RETURN_NAMES = ("IMAGE", "frame_count", "video_info",)
     FUNCTION = "load_video"
     
     known_exceptions = []
@@ -185,22 +234,22 @@ class LoadVideo:
         frames = ImageSequence.Iterator(loaded_video)
         
         images = []
-        input_frame_time = None
+        original_frame_time = None
         for image in frames:
-            if input_frame_time is None:
+            if original_frame_time is None:
                 if 'duration' not in image.info:
                     image.load()
-                input_frame_time = image.info.get('duration', None)
+                original_frame_time = image.info.get('duration', None)
             image = np.array(image, dtype=np.float32) / 255.0
             image = torch.from_numpy(image)[None,]
             images.append(image)
             
-        if input_frame_time is None:
-            raise Exception(f"Could not get input_frame_time from video: {video}")
+        if original_frame_time is None:
+            raise Exception(f"Could not get original_frame_time from video: {video}")
             
-        input_frame_count = len(images)
+        original_frame_count = len(images)
             
-        input_fps = 1000 / input_frame_time
+        original_fps = 1000 / original_frame_time
         width = loaded_video.width
         height = loaded_video.height
     
@@ -219,7 +268,7 @@ class LoadVideo:
     
         out_images = LoadVideo.force_size(force_size, width, height, out_images)
     
-        return (out_images, VideoInfo.build_video_info(input_fps, input_frame_count, input_fps, len(out_images)))
+        return (out_images, original_frame_count, VideoInfo.build_video_info(original_fps, original_frame_count, original_fps, len(out_images)))
     
     def load_video_cv(
             video: str, desired_frame_rate: float, force_size: str, frame_load_cap: int, skip_first_frames: int, select_every_nth: int):
@@ -234,26 +283,26 @@ class LoadVideo:
                 return retry_with_pil(video, desired_frame_rate, force_size, frame_load_cap, skip_first_frames, select_every_nth)
             # set video_cap to look at start_index frame
             images = []
-            input_frame_count = video_cap.get(cv2.CAP_PROP_FRAME_COUNT)
+            original_frame_count = video_cap.get(cv2.CAP_PROP_FRAME_COUNT)
             total_frame_count = 0
             total_frames_evaluated = -1
             frames_added = 0
-            input_fps = video_cap.get(cv2.CAP_PROP_FPS)
-            input_frame_time = 1/input_fps
+            original_fps = video_cap.get(cv2.CAP_PROP_FPS)
+            original_frame_time = 1/original_fps
             width = video_cap.get(cv2.CAP_PROP_FRAME_WIDTH)
             height = video_cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
             if desired_frame_rate < 0.001:
-                target_frame_time = input_frame_time
+                target_frame_time = original_frame_time
             else:
                 target_frame_time = 1/desired_frame_rate
-            time_offset=target_frame_time - input_frame_time
+            time_offset=target_frame_time - original_frame_time
             while video_cap.isOpened():
                 if time_offset < target_frame_time:
                     is_returned, frame = video_cap.read()
                     # if didn't return frame, video has ended
                     if not is_returned:
                         break
-                    time_offset += input_frame_time
+                    time_offset += original_frame_time
                 if time_offset < target_frame_time:
                     continue
                 time_offset -= target_frame_time
@@ -290,7 +339,7 @@ class LoadVideo:
         
         images = LoadVideo.force_size(force_size, width, height, images)
                 
-        return (images, VideoInfo.build_video_info(input_fps, input_frame_count, desired_frame_rate, frames_added))
+        return (images, original_frame_count, VideoInfo.build_video_info(original_fps, original_frame_count, desired_frame_rate, frames_added))
 
 
 class UploadVideo:

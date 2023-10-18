@@ -157,6 +157,8 @@ const gif_preview = {
 				}
 				break
 			}
+			case "VHS_LoadVideoUpload":
+				// Fall into next case
 			case 'VHS_UploadVideo': {
 				const onAdded = nodeType.prototype.onAdded;
 				nodeType.prototype.onAdded = function() {
