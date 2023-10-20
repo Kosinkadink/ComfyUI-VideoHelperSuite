@@ -131,11 +131,111 @@ function videoUpload(node, inputName, inputData, app) {
 
 ComfyWidgets.VIDEOUPLOAD = videoUpload;
 
+function addCustomSize(nodeType, nodeData, widgetName) {
+    function chainCallback(object, property, callback) {
+        if (property in object) {
+            const callback_orig = object[property]
+            object[property] = function () {
+                const r = callback_orig.apply(this, arguments);
+                callback.apply(this, arguments);
+                return r
+            };
+        } else {
+            object[property] = callback;
+        }
+    }
+
+    function injectHidden(widget) {
+        widget.computeSize = (target_width) => {
+            if (widget.hidden) {
+                return [0, -4];
+            }
+            return [target_width, 20];
+        };
+        widget._type = widget.type
+        Object.defineProperty(widget, "type", {
+            set : function(value) {
+                widget._type = value;
+            },
+            get : function() {
+                if (widget.hidden) {
+                    return "hidden";
+                }
+                return widget._type;
+            }
+        });
+    }
+
+    //Add the extra size widgets now
+    //This takes some finagling as widget order is defined by key order
+    const newWidgets = {}
+    for (let key in nodeData.input.required) {
+        newWidgets[key] = nodeData.input.required[key]
+        if (key == widgetName) {
+            newWidgets[key][0] = newWidgets[key][0].concat(["Custom Width", "Custom Height", "Custom"])
+            newWidgets["custom_width"] = ["INT", {"default": 512, "min": 8, "step": 8}]
+            newWidgets["custom_height"] = ["INT", {"default": 512, "min": 8, "step": 8}]
+        }
+    }
+    nodeData.input.required = newWidgets;
+
+    //Add a callback which sets up the actual logic once the node is created
+    chainCallback(nodeType.prototype, "onNodeCreated", function() {
+        const node = this;
+        const sizeOptionWidget = node.widgets.find((w) => w.name === widgetName);
+        const widthWidget = node.widgets.find((w) => w.name === "custom_width");
+        const heightWidget = node.widgets.find((w) => w.name === "custom_height");
+        injectHidden(widthWidget);
+        widthWidget.serialize = false;
+        injectHidden(heightWidget);
+        heightWidget.serialize = false;
+        sizeOptionWidget._value = sizeOptionWidget.value;
+        Object.defineProperty(sizeOptionWidget, "value", {
+            set : function(value) {
+                //TODO: Only modify hidden/reset size when a change occurs
+                if (value == "Custom Width") {
+                    widthWidget.hidden = false;
+                    heightWidget.hidden = true;
+                } else if (value == "Custom Height") {
+                    widthWidget.hidden = true;
+                    heightWidget.hidden = false;
+                } else if (value == "Custom") {
+                    widthWidget.hidden = false;
+                    heightWidget.hidden = false;
+                } else{
+                    widthWidget.hidden = true;
+                    heightWidget.hidden = true;
+                }
+                node.setSize([node.size[0], node.computeSize([node.size[0], node.size[1]])[1]])
+                this._value = value;
+            },
+            get : function() {
+                return this._value;
+            }
+        });
+        //Ensure proper visibility/size state for initial value
+        sizeOptionWidget.value = sizeOptionWidget._value;
+
+        sizeOptionWidget.serializeValue = function() {
+            if (this.value == "Custom Width") {
+                return widthWidget.value + "x?";
+            } else if (this.value == "Custom Height") {
+                return "?x" + heightWidget.value;
+            } else if (this.value == "Custom") {
+                return widthWidget.value + "x" + heightWidget.value;
+            } else {
+                return this.value;
+            }
+        };
+    });
+}
+
 app.registerExtension({
 	name: "VideoHelperSuite.UploadVideo",
 	async beforeRegisterNodeDef(nodeType, nodeData, app) {
 		switch (nodeData?.name) {
 			case "VHS_LoadVideo":
+                addCustomSize(nodeType, nodeData, "force_size");
 				// Fall into next case
 			case 'VHS_UploadVideo': {
 				nodeData.input.required.upload = ["VIDEOUPLOAD"];
