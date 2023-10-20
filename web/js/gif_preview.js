@@ -100,7 +100,6 @@ const CreatePreviewElement = (name, val, format) => {
 	}
 
 	w.inputEl.onload = function() {
-		console.log("ONLOAD")
 		w.inputRatio = w.inputEl.naturalWidth / w.inputEl.naturalHeight
 	}
 	document.body.appendChild(w.inputEl)
