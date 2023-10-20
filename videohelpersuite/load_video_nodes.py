@@ -132,7 +132,7 @@ class LoadVideoUpload:
     known_exceptions = []
     def load_video(self, video, upload_to_directory, **kwargs):
         try:
-            return LoadVideo.load_video_cv(video, **kwargs)
+            return LoadVideoPath.load_video_cv(video, **kwargs)
         except Exception as e:
             raise RuntimeError(f"Failed to load video: {video}\ndue to: {e.__str__()}")
 
@@ -150,7 +150,7 @@ class LoadVideoUpload:
             return f"Invalid video file: {full_path}"
         return True
 
-class LoadVideo:
+class LoadVideoPath:
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -173,7 +173,7 @@ class LoadVideo:
     known_exceptions = []
     def load_video(self, **kwargs):
         try:
-            return LoadVideo.load_video_cv(**kwargs)
+            return LoadVideoPath.load_video_cv(**kwargs)
         except Exception as e:
             raise RuntimeError(f"Failed to load video: {kwargs['video']}\ndue to: {e.__str__()}")
 
@@ -206,7 +206,7 @@ class LoadVideo:
     
     def force_size(force_size, width, height, images):
         if force_size != "Disabled":
-            new_size = LoadVideo.target_size(width, height, force_size)
+            new_size = LoadVideoPath.target_size(width, height, force_size)
             if new_size[0] != width or new_size[1] != height:
                 s = images.movedim(-1,1)
                 s = common_upscale(s, new_size[0], new_size[1], "lanczos", "disabled")
@@ -266,7 +266,7 @@ class LoadVideo:
         
         out_images = torch.cat(out_images, dim=0)
     
-        out_images = LoadVideo.force_size(force_size, width, height, out_images)
+        out_images = LoadVideoPath.force_size(force_size, width, height, out_images)
     
         return (out_images, original_frame_count, VideoInfo.build_video_info(original_fps, original_frame_count, original_fps, len(out_images)))
     
@@ -275,7 +275,7 @@ class LoadVideo:
         
         def retry_with_pil(video, desired_frame_rate, force_size, frame_load_cap, skip_first_frames, select_every_nth):
             logger.info(f"Retrying with pil due to opencv error")
-            return LoadVideo.load_video_pil(video, desired_frame_rate, force_size, frame_load_cap, skip_first_frames, select_every_nth)
+            return LoadVideoPath.load_video_pil(video, desired_frame_rate, force_size, frame_load_cap, skip_first_frames, select_every_nth)
         
         try:
             video_cap = cv2.VideoCapture(video)
@@ -337,7 +337,7 @@ class LoadVideo:
         else:
             return retry_with_pil(video, desired_frame_rate, force_size, frame_load_cap, skip_first_frames, select_every_nth)
         
-        images = LoadVideo.force_size(force_size, width, height, images)
+        images = LoadVideoPath.force_size(force_size, width, height, images)
                 
         return (images, original_frame_count, VideoInfo.build_video_info(original_fps, original_frame_count, desired_frame_rate, frames_added))
 
