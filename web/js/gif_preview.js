@@ -87,13 +87,14 @@ const CreatePreviewElement = (name, val, format) => {
 
 	w.inputEl = document.createElement(type === 'video' ? 'video' : 'img')
 	w.inputEl.src = w.value
-
+	w.inputEl.id = "vhs_gif_preview"
 	w.inputEl.onload = function() {
 		w.inputRatio = w.inputEl.naturalWidth / w.inputEl.naturalHeight
 
 		if (type === 'video') {
 			setTimeout(_=>{
 				w.inputEl.setAttribute('type', 'video/webm');
+				w.inputEl.id = "vhs_video_preview"
 				w.inputEl.muted = true;
 				w.inputEl.autoplay = true
 				w.inputEl.loop = true
@@ -102,10 +103,6 @@ const CreatePreviewElement = (name, val, format) => {
 		}
 	}
 	document.body.appendChild(w.inputEl)
-	const videoElements = document.querySelectorAll('video');
-	videoElements.forEach(video => {
-		video.currentTime = 0;
-	});
 	return w
 }
 
@@ -114,14 +111,18 @@ const gif_preview = {
 	async beforeRegisterNodeDef(nodeType, nodeData, app) {
 		switch (nodeData.name) {
 			case 'VHS_VideoCombine': {
-				nodeType.prototype.onNodeCreated = function() {
+				nodeType.prototype.onNodeCreated = function () {
 					this.addWidget("button", "Sync playback", null, () => {
-						const videoElements = document.querySelectorAll('video');
-						videoElements.forEach(video => {
-							video.currentTime = 0;
-						});
+					  const videoElements = document.querySelectorAll('#vhs_video_preview');
+					  const gifElements = document.querySelectorAll('#vhs_gif_preview');
+					  videoElements.forEach(video => {
+						video.currentTime = 0;
+					  });
+					  gifElements.forEach(gif => {
+						gif.src = gif.src;
+					  });
 					});
-				}
+				  }
 				const onExecuted = nodeType.prototype.onExecuted
 				nodeType.prototype.onExecuted = function(message) {
 					const prefix = 'vhs_gif_preview_'
