@@ -135,7 +135,7 @@ app.registerExtension({
 	name: "VideoHelperSuite.UploadVideo",
 	async beforeRegisterNodeDef(nodeType, nodeData, app) {
 		switch (nodeData?.name) {
-			case "VHS_LoadVideoUpload":
+			case "VHS_LoadVideo":
 				// Fall into next case
 			case 'VHS_UploadVideo': {
 				nodeData.input.required.upload = ["VIDEOUPLOAD"];
