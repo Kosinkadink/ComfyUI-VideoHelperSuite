@@ -80,11 +80,11 @@ class OutVideoInfo:
     )
     
     RETURN_NAMES = (
-        "original_frame_count", "original_fps", 
-        "original_video_duration", "original_frame_time", 
+        "original_frame_count🟨", "original_fps🟨", 
+        "original_video_duration🟨", "original_frame_time🟨", 
         
-        "actual_frame_count", "actual_fps", 
-        "actual_video_duration", "actual_frame_time", 
+        "actual_frame_count🟩", "actual_fps🟩", 
+        "actual_video_duration🟩", "actual_frame_time🟩", 
     )
     
     FUNCTION = "output_video_info"
