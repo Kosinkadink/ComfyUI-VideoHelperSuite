@@ -89,6 +89,7 @@ const CreatePreviewElement = (name, val, format) => {
 	w.inputEl.src = w.value
 	w.inputEl.id = "vhs_gif_preview"
 	w.inputEl.onload = function() {
+		console.log("ONLOAD")
 		w.inputRatio = w.inputEl.naturalWidth / w.inputEl.naturalHeight
 
 		if (type === 'video') {
