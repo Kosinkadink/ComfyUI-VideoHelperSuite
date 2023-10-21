@@ -13,8 +13,6 @@ from .utils import calculate_file_hash, get_sorted_dir_files_from_directory
 ACCEPTED_VIDEO_EXTENSIONS = ['webm', 'mp4', 'mkv', 'mov']
 ACCEPTED_IMAGE_EXTENSIONS = ['gif', 'webp', 'apng', 'mjpeg']
 
-PIL_FALLBACK_EXTENSIONS = ['webp', 'apng', 'mjpeg'] # TODO - use this to determine what gets used by load_video_pil
-
 
 class VideoInfo:
     
@@ -259,7 +257,7 @@ class LoadVideoPath:
         if skip_first_frames != 0:
             images = images[skip_first_frames:]
         if frame_load_cap != 0:
-            images = images[:frame_load_cap]
+            images = images[skip_first_frames:frame_load_cap]
         
         out_images = []
         for i, image in enumerate(images):
@@ -282,10 +280,7 @@ class LoadVideoPath:
         try:
             video_cap = cv2.VideoCapture(video)
             if not video_cap.isOpened():
-                raise ValueError(f"{video} could not be loaded with cv.")
-                # TODO: fix retry_with_pil logic; make it so pil is used specifically for motion image types 
-                # like webp, apng, and mpjpeg while everything else goes through load_video_cv
-                #return retry_with_pil(video, desired_frame_rate, force_size, frame_load_cap, skip_first_frames, select_every_nth)
+                return retry_with_pil(video, desired_frame_rate, force_size, frame_load_cap, skip_first_frames, select_every_nth)
             # set video_cap to look at start_index frame
             images = []
             original_frame_count = int(video_cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -337,12 +332,11 @@ class LoadVideoPath:
                     break
         finally:
             video_cap.release()
-        if len(images) == 0:
-            raise RuntimeError("No frames generated")
-        #else:
-        #    return retry_with_pil(video, desired_frame_rate, force_size, frame_load_cap, skip_first_frames, select_every_nth)
+        if len(images) > 0:
+           images = torch.cat(images, dim=0)
+        else:
+            return retry_with_pil(video, desired_frame_rate, force_size, frame_load_cap, skip_first_frames, select_every_nth)
         
-        images = torch.cat(images, dim=0)
         images = LoadVideoPath.force_size(force_size, width, height, images)
                 
         return (images, frames_added, VideoInfo.build_video_info(original_fps, original_frame_count, desired_frame_rate, frames_added))

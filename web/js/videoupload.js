@@ -50,7 +50,7 @@ function videoUpload(node, inputName, inputData, app) {
 			const body = new FormData();
 			body.append("image", file);
 			body.append("type", typeWidget.value);
-			body.append("subfolder", ""); // TODO: handle subfolder properly
+			body.append("subfolder", "VHS_upload");
 			const resp = await api.fetchApi("/upload/image", {
 				method: "POST",
 				body,
