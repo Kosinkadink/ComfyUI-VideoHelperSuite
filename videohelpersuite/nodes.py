@@ -245,7 +245,7 @@ NODE_CLASS_MAPPINGS = {
 NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_VideoCombine": "Video Combine 🎥🅥🅗🅢",
     "VHS_LoadVideoPath": "Load Video (Path) 🎥🅥🅗🅢",
-    "VHS_LoadVideo": "Load Video (Upload) 🎥🅥🅗🅢",
+    "VHS_LoadVideoUpload": "Load Video (Upload) 🎥🅥🅗🅢",
     "VHS_UploadVideo": "Upload Video and Get Path 🎥🅥🅗🅢",
     "VHS_OutVideoInfo": "Video Info 🎥🅥🅗🅢",
     "VHS_LoadImagesPath": "Load Images (Path) 🎥🅥🅗🅢",
