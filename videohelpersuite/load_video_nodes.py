@@ -10,7 +10,7 @@ from comfy.utils import common_upscale
 from .logger import logger
 from .utils import calculate_file_hash, get_sorted_dir_files_from_directory
 
-ACCEPTED_VIDEO_EXTENSIONS = ['webm', 'mp4', 'mkv', 'mov']
+ACCEPTED_VIDEO_EXTENSIONS = ['webm', 'mp4', 'mkv']
 ACCEPTED_IMAGE_EXTENSIONS = ['gif', 'webp', 'apng', 'mjpeg']
 
 
@@ -268,7 +268,7 @@ class LoadVideoPath:
     
         out_images = LoadVideoPath.force_size(force_size, width, height, out_images)
     
-        return (out_images, len(out_images), VideoInfo.build_video_info(original_fps, original_frame_count, original_fps, len(out_images)))
+        return (out_images, original_frame_count, VideoInfo.build_video_info(original_fps, original_frame_count, original_fps, len(out_images)))
     
     def load_video_cv(
             video: str, desired_frame_rate: float, force_size: str, frame_load_cap: int, skip_first_frames: int, select_every_nth: int):
@@ -283,7 +283,7 @@ class LoadVideoPath:
                 return retry_with_pil(video, desired_frame_rate, force_size, frame_load_cap, skip_first_frames, select_every_nth)
             # set video_cap to look at start_index frame
             images = []
-            original_frame_count = int(video_cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            original_frame_count = video_cap.get(cv2.CAP_PROP_FRAME_COUNT)
             total_frame_count = 0
             total_frames_evaluated = -1
             frames_added = 0
@@ -339,12 +339,12 @@ class LoadVideoPath:
         
         images = LoadVideoPath.force_size(force_size, width, height, images)
                 
-        return (images, frames_added, VideoInfo.build_video_info(original_fps, original_frame_count, desired_frame_rate, frames_added))
+        return (images, original_frame_count, VideoInfo.build_video_info(original_fps, original_frame_count, desired_frame_rate, frames_added))
 
 
 class UploadVideo:
     
-    UPLOAD_SUBDIRECTORY = ""
+    UPLOAD_SUBDIRECTORY = "VHS_upload"
     INPUT_DIR_TYPE_NAMES = ["input", "temp"]
     
     def get_selected_upload_directory(upload_to_directory):
