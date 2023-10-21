@@ -18,7 +18,8 @@ from comfy.k_diffusion.utils import FolderOfImages
 from comfy.utils import common_upscale
 from .logger import logger
 from .image_latent_nodes import DuplicateImages, DuplicateLatents, GetImageCount, GetLatentCount, MergeImages, MergeLatents, SelectEveryNthImage, SelectEveryNthLatent, SplitLatents, SplitImages
-from .utils import calculate_file_hash, get_sorted_dir_files_from_directory
+from .load_video_nodes import LoadVideoUpload, LoadVideoPath
+from .load_images_nodes import LoadImagesFromDirectoryUpload, LoadImagesFromDirectoryPath
 
 folder_paths.folder_names_and_paths["video_formats"] = (
     [
@@ -494,8 +495,10 @@ class LoadImagesFromDirectory:
 
 NODE_CLASS_MAPPINGS = {
     "VHS_VideoCombine": VideoCombine,
-    "VHS_LoadVideo": LoadVideo,
-    "VHS_LoadImages": LoadImagesFromDirectory,
+    "VHS_LoadVideo": LoadVideoUpload,
+    "VHS_LoadVideoPath": LoadVideoPath,
+    "VHS_LoadImages": LoadImagesFromDirectoryUpload,
+    "VHS_LoadImagesPath": LoadImagesFromDirectoryPath,
     # Latent and Image nodes
     "VHS_SplitLatents": SplitLatents,
     "VHS_SplitImages": SplitImages,
@@ -510,8 +513,10 @@ NODE_CLASS_MAPPINGS = {
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_VideoCombine": "Video Combine 🎥🅥🅗🅢",
-    "VHS_LoadVideo": "Load Video 🎥🅥🅗🅢",
-    "VHS_LoadImages": "Load Images 🎥🅥🅗🅢",
+    "VHS_LoadVideo": "Load Video (Upload) 🎥🅥🅗🅢",
+    "VHS_LoadVideoPath": "Load Video (Path) 🎥🅥🅗🅢",
+    "VHS_LoadImages": "Load Images (Upload) 🎥🅥🅗🅢",
+    "VHS_LoadImagesPath": "Load Images (Path) 🎥🅥🅗🅢",
     # Latent and Image nodes
     "VHS_SplitLatents": "Split Latent Batch 🎥🅥🅗🅢",
     "VHS_SplitImages": "Split Image Batch 🎥🅥🅗🅢",
