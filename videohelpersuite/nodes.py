@@ -10,7 +10,7 @@ from PIL.PngImagePlugin import PngInfo
 import folder_paths
 from .logger import logger
 from .image_latent_nodes import DuplicateImages, DuplicateLatents, GetImageCount, GetLatentCount, MergeImages, MergeLatents, SelectEveryNthImage, SelectEveryNthLatent, SplitLatents, SplitImages
-from .load_video_nodes import LoadVideoPath, LoadVideoUpload, UploadVideo, OutVideoInfo
+from .load_video_nodes import LoadVideo, LoadVideoUpload, UploadVideo, OutVideoInfo
 from .load_images_nodes import LoadImagesFromDirectoryUpload, LoadImagesFromDirectoryPath
 
 folder_paths.folder_names_and_paths["video_formats"] = (
@@ -224,8 +224,8 @@ class VideoCombine:
 
 NODE_CLASS_MAPPINGS = {
     "VHS_VideoCombine": VideoCombine,
-    "VHS_LoadVideoPath": LoadVideoPath,
-    "VHS_LoadVideo": LoadVideoUpload,
+    "VHS_LoadVideoPath": LoadVideo,
+    "VHS_LoadVideoUpload": LoadVideoUpload,
     "VHS_UploadVideo": UploadVideo,
     "VHS_OutVideoInfo": OutVideoInfo,
     "VHS_LoadImagesPath": LoadImagesFromDirectoryPath,
