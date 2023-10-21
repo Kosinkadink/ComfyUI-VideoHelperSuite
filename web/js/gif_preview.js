@@ -89,14 +89,14 @@ const CreatePreviewElement = (name, val, format) => {
 	w.inputEl.src = w.value
 	w.inputEl.id = "vhs_gif_preview"
 	if (type === 'video') {
-		
+		setTimeout(_=>{
 			w.inputEl.setAttribute('type', 'video/webm');
 			w.inputEl.id = "vhs_video_preview"
 			w.inputEl.muted = true;
-			w.inputEl.autoplay = true;
-			w.inputEl.loop = true;
+			w.inputEl.autoplay = true
+			w.inputEl.loop = true
 			w.inputEl.controls = false;
-		
+		},100);
 	}
 
 	w.inputEl.onload = function() {
