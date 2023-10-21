@@ -23,16 +23,11 @@ folder_paths.folder_names_and_paths["video_formats"] = (
 ffmpeg_path = shutil.which("ffmpeg")
 if ffmpeg_path is None:
     logger.info("ffmpeg could not be found. Using ffmpeg from imageio-ffmpeg.")
+    from imageio_ffmpeg import get_ffmpeg_exe
     try:
-        from imageio_ffmpeg import get_ffmpeg_exe
-        try:
-            ffmpeg_path = get_ffmpeg_exe()
-        except:
-            logger.warning("ffmpeg could not be found. Outputs that require it have been disabled")
-    except AttributeError:
-        # TODO: remove once bug is fixed in imageio-ffmpeg
-        logger.warning("imageio-ffmpeg encountered known bug - ffmpeg from imageio-ffmpeg cannot be used on this OS until that bug is fixed. \
-                       Install ffmpeg manually; outputs that require it have been disabled")
+        ffmpeg_path = get_ffmpeg_exe()
+    except:
+        logger.warning("ffmpeg could not be found. Outputs that require it have been disabled")
 
 preferred_backend = "opencv"
 if "VHS_PREFERRED_BACKEND" in os.environ:
@@ -226,10 +221,10 @@ NODE_CLASS_MAPPINGS = {
     "VHS_VideoCombine": VideoCombine,
     "VHS_LoadVideoPath": LoadVideo,
     "VHS_LoadVideoUpload": LoadVideoUpload,
-    "VHS_UploadVideo": UploadVideo,
     "VHS_OutVideoInfo": OutVideoInfo,
-    "VHS_LoadImagesPath": LoadImagesFromDirectoryPath,
     "VHS_LoadImages": LoadImagesFromDirectoryUpload,
+    "VHS_LoadImagesPath": LoadImagesFromDirectoryPath,
+    "VHS_UploadVideo": UploadVideo,
     # Latent and Image nodes
     "VHS_SplitLatents": SplitLatents,
     "VHS_SplitImages": SplitImages,
@@ -244,12 +239,12 @@ NODE_CLASS_MAPPINGS = {
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_VideoCombine": "Video Combine 🎥🅥🅗🅢",
-    "VHS_LoadVideoPath": "Load Video (Path) 🎥🅥🅗🅢",
-    "VHS_LoadVideoUpload": "Load Video (Upload) 🎥🅥🅗🅢",
-    "VHS_UploadVideo": "Upload Video and Get Path 🎥🅥🅗🅢",
-    "VHS_OutVideoInfo": "Video Info 🎥🅥🅗🅢",
-    "VHS_LoadImagesPath": "Load Images (Path) 🎥🅥🅗🅢",
+    "VHS_LoadVideoPath": "Load Video 🎥🅥🅗🅢",
+    "VHS_LoadVideoUpload": "Load Video Upload 🎥🅥🅗🅢",
+    "VHS_OutVideoInfo": "Output Video Info 🎥🅥🅗🅢",
     "VHS_LoadImages": "Load Images (Upload) 🎥🅥🅗🅢",
+    "VHS_LoadImagesPath": "Load Images (Path) 🎥🅥🅗🅢",
+    "VHS_UploadVideo": "Upload Video 🎥🅥🅗🅢",
     # Latent and Image nodes
     "VHS_SplitLatents": "Split Latent Batch 🎥🅥🅗🅢",
     "VHS_SplitImages": "Split Image Batch 🎥🅥🅗🅢",
