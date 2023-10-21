@@ -132,7 +132,7 @@ class LoadVideoUpload:
     known_exceptions = []
     def load_video(self, video, upload_to_directory, **kwargs):
         try:
-            return LoadVideoPath.load_video_cv(UploadVideo.get_full_path(video, upload_to_directory), **kwargs)
+            return LoadVideoPath.load_video_cv(video, **kwargs)
         except Exception as e:
             raise RuntimeError(f"Failed to load video: {video}\ndue to: {e.__str__()}")
 
