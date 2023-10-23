@@ -1,6 +1,12 @@
 import { app } from '../../../scripts/app.js'
+import { api } from '../../../scripts/api.js'
 
 function chainCallback(object, property, callback) {
+    if (object == undefined) {
+        //This should not happen.
+        debugger;
+        return;
+    }
     if (property in object) {
         const callback_orig = object[property]
         object[property] = function () {
@@ -33,6 +39,43 @@ function injectHidden(widget) {
         }
     });
 }
+
+function useKVState(nodeType) {
+    chainCallback(nodeType.prototype, "onNodeCreated", function () {
+        chainCallback(this, "onConfigure", function(info) {
+            if (typeof(info.widgets_values) == 'object' && info.widgets_values.length == undefined) {
+                for (let key in info.widgets_values) {
+                    let w = this.widgets.find((w) => w.name == key);
+                    if (w == undefined) {
+                        //widget with name does not exist. removal/old version?
+                        continue
+                    }
+                    w.value = info.widgets_values[key];
+                }
+            } else {
+                //Saved data was not a map made by this method
+                //This probably means it's an array and was already restored.
+                if (info?.widgets_values?.length != this.widgets.length) {
+                    //Widget could not have restored properly
+                    //TODO: Swap this to use same system as comfy alerts?
+                    console.warn("Failed to restore node: " + this.title + "\nPlease remove and re-add it.")
+                    this.bgcolor = "#C00"
+                }
+            }
+        });
+        chainCallback(this, "onSerialize", function(info) {
+            info.widgets_values = {};
+            for (let w of this.widgets) {
+                info.widgets_values[w.name] = w.value;
+            }
+        });
+    })
+}
+
+function fitHeight(node) {
+    node.setSize([node.size[0], node.computeSize([node.size[0], node.size[1]])[1]])
+}
+
 async function uploadFile(file) {
     try {
         // Wrap file in formdata so it includes filename
@@ -81,7 +124,7 @@ function addDateFormatting(nodeType, field, timestamp_widget = false) {
     });
 }
 function addTimestampWidget(nodeType, nodeData, targetWidget) {
-    const newWidgets
+    const newWidgets = {};
     for (let key in nodeData.input.required) {
         if (key == targetWidget) {
             //TODO: account for duplicate entries?
@@ -89,6 +132,7 @@ function addTimestampWidget(nodeType, nodeData, targetWidget) {
         }
         newWidgets[key] = nodeData.input.required[key];
     }
+    nodeDta.input.required = newWidgets;
     chainCallback(nodeType.prototype, "onNodeCreated", function () {
         const directoryWidget = this.widgets.find((w) => w.name === "directory_name");
         const timestampWidget = this.widgets.find((w) => w.name === "timestamp_directory");
@@ -100,22 +144,22 @@ function addTimestampWidget(nodeType, nodeData, targetWidget) {
             return directoryWidget.value
         };
         timestampWidget._value = value;
-        Object.definteProperty(timestampWidget, "value". {
+        Object.definteProperty(timestampWidget, "value", {
             set : function(value) {
                 this._value = value;
                 directoryWidget.disabled = value;
-            }.
+            },
             get : function() {
                 return this._value;
             }
-        }
+        });
     });
 }
 
 function addCustomSize(nodeType, nodeData, widgetName) {
     //Add the extra size widgets now
     //This takes some finagling as widget order is defined by key order
-    const newWidgets = {}
+    const newWidgets = {};
     for (let key in nodeData.input.required) {
         newWidgets[key] = nodeData.input.required[key]
         if (key == widgetName) {
@@ -133,9 +177,9 @@ function addCustomSize(nodeType, nodeData, widgetName) {
         const widthWidget = node.widgets.find((w) => w.name === "custom_width");
         const heightWidget = node.widgets.find((w) => w.name === "custom_height");
         injectHidden(widthWidget);
-        widthWidget.serialize = false;
+        widthWidget.options.serialize = false;
         injectHidden(heightWidget);
-        heightWidget.serialize = false;
+        heightWidget.options.serialize = false;
         sizeOptionWidget._value = sizeOptionWidget.value;
         Object.defineProperty(sizeOptionWidget, "value", {
             set : function(value) {
@@ -221,57 +265,109 @@ function addUploadWidget(nodeType, nodeData, widgetName, type="video") {
             throw "Unknown upload type"
         }
         document.body.append(fileInput);
-        uploadWidget = node.addWidget("button", "choose " + type + " to upload", "image", () => {
+        let uploadWidget = this.addWidget("button", "choose " + type + " to upload", "image", () => {
             fileInput.click();
         });
-        uploadWidget.serialize = false;
+        uploadWidget.options.serialize = false;
     });
 }
 
-/**
-     * Defines a widget inside the node, it will be rendered on top of the node, you can control lots of properties
-     *
-     * @method addWidget
-     * @param {String} type the widget type (could be "number","string","combo"
-     * @param {String} name the text to show on the widget
-     * @param {String} value the default value
-     * @param {Function|String} callback function to call when it changes (optionally, it can be the name of the property to modify)
-     * @param {Object} options the object that contains special properties of this widget 
-     * @return {Object} the created widget object
-     * LGraphNode.prototype.addWidget = function( type, name, value, callback, options )
-     */
-
 function addVideoPreview(nodeType) {
-    chainCallback(nodeType,"onNodeCreated", function() {
-        previewWidget = this.addWidget("preview", "videopreview");
-        this.videoEl = document.createElement(type === 'video' ? 'video' : 'img');
-        var x = 0;
-        var width = 8;
-        var y = 0;
-        previewWidget.draw = (ctw, node, widget_width, y, H) => {
-            //update widget position, hide if off-screen
-
+    chainCallback(nodeType.prototype, "onNodeCreated", function() {
+        //preview is a made up widget type to enable user defined functions
+        //videopreview is widget name
+        //The previous implementation used type to distinguish between a video and gif,
+        //but the type is not serialized and would not survive a reload
+        var previewWidget = { name : "videopreview", type : "preview", value : "",
+            draw : function(ctx, node, widgetWidth, widgetY, height) {
+                //update widget position, hide if off-screen
+                const transform = ctx.getTransform();
+                const x = transform.e;
+                const y = transform.f;
+                this._currentwidth = (widgetWidth-30);
+                const scale = transform.a;//scale x and scale y always equal
+                Object.assign(this.videoEl.style, {
+                    left: (x+15*scale) + "px",
+                    top: (y + widgetY*scale) + "px",
+                    width: ((widgetWidth-30)*scale) + "px",
+                    zIndex: 2 + (node.is_selected ? 1 : 0),
+                    position: "absolute",
+                });
+            },
+            computeSize : function(width) {
+                if (this.aspectRatio) {
+                    return [width, this._currentwidth / this.aspectRatio];
+                }
+                return [width, -4];//no loaded src, widget should not display
+            },
+            onRemoved : function() {
+                if(this.videoEl) {
+                    this.videoEl.remove();
+                }
+            }
         };
-        previewWidget.computeSize = (width) => {
-            return [width, width / aspect_ratio];
+        this.addCustomWidget(previewWidget);
+        //TODO: add code to use image tag if animated image
+        //Ideally, this element is created in draw if setPreview has marked dirty
+        previewWidget.videoEl = document.createElement('video');
+        previewWidget.videoEl.controls = false;
+        previewWidget.videoEl.autoplay = true;
+        previewWidget.videoEl.loop = true;
+        previewWidget.videoEl.addEventListener("loadedmetadata", () => {
+            previewWidget.aspectRatio = previewWidget.videoEl.videoWidth / previewWidget.videoEl.videoHeight;
+            fitHeight(this);
+        });
+        this.setPreviewsrc = function(params) {
+            //example url for testing
+            //http://127.0.0.1:8188/view?filename=leader.webm&subfolder=&type=input&format=video%2Fwebm
+            if (params?.format?.split('/')[0] == 'video') {
+                previewWidget.videoEl.src = api.apiURL('/view?' + new URLSearchParams(params));
+            } else {
+                //Is animated image
+            }
+
         }
-    })
-    return (src) => {};
+        //this.setPreviewsrc({filename : "leader.webm", type : "input", format: "video/webm"})
+        document.body.appendChild(previewWidget.videoEl);
+    });
 }
 
 app.registerExtension({
     name: "VideoHelperSuite.Core",
     async beforeRegisterNodeDef(nodeType, nodeData, app) {
+        if(nodeData?.name?.startsWith("VHS_")) {
+            useKVState(nodeType);
+        }
         if (nodeData?.name == "VHS_LoadImages") {
-            addUploadWidget(nodeData, "directory", "folder");
+            addUploadWidget(nodeType, nodeData, "directory", "folder");
         } else if (nodeData?.name == "VHS_LoadVideo") {
             addCustomSize(nodeType, nodeData, "force_size")
 
-            addUploadWidget(nodeData, "video");
-            var callback = addVideoPreview(nodeData)
+            addUploadWidget(nodeType, nodeData, "video");
+            addVideoPreview(nodeType);
+            chainCallback(nodeType.prototype, "onNodeCreated", function() {
+                const pathWidget = this.widgets.find((w) => w.name === "video");
+                pathWidget._value;
+                Object.defineProperty(pathWidget, "value", {
+                    set : (value) => {
+                        pathWidget._value = value;
+                        let parts = value.split("//");
+                        this.setPreviewsrc({filename : parts[1], type : parts[0], format: "video"});
+                    },
+                    get : () => {
+                        return pathWidget._value;
+                    }
+                });
+            });
         } else if (nodeData?.name == "VHS_VideoCombine") {
             addDateFormatting(nodeType, "filename_prefix");
-            var callback = addVideoPreview(nodeData);
+            chainCallback(nodeType.prototype, "onExecuted", function(message) {
+                if (message?.gifs) {
+                    //TODO: check if message.gifs is wrapped
+                    this.setPreviewsrc(message.gifs[0]);
+                }
+            });
+            addVideoPreview(nodeType);
 
             //Hide the information passing 'gif' output
             //TODO: check how this is implemented for save image
