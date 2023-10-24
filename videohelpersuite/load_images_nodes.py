@@ -142,4 +142,3 @@ class LoadImagesFromDirectoryPath:
     @classmethod
     def VALIDATE_INPUTS(s, directory: str, **kwargs):
         return validate_load_images(directory, **kwargs)
-        

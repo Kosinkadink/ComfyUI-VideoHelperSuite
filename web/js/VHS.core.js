@@ -449,7 +449,8 @@ app.registerExtension({
                 Object.defineProperty(pathWidget, "value", {
                     set : (value) => {
                         pathWidget._value = value;
-                        let parts = value.split("//");
+                        //let parts = value.split("//");
+                        let parts = ["input", value];
                         let extension_index = parts[1].lastIndexOf(".");
                         let extension = parts[1].slice(extension_index+1);
                         let format = "video"
