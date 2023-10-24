@@ -74,6 +74,7 @@ function useKVState(nodeType) {
 
 function fitHeight(node) {
     node.setSize([node.size[0], node.computeSize([node.size[0], node.size[1]])[1]])
+    node.graph.setDirtyCanvas(true);
 }
 
 async function uploadFile(file) {
@@ -358,6 +359,40 @@ function addPreviewOptions(nodeType) {
             options.push(null);
         }
         const previewWidget = this.widgets.find((w) => w.name === "videopreview");
+
+        let url = null
+        if (previewWidget.videoEl?.hidden == false && previewWidget.videoEl.src) {
+            url = previewWidget.videoEl.src;
+        } else if (previewWidget.imgEl?.hidden == false && previewWidget.imgEl.src) {
+            url = previewWidget.imgEl.src;
+        }
+        if (url) {
+            url = new URL(url);
+            //placeholder from Save Image, will matter once preview functionality is implemented
+            //url.searchParams.delete('preview')
+            options.push(
+                {
+                    content: "Open Video",
+                    callback: () => {
+                        window.open(url, "_blank")
+                    },
+                },
+                {
+                    content: "Save Video",
+                    callback: () => {
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.setAttribute("download", new URLSearchParams(url.search).get("filename"));
+                        document.body.append(a);
+                        a.click();
+                        requestAnimationFrame(() => a.remove());
+                    },
+                }
+            );
+        }
+        //TODO: Consider hiding elements if video no preview is available yet.
+        //It would reduce confusion at the cost of functionality
+        //(if a video preview lags the computer, the user should be able to hide in advance)
         const PauseDesc = (previewWidget.paused ? "Resume" : "Pause") + " preview";
         options.push({content: PauseDesc, callback: () => {
             //animated images can't be paused and are more likely to cause performance issues.
