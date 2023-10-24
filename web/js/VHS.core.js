@@ -286,7 +286,7 @@ function addVideoPreview(nodeType) {
                 const y = transform.f;
                 this._currentwidth = (widgetWidth-30);
                 const scale = transform.a;//scale x and scale y always equal
-                Object.assign(this.videoEl.style, {
+                Object.assign(this.parentEl.style, {
                     left: (x+15*scale) + "px",
                     top: (y + widgetY*scale) + "px",
                     width: ((widgetWidth-30)*scale) + "px",
@@ -295,40 +295,102 @@ function addVideoPreview(nodeType) {
                 });
             },
             computeSize : function(width) {
-                if (this.aspectRatio) {
+                if (this.aspectRatio && !this.parentEl.hidden) {
                     return [width, this._currentwidth / this.aspectRatio];
                 }
                 return [width, -4];//no loaded src, widget should not display
             },
             onRemoved : function() {
-                if(this.videoEl) {
-                    this.videoEl.remove();
+                if (this.parentEl) {
+                    this.parentEl.remove();
                 }
             }
         };
         this.addCustomWidget(previewWidget);
-        //TODO: add code to use image tag if animated image
-        //Ideally, this element is created in draw if setPreview has marked dirty
-        previewWidget.videoEl = document.createElement('video');
+        previewWidget.parentEl = document.createElement("div");
+        previewWidget.parentEl.className = "vhs_preview";
+        previewWidget.parentEl.style['pointer-events'] = "none"
+
+        previewWidget.videoEl = document.createElement("video");
         previewWidget.videoEl.controls = false;
         previewWidget.videoEl.autoplay = true;
         previewWidget.videoEl.loop = true;
+        previewWidget.videoEl.style['width'] = "100%"
         previewWidget.videoEl.addEventListener("loadedmetadata", () => {
             previewWidget.aspectRatio = previewWidget.videoEl.videoWidth / previewWidget.videoEl.videoHeight;
             fitHeight(this);
         });
+
+        previewWidget.imgEl = document.createElement("img");
+        previewWidget.imgEl.style['width'] = "100%"
+        previewWidget.imgEl.onload = () => {
+            previewWidget.aspectRatio = previewWidget.imgEl.naturalWidth / previewWidget.imgEl.naturalHeight;
+            fitHeight(this);
+        };
+
         this.setPreviewsrc = function(params) {
             //example url for testing
             //http://127.0.0.1:8188/view?filename=leader.webm&subfolder=&type=input&format=video%2Fwebm
             if (params?.format?.split('/')[0] == 'video') {
                 previewWidget.videoEl.src = api.apiURL('/view?' + new URLSearchParams(params));
+                previewWidget.videoEl.hidden = false;
+                previewWidget.imgEl.hidden = true;
             } else {
                 //Is animated image
+                previewWidget.imgEl.src = api.apiURL('/view?' + new URLSearchParams(params));
+                previewWidget.videoEl.hidden = true;
+                previewWidget.imgEl.hidden = false;
             }
 
         }
         //this.setPreviewsrc({filename : "leader.webm", type : "input", format: "video/webm"})
-        document.body.appendChild(previewWidget.videoEl);
+        previewWidget.parentEl.appendChild(previewWidget.videoEl)
+        previewWidget.parentEl.appendChild(previewWidget.imgEl)
+        document.body.appendChild(previewWidget.parentEl);
+    });
+}
+function addPreviewOptions(nodeType) {
+    chainCallback(nodeType.prototype, "getExtraMenuOptions", function(_, options) {
+        // The intended way of appending options is returning a list of extra options,
+        // but this isn't used in widgetInputs.js and would require
+        // less generalization of chainCallback
+        if (options[options.length-1] != null) {
+            options.push(null);
+        }
+        const previewWidget = this.widgets.find((w) => w.name === "videopreview");
+        const PauseDesc = (previewWidget.paused ? "Resume" : "Pause") + " preview";
+        options.push({content: PauseDesc, callback: () => {
+            //animated images can't be paused and are more likely to cause performance issues.
+            //changing src to a single keyframe is possible,
+            //but hiding the preview would by far be the easier workaround
+            if(previewWidget.paused) {
+                previewWidget.paused = false;
+                previewWidget.videoEl?.play();
+            } else {
+                previewWidget.paused = true;
+                previewWidget.videoEl?.pause();
+            }
+        }});
+        const visDesc = (previewWidget.parentEl.hidden ? "Show" : "Hide") + " preview";
+        options.push({content: visDesc, callback: () => {
+            previewWidget.parentEl.hidden = !previewWidget.parentEl.hidden;
+            fitHeight(this);
+
+        }});
+        options.push({content: "Sync preview", callback: () => {
+            //TODO: address case where videos have varying length
+            //Consider a system of sync groups which are opt-in?
+            for (let p of document.getElementsByClassName("vhs_preview")) {
+                for (let child of p.children) {
+                    if (child.tagName == "VIDEO") {
+                        child.currentTime=0;
+                    } else if (child.tagName == "IMG") {
+                        child.src = child.src;
+                    }
+                }
+            }
+        }});
+        options.push(null);
     });
 }
 
@@ -345,6 +407,7 @@ app.registerExtension({
 
             addUploadWidget(nodeType, nodeData, "video");
             addVideoPreview(nodeType);
+            addPreviewOptions(nodeType);
             chainCallback(nodeType.prototype, "onNodeCreated", function() {
                 const pathWidget = this.widgets.find((w) => w.name === "video");
                 pathWidget._value;
@@ -352,7 +415,13 @@ app.registerExtension({
                     set : (value) => {
                         pathWidget._value = value;
                         let parts = value.split("//");
-                        this.setPreviewsrc({filename : parts[1], type : parts[0], format: "video"});
+                        let extension_index = parts[1].lastIndexOf(".");
+                        let extension = parts[1].slice(extension_index+1);
+                        let format = "video"
+                        if (["gif", "webp", "avif"].includes(extension)) {
+                            format = "image"
+                        }
+                        this.setPreviewsrc({filename : parts[1], type : parts[0], format: format});
                     },
                     get : () => {
                         return pathWidget._value;
@@ -363,11 +432,11 @@ app.registerExtension({
             addDateFormatting(nodeType, "filename_prefix");
             chainCallback(nodeType.prototype, "onExecuted", function(message) {
                 if (message?.gifs) {
-                    //TODO: check if message.gifs is wrapped
                     this.setPreviewsrc(message.gifs[0]);
                 }
             });
             addVideoPreview(nodeType);
+            addPreviewOptions(nodeType);
 
             //Hide the information passing 'gif' output
             //TODO: check how this is implemented for save image
