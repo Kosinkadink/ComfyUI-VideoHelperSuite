@@ -57,8 +57,8 @@ function useKVState(nodeType) {
                 //This probably means it's an array and was already restored.
                 if (info?.widgets_values?.length != this.widgets.length) {
                     //Widget could not have restored properly
-                    //TODO: Swap this to use same system as comfy alerts?
-                    console.warn("Failed to restore node: " + this.title + "\nPlease remove and re-add it.")
+                    //Note if multiple node loads fail, only the latest error dialog displays
+                    app.ui.dialog.show("Failed to restore node: " + this.title + "\nPlease remove and re-add it.")
                     this.bgcolor = "#C00"
                 }
             }
@@ -316,6 +316,7 @@ function addVideoPreview(nodeType) {
         previewWidget.videoEl.controls = false;
         previewWidget.videoEl.autoplay = true;
         previewWidget.videoEl.loop = true;
+        previewWidget.videoEl.muted = true;
         previewWidget.videoEl.style['width'] = "100%"
         previewWidget.videoEl.addEventListener("loadedmetadata", () => {
             previewWidget.aspectRatio = previewWidget.videoEl.videoWidth / previewWidget.videoEl.videoHeight;
@@ -324,6 +325,7 @@ function addVideoPreview(nodeType) {
 
         previewWidget.imgEl = document.createElement("img");
         previewWidget.imgEl.style['width'] = "100%"
+        previewWidget.imgEl.hidden = true;
         previewWidget.imgEl.onload = () => {
             previewWidget.aspectRatio = previewWidget.imgEl.naturalWidth / previewWidget.imgEl.naturalHeight;
             fitHeight(this);
@@ -355,9 +357,7 @@ function addPreviewOptions(nodeType) {
         // The intended way of appending options is returning a list of extra options,
         // but this isn't used in widgetInputs.js and would require
         // less generalization of chainCallback
-        if (options[options.length-1] != null) {
-            options.push(null);
-        }
+        let optNew = []
         const previewWidget = this.widgets.find((w) => w.name === "videopreview");
 
         let url = null
@@ -370,7 +370,7 @@ function addPreviewOptions(nodeType) {
             url = new URL(url);
             //placeholder from Save Image, will matter once preview functionality is implemented
             //url.searchParams.delete('preview')
-            options.push(
+            optNew.push(
                 {
                     content: "Open Video",
                     callback: () => {
@@ -390,29 +390,31 @@ function addPreviewOptions(nodeType) {
                 }
             );
         }
+        const PauseDesc = (previewWidget.paused ? "Resume" : "Pause") + " preview";
+        if(previewWidget.videoEl.hidden == false) {
+            optNew.push({content: PauseDesc, callback: () => {
+                //animated images can't be paused and are more likely to cause performance issues.
+                //changing src to a single keyframe is possible,
+                //For now, the option is disabled if an animated image is being displayed
+                if(previewWidget.paused) {
+                    previewWidget.paused = false;
+                    previewWidget.videoEl?.play();
+                } else {
+                    previewWidget.paused = true;
+                    previewWidget.videoEl?.pause();
+                }
+            }});
+        }
         //TODO: Consider hiding elements if video no preview is available yet.
         //It would reduce confusion at the cost of functionality
         //(if a video preview lags the computer, the user should be able to hide in advance)
-        const PauseDesc = (previewWidget.paused ? "Resume" : "Pause") + " preview";
-        options.push({content: PauseDesc, callback: () => {
-            //animated images can't be paused and are more likely to cause performance issues.
-            //changing src to a single keyframe is possible,
-            //but hiding the preview would by far be the easier workaround
-            if(previewWidget.paused) {
-                previewWidget.paused = false;
-                previewWidget.videoEl?.play();
-            } else {
-                previewWidget.paused = true;
-                previewWidget.videoEl?.pause();
-            }
-        }});
         const visDesc = (previewWidget.parentEl.hidden ? "Show" : "Hide") + " preview";
-        options.push({content: visDesc, callback: () => {
+        optNew.push({content: visDesc, callback: () => {
             previewWidget.parentEl.hidden = !previewWidget.parentEl.hidden;
             fitHeight(this);
 
         }});
-        options.push({content: "Sync preview", callback: () => {
+        optNew.push({content: "Sync preview", callback: () => {
             //TODO: address case where videos have varying length
             //Consider a system of sync groups which are opt-in?
             for (let p of document.getElementsByClassName("vhs_preview")) {
@@ -425,7 +427,10 @@ function addPreviewOptions(nodeType) {
                 }
             }
         }});
-        options.push(null);
+        if(options.length > 0 && options[0] != null && optNew.length > 0) {
+            optNew.push(null);
+        }
+        options.unshift(...optNew);
     });
 }
 
