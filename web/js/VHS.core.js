@@ -225,6 +225,9 @@ function addUploadWidget(nodeType, nodeData, widgetName, type="video") {
     chainCallback(nodeType.prototype, "onNodeCreated", function() {
         const pathWidget = this.widgets.find((w) => w.name === widgetName);
         const fileInput = document.createElement("input");
+        chainCallback(this, "onRemoved", () => {
+            fileInput?.remove();
+        });
         if (type == "folder") {
             Object.assign(fileInput, {
                 type: "file",
@@ -300,13 +303,14 @@ function addVideoPreview(nodeType) {
                     return [width, this._currentwidth / this.aspectRatio];
                 }
                 return [width, -4];//no loaded src, widget should not display
-            },
-            onRemoved : function() {
-                if (this.parentEl) {
-                    this.parentEl.remove();
-                }
             }
         };
+        //onRemoved isn't a litegraph supported function on widgets
+        //Given that onremoved widget and node callbacks are sparse, this
+        //saves the required iteration.
+        chainCallback(this, "onRemoved", () => {
+            previewWidget?.parentEl?.remove();
+        });
         this.addCustomWidget(previewWidget);
         previewWidget.parentEl = document.createElement("div");
         previewWidget.parentEl.className = "vhs_preview";
@@ -322,6 +326,11 @@ function addVideoPreview(nodeType) {
             previewWidget.aspectRatio = previewWidget.videoEl.videoWidth / previewWidget.videoEl.videoHeight;
             fitHeight(this);
         });
+        previewWidget.videoEl.addEventListener("error", () => {
+            //TODO: consider a way to properly notify the user why a preview isn't shown.
+            previewWidget.parentEl.hidden = true;
+            fitHeight(this);
+        });
 
         previewWidget.imgEl = document.createElement("img");
         previewWidget.imgEl.style['width'] = "100%"
@@ -332,6 +341,7 @@ function addVideoPreview(nodeType) {
         };
 
         this.setPreviewsrc = function(params) {
+            previewWidget.parentEl.hidden = false;
             //example url for testing
             //http://127.0.0.1:8188/view?filename=leader.webm&subfolder=&type=input&format=video%2Fwebm
             if (params?.format?.split('/')[0] == 'video') {
@@ -450,7 +460,7 @@ app.registerExtension({
             addPreviewOptions(nodeType);
             chainCallback(nodeType.prototype, "onNodeCreated", function() {
                 const pathWidget = this.widgets.find((w) => w.name === "video");
-                pathWidget._value;
+                pathWidget._value = pathWidget.value;
                 Object.defineProperty(pathWidget, "value", {
                     set : (value) => {
                         pathWidget._value = value;
