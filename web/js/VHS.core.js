@@ -313,6 +313,7 @@ function addVideoPreview(nodeType) {
                     zIndex: 2 + (node.is_selected ? 1 : 0),
                     position: "absolute",
                 });
+                this._boundingCount = 0;
             },
             computeSize : function(width) {
                 if (this.aspectRatio && !this.parentEl.hidden) {
@@ -371,6 +372,15 @@ function addVideoPreview(nodeType) {
                 previewWidget.imgEl.hidden = false;
             }
 
+        }
+        //Hide video element if offscreen
+        //The multiline input implementation moves offscreen every frame
+        //and doesn't apply until a node with an actual inputEl is loaded
+        this._boundingCount = 0;
+        this.onBounding = function() {
+            if (this._boundingCount++>5) {
+                previewWidget.parentEl.style.left = "-8000px";
+            }
         }
         //this.setPreviewsrc({filename : "leader.webm", type : "input", format: "video/webm"})
         previewWidget.parentEl.appendChild(previewWidget.videoEl)
