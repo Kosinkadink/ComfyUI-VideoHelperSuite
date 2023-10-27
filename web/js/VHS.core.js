@@ -57,6 +57,22 @@ function useKVState(nodeType) {
                 //This probably means it's an array and was already restored.
                 if (info?.widgets_values?.length != this.widgets.length) {
                     //Widget could not have restored properly
+
+                    //First try a number of known migrations.
+                    //This code hits only specific common cases and is deprecated
+                    if(this.type == "VHS_LoadVideo" && info?.widgets_values?.length == 7) {
+                        //custom_width, custom_height, preview added. Shift and load
+                        this.widgets[3].value = 512;
+                        this.widgets[4].value = 512;
+                        this.widgets[5].value = info.widgets_values[3];
+                        this.widgets[6].value = info.widgets_values[4];
+                        this.widgets[7].value = info.widgets_values[5];
+                        return
+                    } else if (this.type == "VHS_VideoCombine" && info?.widgets_values?.length == 7) {
+                        //the sync button was removed, but actual loading was not impacted
+                        return
+                    }
+
                     //Note if multiple node loads fail, only the latest error dialog displays
                     app.ui.dialog.show("Failed to restore node: " + this.title + "\nPlease remove and re-add it.")
                     this.bgcolor = "#C00"
