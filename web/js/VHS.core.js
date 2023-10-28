@@ -71,6 +71,11 @@ function useKVState(nodeType) {
                     } else if (this.type == "VHS_VideoCombine" && info?.widgets_values?.length == 7) {
                         //the sync button was removed, but actual loading was not impacted
                         return
+                    } else if (this.type == "VHS_VideoCombine" && info?.widgets_values?.length == 8) {
+                        //single active preview
+                        if (info.widgets_values[7].startsWith("/view?")) {
+                            return
+                        }
                     }
 
                     //Note if multiple node loads fail, only the latest error dialog displays
