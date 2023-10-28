@@ -443,13 +443,13 @@ function addPreviewOptions(nodeType) {
             //url.searchParams.delete('preview')
             optNew.push(
                 {
-                    content: "Open Video",
+                    content: "Open preview",
                     callback: () => {
                         window.open(url, "_blank")
                     },
                 },
                 {
-                    content: "Save Video",
+                    content: "Save preview",
                     callback: () => {
                         const a = document.createElement("a");
                         a.href = url;
@@ -539,6 +539,8 @@ app.registerExtension({
                         return pathWidget._value;
                     }
                 });
+                //Set value to ensure preview displays on initial add.
+                pathWidget.value = pathWidget._value;
             });
         } else if (nodeData?.name == "VHS_VideoCombine") {
             addDateFormatting(nodeType, "filename_prefix");
