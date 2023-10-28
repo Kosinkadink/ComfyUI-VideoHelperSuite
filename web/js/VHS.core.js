@@ -94,6 +94,7 @@ function fitHeight(node) {
 }
 
 async function uploadFile(file) {
+    //TODO: Add uploaded file to cache with Cache.put()?
     try {
         // Wrap file in formdata so it includes filename
         const body = new FormData();
@@ -120,6 +121,29 @@ async function uploadFile(file) {
     } catch (error) {
         alert(error);
     }
+}
+
+function formatDate(text, date) {
+    const parts = {
+        d: (d) => d.getDate(),
+        M: (d) => d.getMonth() + 1,
+        h: (d) => d.getHours(),
+        m: (d) => d.getMinutes(),
+        s: (d) => d.getSeconds(),
+    };
+    const format =
+        Object.keys(parts)
+        .map((k) => k + k + "?")
+        .join("|") + "|yyy?y?";
+    return text.replace(new RegExp(format, "g"), function (text) {
+        if (text === "yy") return (date.getFullYear() + "").substring(2);
+        if (text === "yyyy") return date.getFullYear();
+        if (text[0] in parts) {
+            const p = parts[text[0]](date);
+            return (p + "").padStart(text.length, "0");
+        }
+        return text;
+    });
 }
 
 function addDateFormatting(nodeType, field, timestamp_widget = false) {
@@ -540,8 +564,9 @@ app.registerExtension({
                 });
             });
         } else if (nodeData?.name == "VHS_SaveImageSequence") {
-            addDateFormating(nodeType, "directory_name", timestamp_widget=true);
-            addTimestampWidget(nodeType, nodeData, "directory_name")
+            //Disabled for safety as VHS_SaveImageSequence is not currently merged
+            //addDateFormating(nodeType, "directory_name", timestamp_widget=true);
+            //addTimestampWidget(nodeType, nodeData, "directory_name")
         }
     }
 });
