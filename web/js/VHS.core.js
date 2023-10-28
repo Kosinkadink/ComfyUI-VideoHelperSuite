@@ -113,11 +113,7 @@ async function uploadFile(file) {
         });
 
         if (resp.status === 200) {
-            const data = await resp.json();
-            // Add the new folder to the dropdown list and update the widget value
-            if (!directoryWidget.options.values.includes(data.subfolder)) {
-                directoryWidget.options.values.push(subfolder);
-            }
+            return resp.status
         } else {
             alert(resp.status + " - " + resp.statusText);
         }
@@ -256,14 +252,26 @@ function addUploadWidget(nodeType, nodeData, widgetName, type="video") {
                         throw "No directory found";
                     }
                     const path = directory.slice(0,directory.lastIndexOf('/'))
-                    if (path in pathWidget.values) {
+                    if (pathWidget.options.values.includes(path)) {
                         alert("A folder of the same name already exists");
                         return;
                     }
+                    let successes = 0;
                     for(const file of fileInput.files) {
-                        await uploadFile(file);
+                        if (await uploadFile(file) == 200) {
+                            successes++;
+                        } else {
+                            //Upload failed, but some prior uploads may have succeeded
+                            //Stop future uploads to prevent cascading failures
+                            //and only add to list if an upload has succeeded
+                            if (successes > 0) {
+                                break
+                            } else {
+                                return;
+                            }
+                        }
                     }
-                    pathWidget.values.push(path);
+                    pathWidget.options.values.push(path);
                     pathWidget.value = path;
                 },
             });
@@ -274,10 +282,13 @@ function addUploadWidget(nodeType, nodeData, widgetName, type="video") {
                 style: "display: none",
                 onchange: async () => {
                     if (fileInput.files.length) {
-                        await uploadFile(fileInput.files[0], true);
+                        if (await uploadFile(fileInput.files[0]) != 200) {
+                            //upload failed and file can not be added to options
+                            return;
+                        }
                     }
                     const filename = fileInput.files[0].name;
-                    pathWidget.values.push(filename);
+                    pathWidget.options.values.push(filename);
                     pathWidget.value = filename;
                 },
             });
