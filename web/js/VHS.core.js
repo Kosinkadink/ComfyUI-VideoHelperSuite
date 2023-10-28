@@ -43,6 +43,10 @@ function injectHidden(widget) {
 function useKVState(nodeType) {
     chainCallback(nodeType.prototype, "onNodeCreated", function () {
         chainCallback(this, "onConfigure", function(info) {
+            if (!this.widgets) {
+                //object has no widgets, there is nothing to restore
+                return
+            }
             if (typeof(info.widgets_values) == 'object' && info.widgets_values.length == undefined) {
                 for (let key in info.widgets_values) {
                     let w = this.widgets.find((w) => w.name == key);
@@ -86,6 +90,10 @@ function useKVState(nodeType) {
         });
         chainCallback(this, "onSerialize", function(info) {
             info.widgets_values = {};
+            if (!this.widgets) {
+                //object has no widgets, there is nothing to store
+                return;
+            }
             for (let w of this.widgets) {
                 info.widgets_values[w.name] = w.value;
             }
