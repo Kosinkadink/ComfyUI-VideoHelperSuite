@@ -397,22 +397,30 @@ function addVideoPreview(nodeType) {
             fitHeight(this);
         };
 
-        this.setPreviewsrc = function(params) {
-            previewWidget.parentEl.hidden = false;
-            //example url for testing
-            //http://127.0.0.1:8188/view?filename=leader.webm&subfolder=&type=input&format=video%2Fwebm
-            if (params?.format?.split('/')[0] == 'video') {
-                previewWidget.videoEl.src = api.apiURL('/view?' + new URLSearchParams(params));
-                previewWidget.videoEl.hidden = false;
-                previewWidget.imgEl.hidden = true;
-            } else {
-                //Is animated image
-                previewWidget.imgEl.src = api.apiURL('/view?' + new URLSearchParams(params));
-                previewWidget.videoEl.hidden = true;
-                previewWidget.imgEl.hidden = false;
+        this.setPreviewsrc = (params) => {previewWidget.value = params;};
+        Object.defineProperty(previewWidget, "value", {
+            set : (value) => {
+                previewWidget._value = value
+                if (value) {
+                    previewWidget.parentEl.hidden = false;
+                    //example url for testing
+                    //http://127.0.0.1:8188/view?filename=leader.webm&subfolder=&type=input&format=video%2Fwebm
+                    if (value?.format?.split('/')[0] == 'video') {
+                        previewWidget.videoEl.src = api.apiURL('/view?' + new URLSearchParams(value));
+                        previewWidget.videoEl.hidden = false;
+                        previewWidget.imgEl.hidden = true;
+                    } else {
+                        //Is animated image
+                        previewWidget.imgEl.src = api.apiURL('/view?' + new URLSearchParams(value));
+                        previewWidget.videoEl.hidden = true;
+                        previewWidget.imgEl.hidden = false;
+                    }
+                }
+            },
+            get : () => {
+                return previewWidget._value;
             }
-
-        }
+        });
         //Hide video element if offscreen
         //The multiline input implementation moves offscreen every frame
         //and doesn't apply until a node with an actual inputEl is loaded
@@ -422,7 +430,6 @@ function addVideoPreview(nodeType) {
                 previewWidget.parentEl.style.left = "-8000px";
             }
         }
-        //this.setPreviewsrc({filename : "leader.webm", type : "input", format: "video/webm"})
         previewWidget.parentEl.appendChild(previewWidget.videoEl)
         previewWidget.parentEl.appendChild(previewWidget.imgEl)
         document.body.appendChild(previewWidget.parentEl);
