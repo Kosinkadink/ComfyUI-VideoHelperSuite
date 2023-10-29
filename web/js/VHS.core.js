@@ -365,7 +365,11 @@ function addVideoPreview(nodeType) {
             },
             computeSize : function(width) {
                 if (this.aspectRatio && !this.parentEl.hidden) {
-                    return [width, this._currentwidth / this.aspectRatio];
+                    let height = this._currentwidth / this.aspectRatio;
+                    if (!(height > 0)) {
+                        height = 0;
+                    }
+                    return [width, height];
                 }
                 return [width, -4];//no loaded src, widget should not display
             }
