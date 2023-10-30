@@ -131,7 +131,7 @@ class VideoCombine:
                 video_metadata[x] = extra_pnginfo[x]
 
         # save first frame as png to keep metadata
-        file = f"{filename}_{counter:05}.png"
+        file = f"{filename}_{counter:05}_.png"
         file_path = os.path.join(full_output_folder, file)
         frames[0].save(
             file_path,
