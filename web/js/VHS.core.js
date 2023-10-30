@@ -323,10 +323,10 @@ function addUploadWidget(nodeType, nodeData, widgetName, type="video") {
                             //upload failed and file can not be added to options
                             return;
                         }
+                        const filename = fileInput.files[0].name;
+                        pathWidget.options.values.push(filename);
+                        pathWidget.value = filename;
                     }
-                    const filename = fileInput.files[0].name;
-                    pathWidget.options.values.push(filename);
-                    pathWidget.value = filename;
                 },
             });
         } else {
@@ -334,6 +334,9 @@ function addUploadWidget(nodeType, nodeData, widgetName, type="video") {
         }
         document.body.append(fileInput);
         let uploadWidget = this.addWidget("button", "choose " + type + " to upload", "image", () => {
+            //clear the active click event
+            app.canvas.node_widget = null
+
             fileInput.click();
         });
         uploadWidget.options.serialize = false;
