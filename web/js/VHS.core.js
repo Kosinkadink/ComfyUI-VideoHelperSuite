@@ -59,6 +59,12 @@ function useKVState(nodeType) {
             } else {
                 //Saved data was not a map made by this method
                 //This probably means it's an array and was already restored.
+                if (this.type =="VHS_LoadImages" && this.widgets.length == 5 && info?.widgets_values?.length == 5) {
+                    //shift values up by 1
+                    this.widgets[1].value = info.widgets_values[2];
+                    this.widgets[2].value = info.widgets_values[3];
+                    this.widgets[3].value = info.widgets_values[4];
+                }
                 if (info?.widgets_values?.length != this.widgets.length) {
                     //Widget could not have restored properly
 
