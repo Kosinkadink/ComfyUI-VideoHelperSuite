@@ -4,7 +4,7 @@ import { api } from '../../../scripts/api.js'
 function chainCallback(object, property, callback) {
     if (object == undefined) {
         //This should not happen.
-        debugger;
+        console.error("Tried to add callback to non-existant object")
         return;
     }
     if (property in object) {
@@ -415,6 +415,9 @@ function addVideoPreview(nodeType) {
 
         this.setPreviewsrc = (params) => {previewWidget._value.params = params; this._setPreviewsrc(params)};
         this._setPreviewsrc = function (params) {
+            if (params == undefined) {
+                return
+            }
             previewWidget.parentEl.hidden = previewWidget._value.hidden;
             if (params?.format?.split('/')[0] == 'video') {
                 previewWidget.videoEl.autoplay = !previewWidget._value.paused && !previewWidget._value.hidden;
@@ -594,6 +597,11 @@ app.registerExtension({
                 Object.defineProperty(this, "outputs", {
                     set : function(value) {
                         this._outputs = value;
+                        requestAnimationFrame(() => {
+                            if (app.nodeOutputs[this.id + ""]) {
+                                this.setPreviewsrc(app.nodeOutputs[this.id+""].gifs[0]);
+                            }
+                        })
                     },
                     get : function() {
                         return [];
