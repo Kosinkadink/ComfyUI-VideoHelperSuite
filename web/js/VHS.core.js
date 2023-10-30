@@ -434,6 +434,10 @@ function addVideoPreview(nodeType) {
         Object.defineProperty(previewWidget, "value", {
             set : (value) => {
                 if (value) {
+                    if (typeof(value) == "string") {
+                        //old workflow which saves a url instead of constituent params
+                        return;
+                    }
                     previewWidget._value = value
                     this._setPreviewsrc(value.params)
                 }
