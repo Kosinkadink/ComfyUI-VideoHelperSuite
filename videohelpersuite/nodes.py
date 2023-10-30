@@ -131,7 +131,7 @@ class VideoCombine:
                 video_metadata[x] = extra_pnginfo[x]
 
         # save first frame as png to keep metadata
-        file = f"{filename}_{counter:05}_.png"
+        file = f"{filename}_{counter:05}.png"
         file_path = os.path.join(full_output_folder, file)
         frames[0].save(
             file_path,
@@ -142,7 +142,7 @@ class VideoCombine:
             frames = frames + frames[-2:0:-1]
 
         format_type, format_ext = format.split("/")
-        file = f"{filename}_{counter:05}_.{format_ext}"
+        file = f"{filename}_{counter:05}.{format_ext}"
         file_path = os.path.join(full_output_folder, file)
         if format_type == "image":
             # Use pillow directly to save an animated image
@@ -164,7 +164,7 @@ class VideoCombine:
             video_format_path = folder_paths.get_full_path("video_formats", format_ext + ".json")
             with open(video_format_path, 'r') as stream:
                 video_format = json.load(stream)
-            file = f"{filename}_{counter:05}_.{video_format['extension']}"
+            file = f"{filename}_{counter:05}.{video_format['extension']}"
             file_path = os.path.join(full_output_folder, file)
             dimensions = f"{frames[0].width}x{frames[0].height}"
             metadata_args = ["-metadata", "comment=" + json.dumps(video_metadata)]
