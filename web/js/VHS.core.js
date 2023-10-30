@@ -433,8 +433,8 @@ function addVideoPreview(nodeType) {
         }
         Object.defineProperty(previewWidget, "value", {
             set : (value) => {
-                previewWidget._value = value
                 if (value) {
+                    previewWidget._value = value
                     this._setPreviewsrc(value.params)
                 }
             },
