@@ -345,6 +345,7 @@ function addUploadWidget(nodeType, nodeData, widgetName, type="video") {
 
 function addVideoPreview(nodeType) {
     chainCallback(nodeType.prototype, "onNodeCreated", function() {
+        let previewNode = this;
         //preview is a made up widget type to enable user defined functions
         //videopreview is widget name
         //The previous implementation used type to distinguish between a video and gif,
@@ -355,7 +356,6 @@ function addVideoPreview(nodeType) {
                 const transform = ctx.getTransform();
                 const x = transform.e;
                 const y = transform.f;
-                this._currentwidth = (widgetWidth-30);
                 const scale = transform.a;//scale x and scale y always equal
                 Object.assign(this.parentEl.style, {
                     left: (x+15*scale) + "px",
@@ -368,14 +368,15 @@ function addVideoPreview(nodeType) {
             },
             computeSize : function(width) {
                 if (this.aspectRatio && !this.parentEl.hidden) {
-                    let height = this._currentwidth / this.aspectRatio;
+                    let height = (previewNode.size[0]-30)/ this.aspectRatio;
                     if (!(height > 0)) {
                         height = 0;
                     }
                     return [width, height];
                 }
                 return [width, -4];//no loaded src, widget should not display
-            }
+            },
+            _value : {hidden: false, paused: false}
         };
         //onRemoved isn't a litegraph supported function on widgets
         //Given that onremoved widget and node callbacks are sparse, this
@@ -390,11 +391,11 @@ function addVideoPreview(nodeType) {
 
         previewWidget.videoEl = document.createElement("video");
         previewWidget.videoEl.controls = false;
-        previewWidget.videoEl.autoplay = true;
         previewWidget.videoEl.loop = true;
         previewWidget.videoEl.muted = true;
         previewWidget.videoEl.style['width'] = "100%"
         previewWidget.videoEl.addEventListener("loadedmetadata", () => {
+
             previewWidget.aspectRatio = previewWidget.videoEl.videoWidth / previewWidget.videoEl.videoHeight;
             fitHeight(this);
         });
@@ -412,24 +413,26 @@ function addVideoPreview(nodeType) {
             fitHeight(this);
         };
 
-        this.setPreviewsrc = (params) => {previewWidget.value = params;};
+        this.setPreviewsrc = (params) => {previewWidget._value.params = params; this._setPreviewsrc(params)};
+        this._setPreviewsrc = function (params) {
+            previewWidget.parentEl.hidden = previewWidget._value.hidden;
+            if (params?.format?.split('/')[0] == 'video') {
+                previewWidget.videoEl.autoplay = !previewWidget._value.paused && !previewWidget._value.hidden;
+                previewWidget.videoEl.src = api.apiURL('/view?' + new URLSearchParams(params));
+                previewWidget.videoEl.hidden = false;
+                previewWidget.imgEl.hidden = true;
+            } else {
+                //Is animated image
+                previewWidget.imgEl.src = api.apiURL('/view?' + new URLSearchParams(params));
+                previewWidget.videoEl.hidden = true;
+                previewWidget.imgEl.hidden = false;
+            }
+        }
         Object.defineProperty(previewWidget, "value", {
             set : (value) => {
                 previewWidget._value = value
                 if (value) {
-                    previewWidget.parentEl.hidden = false;
-                    //example url for testing
-                    //http://127.0.0.1:8188/view?filename=leader.webm&subfolder=&type=input&format=video%2Fwebm
-                    if (value?.format?.split('/')[0] == 'video') {
-                        previewWidget.videoEl.src = api.apiURL('/view?' + new URLSearchParams(value));
-                        previewWidget.videoEl.hidden = false;
-                        previewWidget.imgEl.hidden = true;
-                    } else {
-                        //Is animated image
-                        previewWidget.imgEl.src = api.apiURL('/view?' + new URLSearchParams(value));
-                        previewWidget.videoEl.hidden = true;
-                        previewWidget.imgEl.hidden = false;
-                    }
+                    this._setPreviewsrc(value.params)
                 }
             },
             get : () => {
@@ -488,27 +491,32 @@ function addPreviewOptions(nodeType) {
                 }
             );
         }
-        const PauseDesc = (previewWidget.paused ? "Resume" : "Pause") + " preview";
+        const PauseDesc = (previewWidget._value.paused ? "Resume" : "Pause") + " preview";
         if(previewWidget.videoEl.hidden == false) {
             optNew.push({content: PauseDesc, callback: () => {
                 //animated images can't be paused and are more likely to cause performance issues.
                 //changing src to a single keyframe is possible,
                 //For now, the option is disabled if an animated image is being displayed
-                if(previewWidget.paused) {
-                    previewWidget.paused = false;
+                if(previewWidget._value.paused) {
                     previewWidget.videoEl?.play();
                 } else {
-                    previewWidget.paused = true;
                     previewWidget.videoEl?.pause();
                 }
+                previewWidget._value.paused = !previewWidget._value.paused;
             }});
         }
         //TODO: Consider hiding elements if video no preview is available yet.
         //It would reduce confusion at the cost of functionality
         //(if a video preview lags the computer, the user should be able to hide in advance)
-        const visDesc = (previewWidget.parentEl.hidden ? "Show" : "Hide") + " preview";
+        const visDesc = (previewWidget._value.hidden ? "Show" : "Hide") + " preview";
         optNew.push({content: visDesc, callback: () => {
-            previewWidget.parentEl.hidden = !previewWidget.parentEl.hidden;
+            if (!previewWidget.videoEl.hidden && !previewWidget._value.hidden) {
+                previewWidget.videoEl.pause();
+            } else if (previewWidget._value.hidden && !previewWidget.videoEl.hidden && !previewWidget._value.paused) {
+                previewWidget.videoEl.play();
+            }
+            previewWidget._value.hidden = !previewWidget._value.hidden;
+            previewWidget.parentEl.hidden = previewWidget._value.hidden;
             fitHeight(this);
 
         }});
