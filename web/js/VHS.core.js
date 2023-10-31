@@ -360,9 +360,10 @@ function addVideoPreview(nodeType) {
             draw : function(ctx, node, widgetWidth, widgetY, height) {
                 //update widget position, hide if off-screen
                 const transform = ctx.getTransform();
-                const x = transform.e;
-                const y = transform.f;
-                const scale = transform.a;//scale x and scale y always equal
+                const scale = app.canvas.ds.scale;//gets the litegraph zoom
+                //calculate coordinates with account for browser zoom
+                const x = transform.e*scale/transform.a;
+                const y = transform.f*scale/transform.a;
                 Object.assign(this.parentEl.style, {
                     left: (x+15*scale) + "px",
                     top: (y + widgetY*scale) + "px",
