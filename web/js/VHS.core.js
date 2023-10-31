@@ -573,6 +573,9 @@ app.registerExtension({
                 Object.defineProperty(pathWidget, "value", {
                     set : (value) => {
                         pathWidget._value = value;
+                        if (!value) {
+                            return
+                        }
                         //let parts = value.split("//");
                         let parts = ["input", value];
                         let extension_index = parts[1].lastIndexOf(".");
