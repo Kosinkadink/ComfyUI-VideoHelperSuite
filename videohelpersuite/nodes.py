@@ -3,6 +3,7 @@ import json
 import subprocess
 import shutil
 import numpy as np
+import re
 from typing import List
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
@@ -130,11 +131,22 @@ class VideoCombine:
                 metadata.add_text(x, json.dumps(extra_pnginfo[x]))
                 video_metadata[x] = extra_pnginfo[x]
 
-        counter = 1 
+        # comfy counter workaround
+        max_counter = 0
 
+        # Loop through the existing files
         for existing_file in os.listdir(full_output_folder):
-            if existing_file.startswith(f"{filename}_") and existing_file.endswith(".png"):
-                counter += 1
+            # Check if the file matches the expected format
+            match = re.fullmatch(f"{filename}_(\d+)_?\.[a-zA-Z0-9]+", existing_file)
+            if match:
+                # Extract the numeric portion of the filename
+                file_counter = int(match.group(1))
+                # Update the maximum counter value if necessary
+                if file_counter > max_counter:
+                    max_counter = file_counter
+
+        # Increment the counter by 1 to get the next available value
+        counter = max_counter + 1
 
         # save first frame as png to keep metadata
         file = f"{filename}_{counter:05}.png"
