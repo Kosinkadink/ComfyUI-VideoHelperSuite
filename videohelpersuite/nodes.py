@@ -115,7 +115,7 @@ class VideoCombine:
         (
             full_output_folder,
             filename,
-            counter,
+            _,
             subfolder,
             _,
         ) = folder_paths.get_save_image_path(filename_prefix, output_dir)
@@ -130,8 +130,14 @@ class VideoCombine:
                 metadata.add_text(x, json.dumps(extra_pnginfo[x]))
                 video_metadata[x] = extra_pnginfo[x]
 
+        counter = 1 
+
+        for existing_file in os.listdir(full_output_folder):
+            if existing_file.startswith(f"{filename}_") and existing_file.endswith(".png"):
+                counter += 1
+
         # save first frame as png to keep metadata
-        file = f"{filename}_{counter:05}_.png"
+        file = f"{filename}_{counter:05}.png"
         file_path = os.path.join(full_output_folder, file)
         frames[0].save(
             file_path,
