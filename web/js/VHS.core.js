@@ -40,54 +40,62 @@ function injectHidden(widget) {
     });
 }
 
+const convDict = {
+    VHS_LoadImages : ["directory", null, "image_load_cap", "skip_first_images", "select_every_nth"],
+    VHS_LoadImagesPath : ["directory", "image_load_cap", "skip_first_images", "select_every_nth"],
+    VHS_VideoCombine : ["frame_rate", "loop_count", "filename_prefix", "format", "pingpong", "save_image"],
+    VHS_LoadVideo : ["video", "force_rate", "force_size", "frame_load_cap", "skip_first_frames", "select_every_nth"],
+    VHS_LoadVideoPath : ["video", "force_rate", "force_size", "frame_load_cap", "skip_first_frames", "select_every_nth"]
+};
 function useKVState(nodeType) {
     chainCallback(nodeType.prototype, "onNodeCreated", function () {
         chainCallback(this, "onConfigure", function(info) {
             if (!this.widgets) {
-                //object has no widgets, there is nothing to restore
+                //Node has no widgets, there is nothing to restore
                 return
             }
-            if (typeof(info.widgets_values) == 'object' && info.widgets_values.length == undefined) {
-                for (let key in info.widgets_values) {
+            if (typeof(info.widgets_values) != "object") {
+                //widgets_values is in some unknown inactionable format
+                return
+            }
+            let widgetDict = info.widgets_values
+            if (info.widgets_values.length) {
+                //widgets_values is in the old list format
+                if (this.type in convDict) {
+                    //widget does not have a conversion format provided
+                    let convList = convDict[this.type];
+                    if(info.widgets_values.length >= convList.length) {
+                        //has all required fields
+                        widgetDict = {}
+                        for (let i = 0; i < convList.length; i++) {
+                            if(!convList[i]) {
+                                //Element should not be processed (upload button on load image sequence)
+                                continue
+                            }
+                            widgetDict[convList[i]] = info.widgets_values[i];
+                        }
+                    } else {
+                        //widgets_values is missing elements marked as required
+                        //let it fall through to failure state
+                    }
+                }
+            }
+            if (widgetDict.length == undefined) {
+                for (let key in widgetDict) {
                     let w = this.widgets.find((w) => w.name == key);
                     if (w == undefined) {
-                        //widget with name does not exist. removal/old version?
+                        //widget with name does not exist. Removal/old version?
+                        //TODO: consider adding another table to allow widget name changes
                         continue
                     }
-                    w.value = info.widgets_values[key];
+                    w.value = widgetDict[key];
                 }
             } else {
                 //Saved data was not a map made by this method
-                //This probably means it's an array and was already restored.
-                if (this.type =="VHS_LoadImages" && this.widgets.length == 5 && info?.widgets_values?.length == 5) {
-                    //shift values up by 1
-                    this.widgets[1].value = info.widgets_values[2];
-                    this.widgets[2].value = info.widgets_values[3];
-                    this.widgets[3].value = info.widgets_values[4];
-                }
+                //and a conversion dict for it does not exist
+                //It's likely an array and that has been blindly applied
                 if (info?.widgets_values?.length != this.widgets.length) {
                     //Widget could not have restored properly
-
-                    //First try a number of known migrations.
-                    //This code hits only specific common cases and is deprecated
-                    if(this.type == "VHS_LoadVideo" && info?.widgets_values?.length == 7) {
-                        //custom_width, custom_height, preview added. Shift and load
-                        this.widgets[3].value = 512;
-                        this.widgets[4].value = 512;
-                        this.widgets[5].value = info.widgets_values[3];
-                        this.widgets[6].value = info.widgets_values[4];
-                        this.widgets[7].value = info.widgets_values[5];
-                        return
-                    } else if (this.type == "VHS_VideoCombine" && info?.widgets_values?.length == 7) {
-                        //the sync button was removed, but actual loading was not impacted
-                        return
-                    } else if (this.type == "VHS_VideoCombine" && info?.widgets_values?.length == 8) {
-                        //single active preview
-                        if (info.widgets_values[7].startsWith("/view?")) {
-                            return
-                        }
-                    }
-
                     //Note if multiple node loads fail, only the latest error dialog displays
                     app.ui.dialog.show("Failed to restore node: " + this.title + "\nPlease remove and re-add it.")
                     this.bgcolor = "#C00"
