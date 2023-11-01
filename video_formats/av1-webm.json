@@ -2,8 +2,7 @@
     "main_pass":
     [
         "-n", "-c:v", "libsvtav1",
-        "-pix_fmt", "yuv420p10le",
-        "-crf", "23"
+        "-pix_fmt", "yuv420p10le"
     ],
      "extension": "webm",
      "environment": {"SVT_LOG": "1"}

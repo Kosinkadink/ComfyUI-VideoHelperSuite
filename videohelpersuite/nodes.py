@@ -53,6 +53,7 @@ class VideoCombine:
                 "format": (["image/gif", "image/webp"] + ffmpeg_formats,),
                 "pingpong": ("BOOLEAN", {"default": False}),
                 "save_image": ("BOOLEAN", {"default": True}),
+                "crf": ("INT", {"default": 20, "min": 0, "max": 100, "step": 1}),
             },
             "hidden": {
                 "prompt": "PROMPT",
@@ -65,7 +66,7 @@ class VideoCombine:
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
     FUNCTION = "combine_video"
 
-    def save_with_tempfile(self, args, metadata, file_path, frames, env):
+    def save_with_tempfile(self, args, metadata, file_path, frames, env, crf):
         #Ensure temp directory exists
         os.makedirs(folder_paths.get_temp_directory(), exist_ok=True)
 
@@ -82,7 +83,7 @@ class VideoCombine:
         with open(metadata_path, "w") as f:
             f.write(";FFMETADATA1\n")
             f.write(metadata)
-        args = args[:1] + ["-i", metadata_path] + args[1:] + [file_path]
+        args = args[:1] + ["-i", metadata_path, "-crf", str(crf)] + args[1:] + [file_path]
         with subprocess.Popen(args, stdin=subprocess.PIPE, env=env) as proc:
             for frame in frames:
                 proc.stdin.write(frame.tobytes())
@@ -90,6 +91,7 @@ class VideoCombine:
     def combine_video(
         self,
         images,
+        crf,
         frame_rate: int,
         loop_count: int,
         filename_prefix="AnimateDiff",
@@ -186,7 +188,7 @@ class VideoCombine:
                 env.update(video_format["environment"])
             if len(metadata_args[1]) >= max_arg_length:
                 logger.info(f"Using fallback file for extremely long metadata: {len(metadata_args[1])}/{max_arg_length}")
-                self.save_with_tempfile(args, metadata_args[1], file_path, frames, env)
+                self.save_with_tempfile(args, metadata_args[1], file_path, frames, env, crf)
             else:
                 try:
                     with subprocess.Popen(args + metadata_args + [file_path],
@@ -196,13 +198,13 @@ class VideoCombine:
                 except FileNotFoundError as e:
                     if "winerror" in dir(e) and e.winerror == 206:
                         logger.warn("Metadata was too long. Retrying with fallback file")
-                        self.save_with_tempfile(args, metadata_args[1], file_path, frames, env)
+                        self.save_with_tempfile(args, metadata_args[1], file_path, frames, env, crf)
                     else:
                         raise
                 except OSError as e:
                     if "errno" in dir(e) and e.errno == 7:
                         logger.warn("Metadata was too long. Retrying with fallback file")
-                        self.save_with_tempfile(args, metadata_args[1], file_path, frames, env)
+                        self.save_with_tempfile(args, metadata_args[1], file_path, frames, env, crf)
                     else:
                         raise
 
