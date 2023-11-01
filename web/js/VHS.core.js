@@ -81,14 +81,26 @@ function useKVState(nodeType) {
                 }
             }
             if (widgetDict.length == undefined) {
-                for (let key in widgetDict) {
-                    let w = this.widgets.find((w) => w.name == key);
-                    if (w == undefined) {
-                        //widget with name does not exist. Removal/old version?
-                        //TODO: consider adding another table to allow widget name changes
-                        continue
+                for (let w of this.widgets) {
+                    if (w.name in widgetDict) {
+                        w.value = widgetDict[w.name];
+                    } else {
+                        //attempt to restore default value
+                        let inputs = LiteGraph.getNodeType(this.type).nodeData.input;
+                        let initialValue = null;
+                        if (inputs?.required?.hasOwnProperty(w.name)) {
+                            if ("default" in inputs.required[w.name][1]) {
+                                initialValue = inputs.required[w.name][1].default;
+                            }
+                        } else if (inputs?.optional?.hasOwnProperty(w.name)) {
+                            if ("default" in inputs.optional[w.name][1]) {
+                                initialValue = inputs.optional[w.name][1].default;
+                            }
+                        }
+                        if (initialValue) {
+                            w.value = initialValue;
+                        }
                     }
-                    w.value = widgetDict[key];
                 }
             } else {
                 //Saved data was not a map made by this method
