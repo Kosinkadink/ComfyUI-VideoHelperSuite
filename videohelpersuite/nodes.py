@@ -3,6 +3,7 @@ import json
 import subprocess
 import shutil
 import numpy as np
+import re
 from typing import List
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
@@ -53,6 +54,7 @@ class VideoCombine:
                 "format": (["image/gif", "image/webp"] + ffmpeg_formats,),
                 "pingpong": ("BOOLEAN", {"default": False}),
                 "save_image": ("BOOLEAN", {"default": True}),
+                "crf": ("INT", {"default": 20, "min": 0, "max": 100, "step": 1}),
             },
             "hidden": {
                 "prompt": "PROMPT",
@@ -65,7 +67,7 @@ class VideoCombine:
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
     FUNCTION = "combine_video"
 
-    def save_with_tempfile(self, args, metadata, file_path, frames, env):
+    def save_with_tempfile(self, args, metadata, file_path, frames, env, crf):
         #Ensure temp directory exists
         os.makedirs(folder_paths.get_temp_directory(), exist_ok=True)
 
@@ -82,7 +84,7 @@ class VideoCombine:
         with open(metadata_path, "w") as f:
             f.write(";FFMETADATA1\n")
             f.write(metadata)
-        args = args[:1] + ["-i", metadata_path] + args[1:] + [file_path]
+        args = args[:1] + ["-i", metadata_path, "-crf", str(crf)] + args[1:] + [file_path]
         with subprocess.Popen(args, stdin=subprocess.PIPE, env=env) as proc:
             for frame in frames:
                 proc.stdin.write(frame.tobytes())
@@ -90,6 +92,7 @@ class VideoCombine:
     def combine_video(
         self,
         images,
+        crf,
         frame_rate: int,
         loop_count: int,
         filename_prefix="AnimateDiff",
@@ -115,7 +118,7 @@ class VideoCombine:
         (
             full_output_folder,
             filename,
-            counter,
+            _,
             subfolder,
             _,
         ) = folder_paths.get_save_image_path(filename_prefix, output_dir)
@@ -130,8 +133,25 @@ class VideoCombine:
                 metadata.add_text(x, json.dumps(extra_pnginfo[x]))
                 video_metadata[x] = extra_pnginfo[x]
 
+        # comfy counter workaround
+        max_counter = 0
+
+        # Loop through the existing files
+        for existing_file in os.listdir(full_output_folder):
+            # Check if the file matches the expected format
+            match = re.fullmatch(f"{filename}_(\d+)_?\.[a-zA-Z0-9]+", existing_file)
+            if match:
+                # Extract the numeric portion of the filename
+                file_counter = int(match.group(1))
+                # Update the maximum counter value if necessary
+                if file_counter > max_counter:
+                    max_counter = file_counter
+
+        # Increment the counter by 1 to get the next available value
+        counter = max_counter + 1
+
         # save first frame as png to keep metadata
-        file = f"{filename}_{counter:05}_.png"
+        file = f"{filename}_{counter:05}.png"
         file_path = os.path.join(full_output_folder, file)
         frames[0].save(
             file_path,
@@ -142,7 +162,7 @@ class VideoCombine:
             frames = frames + frames[-2:0:-1]
 
         format_type, format_ext = format.split("/")
-        file = f"{filename}_{counter:05}_.{format_ext}"
+        file = f"{filename}_{counter:05}.{format_ext}"
         file_path = os.path.join(full_output_folder, file)
         if format_type == "image":
             # Use pillow directly to save an animated image
@@ -164,12 +184,12 @@ class VideoCombine:
             video_format_path = folder_paths.get_full_path("video_formats", format_ext + ".json")
             with open(video_format_path, 'r') as stream:
                 video_format = json.load(stream)
-            file = f"{filename}_{counter:05}_.{video_format['extension']}"
+            file = f"{filename}_{counter:05}.{video_format['extension']}"
             file_path = os.path.join(full_output_folder, file)
             dimensions = f"{frames[0].width}x{frames[0].height}"
             metadata_args = ["-metadata", "comment=" + json.dumps(video_metadata)]
             args = [ffmpeg_path, "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
-                    "-s", dimensions, "-r", str(frame_rate), "-i", "-"] \
+                    "-s", dimensions, "-r", str(frame_rate), "-i", "-", "-crf", str(crf) ] \
                     + video_format['main_pass']
             # On linux, max arg length is Pagesize * 32 -> 131072
             # On windows, this around 32767 but seems to vary wildly by > 500
@@ -186,7 +206,7 @@ class VideoCombine:
                 env.update(video_format["environment"])
             if len(metadata_args[1]) >= max_arg_length:
                 logger.info(f"Using fallback file for extremely long metadata: {len(metadata_args[1])}/{max_arg_length}")
-                self.save_with_tempfile(args, metadata_args[1], file_path, frames, env)
+                self.save_with_tempfile(args, metadata_args[1], file_path, frames, env, crf)
             else:
                 try:
                     with subprocess.Popen(args + metadata_args + [file_path],
@@ -196,13 +216,13 @@ class VideoCombine:
                 except FileNotFoundError as e:
                     if "winerror" in dir(e) and e.winerror == 206:
                         logger.warn("Metadata was too long. Retrying with fallback file")
-                        self.save_with_tempfile(args, metadata_args[1], file_path, frames, env)
+                        self.save_with_tempfile(args, metadata_args[1], file_path, frames, env, crf)
                     else:
                         raise
                 except OSError as e:
                     if "errno" in dir(e) and e.errno == 7:
                         logger.warn("Metadata was too long. Retrying with fallback file")
-                        self.save_with_tempfile(args, metadata_args[1], file_path, frames, env)
+                        self.save_with_tempfile(args, metadata_args[1], file_path, frames, env, crf)
                     else:
                         raise
 
