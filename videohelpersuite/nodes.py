@@ -171,7 +171,7 @@ class VideoCombine:
             dimensions = f"{frames[0].width}x{frames[0].height}"
             metadata_args = ["-metadata", "comment=" + json.dumps(video_metadata)]
             args = [ffmpeg_path, "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
-                    "-s", dimensions, "-r", str(frame_rate), "-i", "-"] \
+                    "-s", dimensions, "-r", str(frame_rate), "-i", "-", "-crf", str(crf) ] \
                     + video_format['main_pass']
             # On linux, max arg length is Pagesize * 32 -> 131072
             # On windows, this around 32767 but seems to vary wildly by > 500
