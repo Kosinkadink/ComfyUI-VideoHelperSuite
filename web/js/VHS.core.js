@@ -89,12 +89,16 @@ function useKVState(nodeType) {
                         let inputs = LiteGraph.getNodeType(this.type).nodeData.input;
                         let initialValue = null;
                         if (inputs?.required?.hasOwnProperty(w.name)) {
-                            if ("default" in inputs.required[w.name][1]) {
+                            if (inputs.required[w.name][1]?.hasOwnProperty("default")) {
                                 initialValue = inputs.required[w.name][1].default;
+                            } else if (inputs.required[w.name][0].length) {
+                                initialValue = inputs.required[w.name][0][0];
                             }
                         } else if (inputs?.optional?.hasOwnProperty(w.name)) {
-                            if ("default" in inputs.optional[w.name][1]) {
+                            if (inputs.optional[w.name][1]?.hasOwnProperty("default")) {
                                 initialValue = inputs.optional[w.name][1].default;
+                            } else if (inputs.optional[w.name][0].length) {
+                                initialValue = inputs.optional[w.name][0][0];
                             }
                         }
                         if (initialValue) {
