@@ -84,7 +84,7 @@ class VideoCombine:
         with open(metadata_path, "w") as f:
             f.write(";FFMETADATA1\n")
             f.write(metadata)
-        args = args[:1] + ["-i", metadata_path, "-crf", str(crf)] + args[1:] + [file_path]
+        args = args[:1] + ["-i", metadata_path] + args[1:] + [file_path]
         with subprocess.Popen(args, stdin=subprocess.PIPE, env=env) as proc:
             for frame in frames:
                 proc.stdin.write(frame.tobytes())
@@ -205,7 +205,7 @@ class VideoCombine:
             if  "environment" in video_format:
                 env.update(video_format["environment"])
             if len(metadata_args[1]) >= max_arg_length:
-                logger.info(f"Using fallback file for extremely long metadata: {len(metadata_args[1])}/{max_arg_length}")
+                logger.info(f"Using fallback file for long metadata: {len(metadata_args[1])}/{max_arg_length}")
                 self.save_with_tempfile(args, metadata_args[1], file_path, frames, env, crf)
             else:
                 try:
