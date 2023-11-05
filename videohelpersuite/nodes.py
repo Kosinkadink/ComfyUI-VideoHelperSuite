@@ -137,9 +137,10 @@ class VideoCombine:
         max_counter = 0
 
         # Loop through the existing files
+        matcher = re.compile(f"{re.escape(filename)}_(\d+)_?\.[a-zA-Z0-9]+")
         for existing_file in os.listdir(full_output_folder):
             # Check if the file matches the expected format
-            match = re.fullmatch(f"{filename}_(\d+)_?\.[a-zA-Z0-9]+", existing_file)
+            match = matcher.fullmatch(existing_file)
             if match:
                 # Extract the numeric portion of the filename
                 file_counter = int(match.group(1))
