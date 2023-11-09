@@ -34,12 +34,49 @@ preferred_backend = "opencv"
 if "VHS_PREFERRED_BACKEND" in os.environ:
     preferred_backend = os.environ['VHS_PREFERRED_BACKEND']
 
+def gen_format_widgets(video_format):
+    for k in video_format:
+        if k.endswith("_pass"):
+            for i in range(len(video_format[k])):
+                if isinstance(video_format[k][i], list):
+                    item = [video_format[k][i]]
+                    yield item
+                    video_format[k][i] = item[0]
+        else:
+            if isinstance(video_format[k], list):
+                item = [video_format[k]]
+                yield item
+                video_format[k][sk] = item[0]
+
+def get_video_formats():
+    formats = []
+    for format_name in folder_paths.get_filename_list("video_formats"):
+        format_name = format_name[:-5]
+        video_format_path = folder_paths.get_full_path("video_formats", format_name + ".json")
+        with open(video_format_path, 'r') as stream:
+            video_format = json.load(stream)
+        widgets = [w[0] for w in gen_format_widgets(video_format)]
+        if (len(widgets) > 0):
+            formats.append(["video/" + format_name, widgets])
+        else:
+            formats.append("video/" + format_name)
+    return formats
+
+def apply_format_widgets(format_name, kwargs):
+    video_format_path = folder_paths.get_full_path("video_formats", format_name + ".json")
+    with open(video_format_path, 'r') as stream:
+        video_format = json.load(stream)
+    for w in gen_format_widgets(video_format):
+        assert(w[0][0] in kwargs)
+        w[0] = kwargs[w[0][0]]
+    return video_format
+
 class VideoCombine:
     @classmethod
     def INPUT_TYPES(s):
         #Hide ffmpeg formats if ffmpeg isn't available
         if ffmpeg_path is not None:
-            ffmpeg_formats = ["video/"+x[:-5] for x in folder_paths.get_filename_list("video_formats")]
+            ffmpeg_formats = get_video_formats()
         else:
             ffmpeg_formats = []
         return {
@@ -54,7 +91,6 @@ class VideoCombine:
                 "format": (["image/gif", "image/webp"] + ffmpeg_formats,),
                 "pingpong": ("BOOLEAN", {"default": False}),
                 "save_image": ("BOOLEAN", {"default": True}),
-                "crf": ("INT", {"default": 20, "min": 0, "max": 100, "step": 1}),
             },
             "hidden": {
                 "prompt": "PROMPT",
@@ -67,7 +103,7 @@ class VideoCombine:
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
     FUNCTION = "combine_video"
 
-    def save_with_tempfile(self, args, metadata, file_path, frames, env, crf):
+    def save_with_tempfile(self, args, metadata, file_path, frames, env):
         #Ensure temp directory exists
         os.makedirs(folder_paths.get_temp_directory(), exist_ok=True)
 
@@ -92,7 +128,6 @@ class VideoCombine:
     def combine_video(
         self,
         images,
-        crf,
         frame_rate: int,
         loop_count: int,
         filename_prefix="AnimateDiff",
@@ -101,6 +136,7 @@ class VideoCombine:
         save_image=True,
         prompt=None,
         extra_pnginfo=None,
+        **kwargs,
     ):
         # convert images to numpy
         frames: List[Image.Image] = []
@@ -163,9 +199,9 @@ class VideoCombine:
             frames = frames + frames[-2:0:-1]
 
         format_type, format_ext = format.split("/")
-        file = f"{filename}_{counter:05}.{format_ext}"
-        file_path = os.path.join(full_output_folder, file)
         if format_type == "image":
+            file = f"{filename}_{counter:05}.{format_ext}"
+            file_path = os.path.join(full_output_folder, file)
             # Use pillow directly to save an animated image
             frames[0].save(
                 file_path,
@@ -185,12 +221,13 @@ class VideoCombine:
             video_format_path = folder_paths.get_full_path("video_formats", format_ext + ".json")
             with open(video_format_path, 'r') as stream:
                 video_format = json.load(stream)
+            video_format = apply_format_widgets(format_ext, kwargs)
             file = f"{filename}_{counter:05}.{video_format['extension']}"
             file_path = os.path.join(full_output_folder, file)
             dimensions = f"{frames[0].width}x{frames[0].height}"
             metadata_args = ["-metadata", "comment=" + json.dumps(video_metadata)]
             args = [ffmpeg_path, "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
-                    "-s", dimensions, "-r", str(frame_rate), "-i", "-", "-crf", str(crf) ] \
+                    "-s", dimensions, "-r", str(frame_rate), "-i", "-"] \
                     + video_format['main_pass']
             # On linux, max arg length is Pagesize * 32 -> 131072
             # On windows, this around 32767 but seems to vary wildly by > 500
@@ -207,7 +244,7 @@ class VideoCombine:
                 env.update(video_format["environment"])
             if len(metadata_args[1]) >= max_arg_length:
                 logger.info(f"Using fallback file for long metadata: {len(metadata_args[1])}/{max_arg_length}")
-                self.save_with_tempfile(args, metadata_args[1], file_path, frames, env, crf)
+                self.save_with_tempfile(args, metadata_args[1], file_path, frames, env)
             else:
                 try:
                     with subprocess.Popen(args + metadata_args + [file_path],
@@ -217,13 +254,13 @@ class VideoCombine:
                 except FileNotFoundError as e:
                     if "winerror" in dir(e) and e.winerror == 206:
                         logger.warn("Metadata was too long. Retrying with fallback file")
-                        self.save_with_tempfile(args, metadata_args[1], file_path, frames, env, crf)
+                        self.save_with_tempfile(args, metadata_args[1], file_path, frames, env)
                     else:
                         raise
                 except OSError as e:
                     if "errno" in dir(e) and e.errno == 7:
                         logger.warn("Metadata was too long. Retrying with fallback file")
-                        self.save_with_tempfile(args, metadata_args[1], file_path, frames, env, crf)
+                        self.save_with_tempfile(args, metadata_args[1], file_path, frames, env)
                     else:
                         raise
 
@@ -236,6 +273,9 @@ class VideoCombine:
             }
         ]
         return {"ui": {"gifs": previews}}
+    @classmethod
+    def VALIDATE_INPUTS(self, **kwargs):
+        return True
 
 
 NODE_CLASS_MAPPINGS = {

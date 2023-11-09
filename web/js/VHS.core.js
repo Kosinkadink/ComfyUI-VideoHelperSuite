@@ -577,6 +577,59 @@ function addPreviewOptions(nodeType) {
         options.unshift(...optNew);
     });
 }
+function addFormatWidgets(nodeType) {
+    chainCallback(nodeType.prototype, "onNodeCreated", function() {
+        var formatWidget = null;
+        var formatWidgetIndex = -1;
+        for(let i = 0; i < this.widgets.length; i++) {
+            if (this.widgets[i].name === "format"){
+                formatWidget = this.widgets[i];
+                formatWidgetIndex = i+1;
+            }
+        }
+        let formatWidgetsCount = 0;
+        formatWidget._value = formatWidget.value;
+        Object.defineProperty(formatWidget, "value", {
+            set : (value) => {
+                formatWidget._value = value;
+                let newWidgets = [];
+                if (typeof(value) != "object") {
+                    formatWidget.formatName = value;
+                } else {
+                    formatWidget.formatName = value[0];
+                    for (let wDef of value[1]) {
+                        //create widgets. Heavy borrowed from web/scripts/app.js
+                        let w = {};
+                        w.name = wDef[0];
+                        let inputData = wDef.slice(1);
+                        w.type = inputData[0];
+                        w.options = inputData[1] ? inputData[1] : {};
+                        if (Array.isArray(w.type)) {
+                            w.value = w.type[0];
+                            w.options.values = w.type;
+                            w.type = "combo";
+                        }
+                        if(inputData[1]?.default) {
+                            w.value = inputData[1].default;
+                        }
+                        const typeTable = {BOOLEAN: "toggle", STRING: "text", INT: "number", FLOAT: "number"};
+                        if (w.type in typeTable) {
+                            w.type = typeTable[w.type];
+                        }
+                        //TODO: implement precision/rounding/step
+                        newWidgets.push(w);
+                    }
+                }
+                this.widgets.splice(formatWidgetIndex, formatWidgetsCount, ...newWidgets);
+                fitHeight(this);
+                formatWidgetsCount = newWidgets.length;
+            },
+            get : () => {
+                return formatWidget.formatName;
+            }
+        });
+    });
+}
 
 app.registerExtension({
     name: "VideoHelperSuite.Core",
@@ -627,6 +680,7 @@ app.registerExtension({
             });
             addVideoPreview(nodeType);
             addPreviewOptions(nodeType);
+            addFormatWidgets(nodeType);
 
             //Hide the information passing 'gif' output
             //TODO: check how this is implemented for save image
