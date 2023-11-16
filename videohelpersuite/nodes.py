@@ -55,6 +55,8 @@ class VideoCombine:
                 "pingpong": ("BOOLEAN", {"default": False}),
                 "save_image": ("BOOLEAN", {"default": True}),
                 "crf": ("INT", {"default": 20, "min": 0, "max": 100, "step": 1}),
+            },
+            "optional": {
                 "save_metadata": ("BOOLEAN", {"default": True}),
             },
             "hidden": {
