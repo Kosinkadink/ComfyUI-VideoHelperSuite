@@ -2,7 +2,7 @@
     "main_pass":
     [
         "-n", "-c:v", "libx264",
-        "-pix_fmt", "yuv420p"
+        "-pix_fmt", "yuv420p10le"
     ],
      "extension": "mp4"
 }
