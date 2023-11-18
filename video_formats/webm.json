@@ -2,7 +2,7 @@
     "main_pass":
     [
         "-n",
-        "-pix_fmt", "yuv422p12le"
+        "-pix_fmt", "yuv420p"
     ],
      "extension": "webm"
 }
