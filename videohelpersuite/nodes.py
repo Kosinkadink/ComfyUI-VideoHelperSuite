@@ -59,7 +59,7 @@ class VideoCombine:
             },
             "optional": {
                 "save_metadata": ("BOOLEAN", {"default": True}),
-                "audio_file": ("STRING", {"default": "/test/audio.wav"}),
+                "audio_file": ("STRING", {"default": ""}),
             },
             "hidden": {
                 "prompt": "PROMPT",
