@@ -85,8 +85,7 @@ class VideoCombine:
         save_metadata=True,
         prompt=None,
         extra_pnginfo=None,
-        audio_file="",
-
+        audio_file=""
     ):
         # convert images to numpy
         frames: List[Image.Image] = []
