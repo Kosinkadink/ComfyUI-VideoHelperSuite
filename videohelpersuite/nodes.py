@@ -7,6 +7,7 @@ import re
 from typing import List
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
+from pathlib import Path
 
 import folder_paths
 from .logger import logger
@@ -58,6 +59,7 @@ class VideoCombine:
             },
             "optional": {
                 "save_metadata": ("BOOLEAN", {"default": True}),
+                "audio_file": ("STRING", {"default": "/test/audio.wav"}),
             },
             "hidden": {
                 "prompt": "PROMPT",
@@ -83,6 +85,8 @@ class VideoCombine:
         save_metadata=True,
         prompt=None,
         extra_pnginfo=None,
+        audio_file="",
+
     ):
         # convert images to numpy
         frames: List[Image.Image] = []
@@ -197,6 +201,30 @@ class VideoCombine:
                                   stdin=subprocess.PIPE, env=env) as proc:
                 for frame in frames:
                     proc.stdin.write(frame.tobytes())
+
+            # Audio Injection ater video is created, saves additional video with -audio.mp4
+            # Accepts mp3 and wav formats
+            # TODO test unix and windows paths to make sure it works properly. Path module is Used
+            
+            audio_file_path = Path(audio_file)
+            file_path = Path(file_path)  # Convert file_path to a Path object
+            
+            # Create a new output filename with "-audio" appended
+            output_file_with_audio = file_path.stem + "-audio.mp4"
+            output_file_with_audio_path = file_path.parent / output_file_with_audio
+            
+            # Check if the audio file exists and is either a .wav or .mp3 file
+            if audio_file_path.exists() and audio_file_path.suffix.lower() in ['.wav', '.mp3']:
+                print("Audio file exists and is a supported format (.wav or .mp3).")
+                
+                # FFmpeg command with audio re-encoding
+                mux_args = [ffmpeg_path, "-y", "-i", str(file_path), "-i", str(audio_file_path),
+                            "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-strict", "experimental", "-shortest", str(output_file_with_audio_path)]
+                subprocess.run(mux_args)              
+            elif not audio_file_path.exists():
+                print(f"Error: Audio file '{audio_file}' not found. Please check the file path.")
+            else:
+                print(f"Error: Unsupported audio file format '{audio_file_path.suffix}'. Please use .wav or .mp3.")
 
         previews = [
             {
