@@ -133,7 +133,7 @@ function useKVState(nodeType) {
 
 function fitHeight(node) {
     node.setSize([node.size[0], node.computeSize([node.size[0], node.size[1]])[1]])
-    node.graph.setDirtyCanvas(true);
+    node?.graph?.setDirtyCanvas(true);
 }
 
 async function uploadFile(file) {
@@ -415,6 +415,7 @@ function addVideoPreview(nodeType) {
         chainCallback(this, "onRemoved", () => {
             previewWidget?.parentEl?.remove();
         });
+        previewWidget.options = {serialize : false};
         this.addCustomWidget(previewWidget);
         previewWidget.parentEl = document.createElement("div");
         previewWidget.parentEl.className = "vhs_preview";
@@ -578,6 +579,17 @@ function addPreviewOptions(nodeType) {
     });
 }
 function addFormatWidgets(nodeType) {
+    function parseFormats(options) {
+        options.fullvalues = options._values;
+        options._values = [];
+        for (let format of options.fullvalues) {
+            if (Array.isArray(format)) {
+                options._values.push(format[0]);
+            } else {
+                options._values.push(format);
+            }
+        }
+    }
     chainCallback(nodeType.prototype, "onNodeCreated", function() {
         var formatWidget = null;
         var formatWidgetIndex = -1;
@@ -588,16 +600,30 @@ function addFormatWidgets(nodeType) {
             }
         }
         let formatWidgetsCount = 0;
+        //Pre-process options to just names
+        formatWidget.options._values = formatWidget.options.values;
+        parseFormats(formatWidget.options);
+        Object.defineProperty(formatWidget.options, "values", {
+            set : (value) => {
+                formatWidget.options._values  = value;
+                parseFormats(formatWidget.options);
+            },
+            get : () => {
+                return formatWidget.options._values;
+            }
+        })
+
         formatWidget._value = formatWidget.value;
         Object.defineProperty(formatWidget, "value", {
             set : (value) => {
                 formatWidget._value = value;
                 let newWidgets = [];
-                if (typeof(value) != "object") {
-                    formatWidget.formatName = value;
+                const fullDef = formatWidget.options.fullvalues.find((w) => Array.isArray(w) ? w[0] === value : w === value);
+                if (!Array.isArray(fullDef)) {
+                    formatWidget._value = value;
                 } else {
-                    formatWidget.formatName = value[0];
-                    for (let wDef of value[1]) {
+                    formatWidget._value = fullDef[0];
+                    for (let wDef of fullDef[1]) {
                         //create widgets. Heavy borrowed from web/scripts/app.js
                         let w = {};
                         w.name = wDef[0];
@@ -625,7 +651,7 @@ function addFormatWidgets(nodeType) {
                 formatWidgetsCount = newWidgets.length;
             },
             get : () => {
-                return formatWidget.formatName;
+                return formatWidget._value;
             }
         });
     });

@@ -68,7 +68,7 @@ def apply_format_widgets(format_name, kwargs):
         video_format = json.load(stream)
     for w in gen_format_widgets(video_format):
         assert(w[0][0] in kwargs)
-        w[0] = kwargs[w[0][0]]
+        w[0] = str(kwargs[w[0][0]])
     return video_format
 
 class VideoCombine:
@@ -95,6 +95,7 @@ class VideoCombine:
             "hidden": {
                 "prompt": "PROMPT",
                 "extra_pnginfo": "EXTRA_PNGINFO",
+                "unique_id": "UNIQUE_ID"
             },
         }
 
@@ -136,8 +137,9 @@ class VideoCombine:
         save_image=True,
         prompt=None,
         extra_pnginfo=None,
-        **kwargs,
+        unique_id=None,
     ):
+        kwargs = prompt[unique_id]['inputs']
         # convert images to numpy
         frames: List[Image.Image] = []
         for image in images:
