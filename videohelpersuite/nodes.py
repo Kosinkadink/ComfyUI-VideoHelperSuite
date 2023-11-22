@@ -204,26 +204,37 @@ class VideoCombine:
             # Audio Injection ater video is created, saves additional video with -audio.mp4
             # Accepts mp3 and wav formats
             # TODO test unix and windows paths to make sure it works properly. Path module is Used
-            
+
             audio_file_path = Path(audio_file)
-            file_path = Path(file_path)  # Convert file_path to a Path object
-            
-            # Create a new output filename with "-audio" appended
-            output_file_with_audio = file_path.stem + "-audio.mp4"
-            output_file_with_audio_path = file_path.parent / output_file_with_audio
-            
-            # Check if the audio file exists and is either a .wav or .mp3 file
-            if audio_file_path.exists() and audio_file_path.suffix.lower() in ['.wav', '.mp3']:
-                print("Audio file exists and is a supported format (.wav or .mp3).")
+            file_path = Path(file_path)
+
+            # Check if 'audio_file' is not empty and the file exists
+            if audio_file and audio_file_path.exists() and audio_file_path.suffix.lower() in ['.wav', '.mp3']:
                 
-                # FFmpeg command with audio re-encoding
-                mux_args = [ffmpeg_path, "-y", "-i", str(file_path), "-i", str(audio_file_path),
-                            "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-strict", "experimental", "-shortest", str(output_file_with_audio_path)]
-                subprocess.run(mux_args)              
-            elif not audio_file_path.exists():
-                print(f"Error: Audio file '{audio_file}' not found. Please check the file path.")
-            else:
-                print(f"Error: Unsupported audio file format '{audio_file_path.suffix}'. Please use .wav or .mp3.")
+                # Mapping of input extensions to output settings (extension, audio codec)
+                format_settings = {
+                    '.mov': ('.mov', 'pcm_s16le'),  # ProRes codec in .mov container
+                    '.mp4': ('.mp4', 'aac'),        # H.264/H.265 in .mp4 container
+                    '.mkv': ('.mkv', 'aac'),        # H.265 in .mkv container
+                    '.webp': ('.webp', 'libvorbis'),
+                    '.webm': ('.webm', 'libvorbis'),
+                    '.av1': ('.webm', 'libvorbis')
+                }
+
+                output_extension, audio_codec = format_settings.get(file_path.suffix.lower(), (None, None))
+
+                if output_extension and audio_codec:
+                    # Modify output file name
+                    output_file_with_audio_path = file_path.with_stem(file_path.stem + "-audio").with_suffix(output_extension)
+
+                    # FFmpeg command with audio re-encoding
+                    mux_args = [
+                        ffmpeg_path, "-y", "-i", str(file_path), "-i", str(audio_file_path),
+                        "-c:v", "copy", "-c:a", audio_codec, "-b:a", "192k", "-strict", "experimental", "-shortest", str(output_file_with_audio_path)
+                    ]
+                    
+                    subprocess.run(mux_args, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
+                # Else block for unsupported video format can be added if necessar
 
         previews = [
             {
