@@ -38,7 +38,22 @@ async def view_video(request):
     if not os.path.isfile(file):
         return web.Response(status=404)
 
-    with subprocess.Popen(["ffmpeg", "-v", "error", "-i", file, "-t", "10", "-c:v", "copy", "-f", "webm", "-"], stdout=subprocess.PIPE) as proc:
+    args = ["ffmpeg", "-v", "error", "-i", file]
+    vfilters = []
+    if int(query.get('force_rate',0)) != 0:
+        vfilters.append("fps=fps="+query['force_rate'] + ":round=up")
+    if int(query.get('skip_first_frames', 0)) > 0:
+        vfilters.append(f"select=gt(n\\,{int(query['skip_first_frames'])-1})")
+    if query.get('force_size','Disabled') != "Disabled":
+        size = query['force_size'].replace('?','-2').replace('x',':')
+        vfilters.append(f"scale={size}")
+    if len(vfilters) > 0:
+        args += ["-vf", ",".join(vfilters)]
+    if int(query.get('frame_load_cap', 0)) > 0:
+        args += ["-frames:v", query['frame_load_cap']]
+    args += ['-f', 'webm', '-']
+
+    with subprocess.Popen(args, stdout=subprocess.PIPE) as proc:
         resp = web.StreamResponse()
         resp.content_type = 'video/webm'
         resp.headers["Content-Disposition"] = f"filename=\"{filename}\""

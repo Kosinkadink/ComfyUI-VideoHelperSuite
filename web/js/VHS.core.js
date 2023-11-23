@@ -491,6 +491,47 @@ function addVideoPreview(nodeType) {
         document.body.appendChild(previewWidget.parentEl);
     });
 }
+function addAdvancedPreview(nodeType) {
+    chainCallback(nodeType.prototype, "onNodeCreated", function() {
+        //TODO: do proper integration
+        const frameCapWidget = this.widgets.find((w) => w.name === 'frame_load_cap');
+        const frameSkipWidget = this.widgets.find((w) => w.name === 'skip_first_frames');
+        const rateWidget = this.widgets.find((w) => w.name === 'force_rate');
+        const previewWidget = this.widgets.find((w) => w.name === 'videopreview');
+        var stale = false;
+        var recent_request = false;
+
+        this.testPreview = () => {
+            if (recent_request) {
+                stale = true;
+                return;
+            }
+            recent_request = true;
+            //TODO: show some kind of load indicator/spin
+            //here would accommodate staleness with a likely tolerable flicker
+
+            let params = previewWidget._value.params;
+            params.frame_load_cap = frameCapWidget.value;
+            params.skip_first_frames = frameSkipWidget.value;
+            params.force_rate = rateWidget.value;
+            //TODO: consider size handing
+            //Reading from size is easy. It's a question of tuning responsiveness
+            params.force_size = this.size[0] + "x?";
+
+            previewWidget.videoEl.src = api.apiURL('viewvideo?' + new URLSearchParams(params));
+            setTimeout(() =>{
+                recent_request = false;
+                if (stale) {
+                    stale = false;
+                    this.testPreview();
+                }
+            },2e3);
+        }
+        chainCallback(frameCapWidget, "callback", this.testPreview);
+        chainCallback(frameSkipWidget, "callback", this.testPreview);
+        chainCallback(rateWidget, "callback", this.testPreview);
+    });
+}
 function addPreviewOptions(nodeType) {
     chainCallback(nodeType.prototype, "getExtraMenuOptions", function(_, options) {
         // The intended way of appending options is returning a list of extra options,
@@ -618,6 +659,7 @@ app.registerExtension({
                 //Set value to ensure preview displays on initial add.
                 pathWidget.value = pathWidget._value;
             });
+            addAdvancedPreview(nodeType);
         } else if (nodeData?.name == "VHS_VideoCombine") {
             addDateFormatting(nodeType, "filename_prefix");
             chainCallback(nodeType.prototype, "onExecuted", function(message) {
