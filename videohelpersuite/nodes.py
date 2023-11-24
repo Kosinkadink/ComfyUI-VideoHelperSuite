@@ -2,6 +2,7 @@ import os
 import json
 import subprocess
 import shutil
+import itertools
 import numpy as np
 import re
 from typing import List
@@ -33,6 +34,11 @@ if ffmpeg_path is None:
 preferred_backend = "opencv"
 if "VHS_PREFERRED_BACKEND" in os.environ:
     preferred_backend = os.environ['VHS_PREFERRED_BACKEND']
+
+
+def f32_to_pil(tensor):
+    img = 255.0 * tensor.cpu().numpy()
+    return Image.fromarray(np.clip(img, 0, 255).astype(np.uint8))
 
 class VideoCombine:
     @classmethod
@@ -84,13 +90,6 @@ class VideoCombine:
         prompt=None,
         extra_pnginfo=None,
     ):
-        # convert images to numpy
-        frames: List[Image.Image] = []
-        for image in images:
-            img = 255.0 * image.cpu().numpy()
-            img = Image.fromarray(np.clip(img, 0, 255).astype(np.uint8))
-            frames.append(img)
-
         # get output information
         output_dir = (
             folder_paths.get_output_directory()
@@ -136,18 +135,21 @@ class VideoCombine:
         # save first frame as png to keep metadata
         file = f"{filename}_{counter:05}.png"
         file_path = os.path.join(full_output_folder, file)
-        frames[0].save(
+        frame0 = f32_to_pil(images[0])
+        frame0.save(
             file_path,
             pnginfo=metadata,
             compress_level=4,
         )
+        frame_is = range(len(images))
         if pingpong:
-            frames = frames + frames[-2:0:-1]
+            frame_is = itertools.chain(frame_is, range(len(images)-2,0,-1))
 
         format_type, format_ext = format.split("/")
         file = f"{filename}_{counter:05}.{format_ext}"
         file_path = os.path.join(full_output_folder, file)
         if format_type == "image":
+            frames = [f32_to_pil(images[i]) for i in frame_is]
             # Use pillow directly to save an animated image
             frames[0].save(
                 file_path,
@@ -169,8 +171,8 @@ class VideoCombine:
                 video_format = json.load(stream)
             file = f"{filename}_{counter:05}.{video_format['extension']}"
             file_path = os.path.join(full_output_folder, file)
-            dimensions = f"{frames[0].width}x{frames[0].height}"
-            args = [ffmpeg_path, "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
+            dimensions = f"{frame0.width}x{frame0.height}"
+            args = [ffmpeg_path, "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb48le",
                     "-s", dimensions, "-r", str(frame_rate), "-i", "-", "-crf", str(crf) ] \
                     + video_format['main_pass']
 
@@ -195,8 +197,8 @@ class VideoCombine:
             # TODO: Catch broken pipe -> instruct to check console
             with subprocess.Popen(args + [file_path],
                                   stdin=subprocess.PIPE, env=env) as proc:
-                for frame in frames:
-                    proc.stdin.write(frame.tobytes())
+                for i in frame_is:
+                    proc.stdin.write((images[i].cpu().numpy()*float(2**16-1)).astype(np.uint16).tobytes())
 
         previews = [
             {
