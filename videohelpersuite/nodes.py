@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import subprocess
 import shutil
@@ -192,11 +193,20 @@ class VideoCombine:
                     f.write(";FFMETADATA1\n")
                     f.write(metadata)
                 args = args[:1] + ["-i", metadata_path] + args[1:]
-            # TODO: Catch broken pipe -> instruct to check console
-            with subprocess.Popen(args + [file_path],
-                                  stdin=subprocess.PIPE, env=env) as proc:
-                for frame in frames:
-                    proc.stdin.write(frame.tobytes())
+            with subprocess.Popen(args + [file_path], stderr=subprocess.PIPE,
+                                      stdin=subprocess.PIPE, env=env) as proc:
+                try:
+                    for frame in frames:
+                        proc.stdin.write(frame.tobytes())
+                except BrokenPipeError as e:
+                    raise Exception("An error occured in the ffmpeg subprocess:\n" \
+                            + proc.stderr.read().decode("utf-8"))
+                #If an important but recoverable error occurs, it will not be logged above
+                proc.stdin.close()
+                proc.wait()
+                err = proc.stderr.read()
+                if err:
+                    print(err.decode("utf-8"), sys.stderr)
 
         previews = [
             {
