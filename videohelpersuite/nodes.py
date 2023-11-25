@@ -86,11 +86,8 @@ class VideoCombine:
         extra_pnginfo=None,
     ):
         # convert images to numpy
-        frames: List[Image.Image] = []
-        for image in images:
-            img = 255.0 * image.cpu().numpy()
-            img = Image.fromarray(np.clip(img, 0, 255).astype(np.uint8))
-            frames.append(img)
+        images = images.cpu().numpy() * 255.0
+        images = np.clip(images, 0, 255).astype(np.uint8)
 
         # get output information
         output_dir = (
@@ -137,18 +134,19 @@ class VideoCombine:
         # save first frame as png to keep metadata
         file = f"{filename}_{counter:05}.png"
         file_path = os.path.join(full_output_folder, file)
-        frames[0].save(
+        Image.fromarray(images[0]).save(
             file_path,
             pnginfo=metadata,
             compress_level=4,
         )
         if pingpong:
-            frames = frames + frames[-2:0:-1]
+            images = np.concatenate((images, images[-2:0:-1]))
 
         format_type, format_ext = format.split("/")
         file = f"{filename}_{counter:05}.{format_ext}"
         file_path = os.path.join(full_output_folder, file)
         if format_type == "image":
+            frames = [Image.fromarray(f) for f in images]
             # Use pillow directly to save an animated image
             frames[0].save(
                 file_path,
@@ -170,7 +168,7 @@ class VideoCombine:
                 video_format = json.load(stream)
             file = f"{filename}_{counter:05}.{video_format['extension']}"
             file_path = os.path.join(full_output_folder, file)
-            dimensions = f"{frames[0].width}x{frames[0].height}"
+            dimensions = f"{len(images[0][0])}x{len(images[0])}"
             args = [ffmpeg_path, "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
                     "-s", dimensions, "-r", str(frame_rate), "-i", "-", "-crf", str(crf) ] \
                     + video_format['main_pass']
@@ -178,6 +176,7 @@ class VideoCombine:
             env=os.environ.copy()
             if  "environment" in video_format:
                 env.update(video_format["environment"])
+            res = None
             if save_metadata:
                 os.makedirs(folder_paths.get_temp_directory(), exist_ok=True)
                 metadata = json.dumps(video_metadata)
@@ -192,21 +191,25 @@ class VideoCombine:
                 with open(metadata_path, "w") as f:
                     f.write(";FFMETADATA1\n")
                     f.write(metadata)
-                args = args[:1] + ["-i", metadata_path] + args[1:]
-            with subprocess.Popen(args + [file_path], stderr=subprocess.PIPE,
-                                      stdin=subprocess.PIPE, env=env) as proc:
+                m_args = args[:1] + ["-i", metadata_path] + args[1:]
                 try:
-                    for frame in frames:
-                        proc.stdin.write(frame.tobytes())
-                except BrokenPipeError as e:
+                    res = subprocess.run(m_args + [file_path], input=images.tobytes(),
+                                         capture_output=True, check=True, env=env)
+                except subprocess.CalledProcessError as e:
+                    #Res was not set
+                    print(e.stderr.decode("utf-8"), end="", file=sys.stderr)
+                    logger.warn("An error occurred when saving with metadata")
+
+            if not res:
+                try:
+                    res = subprocess.run(args + [file_path], input=images.tobytes(),
+                                         capture_output=True, check=True, env=env)
+                except subprocess.CalledProcessError as e:
                     raise Exception("An error occured in the ffmpeg subprocess:\n" \
-                            + proc.stderr.read().decode("utf-8"))
-                #If an important but recoverable error occurs, it will not be logged above
-                proc.stdin.close()
-                proc.wait()
-                err = proc.stderr.read()
-                if err:
-                    print(err.decode("utf-8"), sys.stderr)
+                            + e.stderr.decode("utf-8"))
+            if res.stderr:
+                print(res.stderr.decode("utf-8"), end="", file=sys.stderr)
+
 
         previews = [
             {
