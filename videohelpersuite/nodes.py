@@ -2,7 +2,6 @@ import os
 import sys
 import json
 import subprocess
-import shutil
 import numpy as np
 import re
 from typing import List
@@ -15,6 +14,7 @@ from .logger import logger
 from .image_latent_nodes import DuplicateImages, DuplicateLatents, GetImageCount, GetLatentCount, MergeImages, MergeLatents, SelectEveryNthImage, SelectEveryNthLatent, SplitLatents, SplitImages
 from .load_video_nodes import LoadVideoUpload, LoadVideoPath
 from .load_images_nodes import LoadImagesFromDirectoryUpload, LoadImagesFromDirectoryPath
+from .utils import ffmpeg_path
 
 folder_paths.folder_names_and_paths["video_formats"] = (
     [
@@ -22,15 +22,6 @@ folder_paths.folder_names_and_paths["video_formats"] = (
     ],
     [".json"]
 )
-
-ffmpeg_path = shutil.which("ffmpeg")
-if ffmpeg_path is None:
-    logger.info("ffmpeg could not be found. Using ffmpeg from imageio-ffmpeg.")
-    from imageio_ffmpeg import get_ffmpeg_exe
-    try:
-        ffmpeg_path = get_ffmpeg_exe()
-    except:
-        logger.warning("ffmpeg could not be found. Outputs that require it have been disabled")
 
 preferred_backend = "opencv"
 if "VHS_PREFERRED_BACKEND" in os.environ:
@@ -60,7 +51,7 @@ class VideoCombine:
             },
             "optional": {
                 "save_metadata": ("BOOLEAN", {"default": True}),
-                "audio_file": ("STRING", {"default": ""}),
+                "audio": ("AUDIO",),
             },
             "hidden": {
                 "prompt": "PROMPT",
@@ -86,7 +77,7 @@ class VideoCombine:
         save_metadata=True,
         prompt=None,
         extra_pnginfo=None,
-        audio_file=""
+        audio=None,
     ):
         # convert images to numpy
         images = images.cpu().numpy() * 255.0
@@ -215,39 +206,26 @@ class VideoCombine:
 
 
             # Audio Injection ater video is created, saves additional video with -audio.mp4
-            # Accepts mp3 and wav formats
-            # TODO test unix and windows paths to make sure it works properly. Path module is Used
 
-            audio_file_path = Path(audio_file)
-            file_path = Path(file_path)
+            # Create audio file if input was provided
+            if audio:
+                output_file_with_audio = f"{filename}_{counter:05}-audio.{video_format['extension']}"
+                output_file_with_audio_path = os.path.join(full_output_folder, output_file_with_audio)
 
-            # Check if 'audio_file' is not empty and the file exists
-            if audio_file and audio_file_path.exists() and audio_file_path.suffix.lower() in ['.wav', '.mp3']:
-                
-                # Mapping of input extensions to output settings (extension, audio codec)
-                format_settings = {
-                    '.mov': ('.mov', 'pcm_s16le'),  # ProRes codec in .mov container
-                    '.mp4': ('.mp4', 'aac'),        # H.264/H.265 in .mp4 container
-                    '.mkv': ('.mkv', 'aac'),        # H.265 in .mkv container
-                    '.webp': ('.webp', 'libvorbis'),
-                    '.webm': ('.webm', 'libvorbis'),
-                    '.av1': ('.webm', 'libvorbis')
-                }
+                # FFmpeg command with audio re-encoding
+                mux_args = [
+                    ffmpeg_path, "-v", "error", "-n", "-i", file_path, "-i", "-",
+                    "-c:v", "copy", "-c:a", "libopus", "-b:a", "192k", "-strict", "experimental","-af", "apad", "-shortest", output_file_with_audio_path
+                ]
 
-                output_extension, audio_codec = format_settings.get(file_path.suffix.lower(), (None, None))
-
-                if output_extension and audio_codec:
-                    # Modify output file name
-                    output_file_with_audio_path = file_path.with_stem(file_path.stem + "-audio").with_suffix(output_extension)
-
-                    # FFmpeg command with audio re-encoding
-                    mux_args = [
-                        ffmpeg_path, "-y", "-i", str(file_path), "-i", str(audio_file_path),
-                        "-c:v", "copy", "-c:a", audio_codec, "-b:a", "192k", "-strict", "experimental", "-shortest", str(output_file_with_audio_path)
-                    ]
-                    
-                    subprocess.run(mux_args, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
-                # Else block for unsupported video format can be added if necessar
+                try:
+                    res = subprocess.run(mux_args, input=audio(), env=env,
+                                         capture_output=True, check=True, env=env)
+                except subprocess.CalledProcessError as e:
+                    raise Exception("An error occured in the ffmpeg subprocess:\n" \
+                            + e.stderr.decode("utf-8"))
+                if res.stderr:
+                    print(res.stderr.decode("utf-8"), end="", file=sys.stderr)
 
         previews = [
             {
