@@ -62,12 +62,14 @@ def load_images(directory: str, image_load_cap: int = 0, skip_first_images: int 
         if 'A' in i.getbands():
             mask = np.array(i.getchannel('A')).astype(np.float32) / 255.0
             mask = 1. - torch.from_numpy(mask)
-        else:
-            mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
+            masks.append(mask)
         images.append(image)
-        masks.append(mask)
         image_count += 1
     
+    if len(masks) != len(images):
+        logger.warning(f"Only {len(masks)} masks were loaded, but {len(images)} images were loaded. Ignoring masks.")
+        masks = [torch.zeros((64,64), dtype=torch.float32, device="cpu")] * len(images)
+
     if len(images) == 0:
         raise FileNotFoundError(f"No images could be loaded from directory '{directory}'.")
 
