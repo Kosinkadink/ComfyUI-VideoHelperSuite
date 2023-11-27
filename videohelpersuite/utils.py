@@ -2,6 +2,7 @@ import hashlib
 import os
 from typing import Iterable
 import shutil
+import subprocess
 
 ffmpeg_path = shutil.which("ffmpeg")
 if ffmpeg_path is None:
@@ -45,3 +46,23 @@ def calculate_file_hash(filename: str, hash_every_n: int = 1):
                 h.update(mv[:n])
             i += 1
     return h.hexdigest()
+
+def get_audio(file, start_time=0, duration=0):
+    args = [ffmpeg_path, "-v", "error", "-i", file]
+    if start_time > 0:
+        args += ["-ss", str(start_time)]
+    if duration > 0:
+        args += ["-t", str(duration)]
+    return subprocess.run(args + ["-f", "wav", "-"],
+                          stdout=subprocess.PIPE, check=True).stdout
+def lazy_eval(func):
+    class Cache:
+        def __init__(self, func):
+            self.res = None
+            self.func = func
+        def get(self):
+            if self.res is None:
+                self.res = self.func()
+            return self.res
+    cache = Cache(func)
+    return lambda : cache.get()

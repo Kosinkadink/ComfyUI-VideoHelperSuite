@@ -4,5 +4,6 @@
         "-n", "-c:v", "libx264",
         "-pix_fmt", "yuv420p"
     ],
-     "extension": "mp4"
+    "audio_pass": ["-c:a", "aac"],
+    "extension": "mp4"
 }

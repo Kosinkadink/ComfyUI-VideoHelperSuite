@@ -4,5 +4,6 @@
         "-n",
         "-pix_fmt", "yuv420p"
     ],
-     "extension": "webm"
+    "audio_pass": ["-c:a", "libvorbis"],
+    "extension": "webm"
 }

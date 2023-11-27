@@ -1,5 +1,4 @@
 import os
-import subprocess
 import numpy as np
 import torch
 from PIL import Image, ImageOps
@@ -8,7 +7,7 @@ import cv2
 import folder_paths
 from comfy.utils import common_upscale
 from .logger import logger
-from .utils import calculate_file_hash, get_sorted_dir_files_from_directory, ffmpeg_path
+from .utils import calculate_file_hash, get_sorted_dir_files_from_directory, get_audio, lazy_eval
 
 
 video_extensions = ['webm', 'mp4', 'mkv', 'gif']
@@ -33,15 +32,6 @@ def target_size(width, height, force_size) -> tuple[int, int]:
                 height = int(height)+4 & ~7
                 width = int(force_size[0])
         return (width, height)
-
-def get_audio(start_time, duration, file):
-    args = [ffmpeg_path, "-v", "error", "-i", file]
-    if start_time > 0:
-        args += ["-ss", str(start_time)]
-    if duration > 0:
-        args += ["-t", str(duration)]
-    return subprocess.run(args + ["-f", "wav", "-"],
-                          stdout=subprocess.PIPE, check=True).stdout
 
 def load_video_cv(video: str, force_rate: int, force_size: str, frame_load_cap: int, skip_first_frames: int, select_every_nth: int):
     filename = folder_paths.get_annotated_filepath(video.strip("\""))
@@ -110,8 +100,9 @@ def load_video_cv(video: str, force_rate: int, force_size: str, frame_load_cap: 
     # TODO: raise an error maybe if no frames were loaded?
 
     #Setup lambda for lazy audio capture
-    audio = lambda : get_audio(skip_first_frames * target_frame_time, frame_load_cap*target_frame_time, filename)
-    return (images, frames_added, audio)
+    audio = lambda : get_audio(filename, skip_first_frames * target_frame_time,
+                               frame_load_cap*target_frame_time)
+    return (images, frames_added, lazy_eval(audio))
 
 
 class LoadVideoUpload:

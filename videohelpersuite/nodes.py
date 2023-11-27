@@ -14,7 +14,7 @@ from .logger import logger
 from .image_latent_nodes import DuplicateImages, DuplicateLatents, GetImageCount, GetLatentCount, MergeImages, MergeLatents, SelectEveryNthImage, SelectEveryNthLatent, SplitLatents, SplitImages
 from .load_video_nodes import LoadVideoUpload, LoadVideoPath
 from .load_images_nodes import LoadImagesFromDirectoryUpload, LoadImagesFromDirectoryPath
-from .utils import ffmpeg_path
+from .utils import ffmpeg_path, get_audio, calculate_file_hash
 
 folder_paths.folder_names_and_paths["video_formats"] = (
     [
@@ -211,16 +211,23 @@ class VideoCombine:
             if audio:
                 output_file_with_audio = f"{filename}_{counter:05}-audio.{video_format['extension']}"
                 output_file_with_audio_path = os.path.join(full_output_folder, output_file_with_audio)
+                if "audio_pass" not in video_format:
+                    logger.warn("Selected video format does not have explicit audio support")
+                    video_format["audio_pass"] = ["-c:a", "libopus"]
+
 
                 # FFmpeg command with audio re-encoding
-                mux_args = [
-                    ffmpeg_path, "-v", "error", "-n", "-i", file_path, "-i", "-",
-                    "-c:v", "copy", "-c:a", "libopus", "-b:a", "192k", "-strict", "experimental","-af", "apad", "-shortest", output_file_with_audio_path
-                ]
+                #TODO: expose audio quality options if format widgets makes it in
+                #Reconsider forcing apad/shortest
+                mux_args = [ffmpeg_path, "-v", "error", "-n", "-i", file_path,
+                            "-i", "-", "-c:v", "copy"] \
+                            + video_format["audio_pass"] \
+                            + ["-af", "apad", "-shortest", output_file_with_audio_path]
+                            #"-c:a", "libopus", "-b:a", "192k", "-strict", "experimental",
 
                 try:
                     res = subprocess.run(mux_args, input=audio(), env=env,
-                                         capture_output=True, check=True, env=env)
+                                         capture_output=True, check=True)
                 except subprocess.CalledProcessError as e:
                     raise Exception("An error occured in the ffmpeg subprocess:\n" \
                             + e.stderr.decode("utf-8"))
@@ -236,6 +243,37 @@ class VideoCombine:
             }
         ]
         return {"ui": {"gifs": previews}}
+
+class LoadAudio:
+    @classmethod
+    def INPUT_TYPES(s):
+        #Hide ffmpeg formats if ffmpeg isn't available
+        return {
+            "required": {
+                "audio_file": ("STRING", {"default": ""}),
+                }
+        }
+
+    RETURN_TYPES = ("AUDIO",)
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
+    FUNCTION = "load_audio"
+    def load_audio(self, audio_file):
+        #Eagerly fetch the audio since the user must be using it if the
+        #node executes, unlike Load Video
+        audio = get_audio(audio_file)
+        return (lambda : audio,)
+
+    @classmethod
+    def IS_CHANGED(s, audio_file):
+        return calculate_file_hash(audio_file.strip("\""))
+
+    @classmethod
+    def VALIDATE_INPUTS(s, audio_file):
+        if not os.path.isfile(audio_file.strip("\"")):
+            return "Invalid audio file: {}".format(audio_file)
+        #TODO: Perform simple check for audio formats?
+        return True
+
 
 
 NODE_CLASS_MAPPINGS = {
@@ -255,6 +293,7 @@ NODE_CLASS_MAPPINGS = {
     "VHS_GetImageCount": GetImageCount,
     "VHS_DuplicateLatents": DuplicateLatents,
     "VHS_DuplicateImages": DuplicateImages,
+    "VHS_LoadAudio": LoadAudio,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_VideoCombine": "Video Combine 🎥🅥🅗🅢",
@@ -273,4 +312,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_GetImageCount": "Get Image Count 🎥🅥🅗🅢",
     "VHS_DuplicateLatents": "Duplicate Latent Batch 🎥🅥🅗🅢",
     "VHS_DuplicateImages": "Duplicate Image Batch 🎥🅥🅗🅢",
+    "VHS_LoadAudio": "Load Audio (Path)🎥🅥🅗🅢",
 }

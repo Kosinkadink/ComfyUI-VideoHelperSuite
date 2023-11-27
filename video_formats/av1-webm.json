@@ -4,6 +4,7 @@
         "-n", "-c:v", "libsvtav1",
         "-pix_fmt", "yuv420p10le"
     ],
-     "extension": "webm",
-     "environment": {"SVT_LOG": "1"}
+    "audio_pass": ["-c:a", "libopus"],
+    "extension": "webm",
+    "environment": {"SVT_LOG": "1"}
 }

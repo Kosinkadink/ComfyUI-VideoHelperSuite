@@ -6,5 +6,6 @@
         "-preset", "medium",
         "-x265-params", "log-level=quiet"
     ],
-     "extension": "mp4"
+    "audio_pass": ["-c:a", "aac"],
+    "extension": "mp4"
 }
