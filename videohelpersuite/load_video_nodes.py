@@ -37,7 +37,7 @@ def target_size(width, height, force_size) -> tuple[int, int]:
 
 def load_video_cv(video: str, force_rate: int, force_size: str, frame_load_cap: int, skip_first_frames: int, select_every_nth: int):
     try:
-        video_cap = cv2.VideoCapture(folder_paths.get_annotated_filepath(video.strip("\"")))
+        video_cap = cv2.VideoCapture(video.strip("\""))
         if not video_cap.isOpened():
             raise ValueError(f"{video} could not be loaded with cv.")
         # set video_cap to look at start_index frame
@@ -130,6 +130,7 @@ class LoadVideoUpload:
     known_exceptions = []
     def load_video(self, **kwargs):
         try:
+            kwargs['video'] = folder_paths.get_annotated_filepath(kwargs['video'].strip("\""))
             return load_video_cv(**kwargs)
         except Exception as e:
             raise RuntimeError(f"Failed to load video: {kwargs['video']}\ndue to: {e.__str__()}")
@@ -151,7 +152,7 @@ class LoadVideoPath:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "video": ("STRING", {"default": "X://insert/path/here.mp4"}),
+                "video": ("VHSPATH", {"default": "X://insert/path/here.mp4", "extensions": video_extensions}),
                 "force_rate": ("INT", {"default": 0, "min": 0, "max": 24, "step": 1}),
                 "force_size": (["Disabled", "256x?", "?x256", "256x256", "512x?", "?x512", "512x512"],),
                 "frame_load_cap": ("INT", {"default": 0, "min": 0, "step": 1}),
