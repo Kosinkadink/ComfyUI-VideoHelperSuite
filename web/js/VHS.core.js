@@ -491,6 +491,47 @@ function addVideoPreview(nodeType) {
         document.body.appendChild(previewWidget.parentEl);
     });
 }
+function addAdvancedPreview(nodeType) {
+    chainCallback(nodeType.prototype, "onNodeCreated", function() {
+        //TODO: do proper integration
+        const frameCapWidget = this.widgets.find((w) => w.name === 'frame_load_cap');
+        const frameSkipWidget = this.widgets.find((w) => w.name === 'skip_first_frames');
+        const rateWidget = this.widgets.find((w) => w.name === 'force_rate');
+        const previewWidget = this.widgets.find((w) => w.name === 'videopreview');
+        var stale = false;
+        var recent_request = false;
+
+        this.testPreview = () => {
+            if (recent_request) {
+                stale = true;
+                return;
+            }
+            recent_request = true;
+            //TODO: show some kind of load indicator/spin
+            //here would accommodate staleness with a likely tolerable flicker
+
+            let params = previewWidget._value.params;
+            params.frame_load_cap = frameCapWidget.value;
+            params.skip_first_frames = frameSkipWidget.value;
+            params.force_rate = rateWidget.value;
+            //TODO: consider size handing
+            //Reading from size is easy. It's a question of tuning responsiveness
+            params.force_size = this.size[0] + "x?";
+
+            previewWidget.videoEl.src = api.apiURL('viewvideo?' + new URLSearchParams(params));
+            setTimeout(() =>{
+                recent_request = false;
+                if (stale) {
+                    stale = false;
+                    this.testPreview();
+                }
+            },2e3);
+        }
+        chainCallback(frameCapWidget, "callback", this.testPreview);
+        chainCallback(frameSkipWidget, "callback", this.testPreview);
+        chainCallback(rateWidget, "callback", this.testPreview);
+    });
+}
 function addPreviewOptions(nodeType) {
     chainCallback(nodeType.prototype, "getExtraMenuOptions", function(_, options) {
         // The intended way of appending options is returning a list of extra options,
@@ -578,6 +619,149 @@ function addPreviewOptions(nodeType) {
     });
 }
 
+function searchBox(event, [x,y], node) {
+    //Ensure only one dialogue shows at a time
+    if (this.prompt)
+        return;
+    this.prompt = true;
+
+    let pathWidget = this;
+    let dialog = document.createElement("div");
+    dialog.className = "litegraph litesearchbox graphdialog rounded"
+    dialog.innerHTML = '<span class="name">Path</span> <input autofocus="" type="text" class="value"><button class="rounded">OK</button><div class="helper"></div>'
+    dialog.close = () => {
+        dialog.remove();
+    }
+    document.body.append(dialog);
+    if (app.canvas.ds.scale > 1) {
+        dialog.style.transform = "scale(" + app.canvas.ds.scale + ")";
+    }
+    var name_element = dialog.querySelector(".name");
+    var input = dialog.querySelector(".value");
+    var options_element = dialog.querySelector(".helper");
+    input.value = pathWidget.value;
+
+    var timeout = null;
+    let last_path = null;
+
+    input.addEventListener("keydown", (e) => {
+        dialog.is_modified = true;
+        if (e.keyCode == 27) {
+            //ESC
+            dialog.close();
+        } else if (e.keyCode == 13 && e.target.localName != "textarea") {
+            pathWidget.value = input.value;
+            dialog.close();
+        } else {
+            if (e.keyCode == 9) {
+                //TAB
+                input.value = last_path + options_element.firstChild.innerText;
+                e.preventDefault();
+                e.stopPropagation();
+            } else if (e.ctrlKey && e.keyCode == 87) {
+                //Ctrl+w
+                //most browsers won't support, but it's good QOL for those that do
+                input.value = path_stem(input.value.slice(0,-1))[0]
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            if (timeout) {
+                clearTimeout(timeout);
+            }
+            timeout = setTimeout(updateOptions, 10);
+            return;
+        }
+        this.prompt=false;
+        e.preventDefault();
+        e.stopPropagation();
+    });
+
+    var button = dialog.querySelector("button");
+    button.addEventListener("click", (e) => {
+        pathWidget.value = input.value;
+        //unsure why dirty is set here, but not on enter-key above
+        node.graph.setDirtyCanvas(true);
+        dialog.close();
+        this.prompt = false;
+    });
+    var rect = app.canvas.canvas.getBoundingClientRect();
+    var offsetx = -20;
+    var offsety = -20;
+    if (rect) {
+        offsetx -= rect.left;
+        offsety -= rect.top;
+    }
+
+    if (event) {
+        dialog.style.left = event.clientX + offsetx + "px";
+        dialog.style.top = event.clientY + offsety + "px";
+    } else {
+        dialog.style.left = canvas.width * 0.5 + offsetx + "px";
+        dialog.style.top = canvas.height * 0.5 + offsety + "px";
+    }
+    //Search code
+    let options = []
+    function addResult(name, isDir) {
+        let el = document.createElement("div");
+        el.innerText = name;
+        el.className = "litegraph lite-search-item";
+        if (isDir) {
+            el.className += " is-dir";
+            el.addEventListener("click", (e) => {
+                input.value = last_path+name
+                if (timeout) {
+                    clearTimeout(timeout);
+                }
+            timeout = setTimeout(updateOptions, 10);
+            });
+        } else {
+            el.addEventListener("click", (e) => {
+                pathWidget.value = last_path+name;
+                dialog.close();
+                pathWidget.prompt = false;
+            });
+        }
+        options_element.appendChild(el);
+    }
+    function path_stem(path) {
+        let i = path.lastIndexOf("/");
+        if (i >= 0) {
+            return [path.slice(0,i+1),path.slice(i+1)];
+        }
+        return ["",path];
+    }
+    async function updateOptions() {
+        timeout = null;
+        let [path, remainder] = path_stem(input.value);
+        if (last_path != path) {
+            //fetch options.  Must block execution here, so update should be async?
+            let params = {path : path, extensions : pathWidget.options.extensions}
+            let optionsURL = api.apiURL('getpath?' + new URLSearchParams(params));
+            let resp = await fetch(optionsURL);
+            if (resp.ok)
+                options = await resp.json();
+            else
+                options = []
+            last_path = path;
+        }
+        options_element.innerHTML = '';
+        //filter options based on remainder
+        for (let option of options) {
+            if (option.startsWith(remainder)) {
+                let isDir = option.endsWith('/')
+                addResult(option, isDir);
+            }
+        }
+    }
+
+    setTimeout(async function() {
+        input.focus();
+        await updateOptions();
+    }, 10);
+
+    return dialog;
+}
+
 app.registerExtension({
     name: "VideoHelperSuite.Core",
     async beforeRegisterNodeDef(nodeType, nodeData, app) {
@@ -618,6 +802,7 @@ app.registerExtension({
                 //Set value to ensure preview displays on initial add.
                 pathWidget.value = pathWidget._value;
             });
+            addAdvancedPreview(nodeType);
         } else if (nodeData?.name == "VHS_VideoCombine") {
             addDateFormatting(nodeType, "filename_prefix");
             chainCallback(nodeType.prototype, "onExecuted", function(message) {
@@ -650,6 +835,69 @@ app.registerExtension({
             //Disabled for safety as VHS_SaveImageSequence is not currently merged
             //addDateFormating(nodeType, "directory_name", timestamp_widget=true);
             //addTimestampWidget(nodeType, nodeData, "directory_name")
+        }
+    },
+    async getCustomWidgets() {
+        return {
+            VHSPATH(node, inputName, inputData) {
+                let w = {
+                    name : inputName,
+                    type : "VHS.PATH",
+                    value : "",//TODO: respect default
+                    draw : function(ctx, node, widget_width, y, H) {
+                        //Adapted from litegraph.core.js:drawNodeWidgets
+                        var show_text = app.canvas.ds.scale > 0.5;
+                        var margin = 15;
+                        var text_color = LiteGraph.WIDGET_TEXT_COLOR;
+                        var secondary_text_color = LiteGraph.WIDGET_SECONDARY_TEXT_COLOR;
+                        ctx.textAlign = "left";
+                        ctx.strokeStyle = LiteGraph.WIDGET_OUTLINE_COLOR;
+                        ctx.fillStyle = LiteGraph.WIDGET_BGCOLOR;
+                        ctx.beginPath();
+                        if (show_text)
+                            ctx.roundRect(margin, y, widget_width - margin * 2, H, [H * 0.5]);
+                        else
+                            ctx.rect( margin, y, widget_width - margin * 2, H );
+                        ctx.fill();
+                        if (show_text) {
+                            if(!this.disabled)
+                                ctx.stroke();
+                            ctx.save();
+                            ctx.beginPath();
+                            ctx.rect(margin, y, widget_width - margin * 2, H);
+                            ctx.clip();
+
+                            //ctx.stroke();
+                            ctx.fillStyle = secondary_text_color;
+                            const label = this.label || this.name;
+                            if (label != null) {
+                                ctx.fillText(label, margin * 2, y + H * 0.7);
+                            }
+                            ctx.fillStyle = text_color;
+                            ctx.textAlign = "right";
+                            //TODO: from start of file if filename > 30, include each dirlevel on fit
+                            let disp_text = ((this.value.length > 29) ? '…' : "") + this.value.substr(-29)
+                            ctx.fillText(disp_text, widget_width - margin * 2, y + H * 0.7); //30 chars max
+                            ctx.restore();
+                        }
+                    },
+                    mouse : searchBox,
+                    options : {}
+                };
+                if (inputData.length > 1) {
+                    if (inputData[1].extensions) {
+                        w.options.extensions = inputData[1].extensions
+                    }
+                    if (inputData[1].default) {
+                        w.value = inputData[1].default
+                    }
+                }
+                if (!node.widgets) {
+                    node.widgets = []
+                }
+                node.widgets.push(w);
+                return w;
+            }
         }
     }
 });
