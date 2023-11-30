@@ -27,12 +27,49 @@ preferred_backend = "opencv"
 if "VHS_PREFERRED_BACKEND" in os.environ:
     preferred_backend = os.environ['VHS_PREFERRED_BACKEND']
 
+def gen_format_widgets(video_format):
+    for k in video_format:
+        if k.endswith("_pass"):
+            for i in range(len(video_format[k])):
+                if isinstance(video_format[k][i], list):
+                    item = [video_format[k][i]]
+                    yield item
+                    video_format[k][i] = item[0]
+        else:
+            if isinstance(video_format[k], list):
+                item = [video_format[k]]
+                yield item
+                video_format[k][sk] = item[0]
+
+def get_video_formats():
+    formats = []
+    for format_name in folder_paths.get_filename_list("video_formats"):
+        format_name = format_name[:-5]
+        video_format_path = folder_paths.get_full_path("video_formats", format_name + ".json")
+        with open(video_format_path, 'r') as stream:
+            video_format = json.load(stream)
+        widgets = [w[0] for w in gen_format_widgets(video_format)]
+        if (len(widgets) > 0):
+            formats.append(["video/" + format_name, widgets])
+        else:
+            formats.append("video/" + format_name)
+    return formats
+
+def apply_format_widgets(format_name, kwargs):
+    video_format_path = folder_paths.get_full_path("video_formats", format_name + ".json")
+    with open(video_format_path, 'r') as stream:
+        video_format = json.load(stream)
+    for w in gen_format_widgets(video_format):
+        assert(w[0][0] in kwargs)
+        w[0] = str(kwargs[w[0][0]])
+    return video_format
+
 class VideoCombine:
     @classmethod
     def INPUT_TYPES(s):
         #Hide ffmpeg formats if ffmpeg isn't available
         if ffmpeg_path is not None:
-            ffmpeg_formats = ["video/"+x[:-5] for x in folder_paths.get_filename_list("video_formats")]
+            ffmpeg_formats = get_video_formats()
         else:
             ffmpeg_formats = []
         return {
@@ -47,7 +84,6 @@ class VideoCombine:
                 "format": (["image/gif", "image/webp"] + ffmpeg_formats,),
                 "pingpong": ("BOOLEAN", {"default": False}),
                 "save_image": ("BOOLEAN", {"default": True}),
-                "crf": ("INT", {"default": 20, "min": 0, "max": 100, "step": 1}),
             },
             "optional": {
                 "save_metadata": ("BOOLEAN", {"default": True}),
@@ -56,6 +92,7 @@ class VideoCombine:
             "hidden": {
                 "prompt": "PROMPT",
                 "extra_pnginfo": "EXTRA_PNGINFO",
+                "unique_id": "UNIQUE_ID"
             },
         }
 
@@ -67,7 +104,6 @@ class VideoCombine:
     def combine_video(
         self,
         images,
-        crf,
         frame_rate: int,
         loop_count: int,
         filename_prefix="AnimateDiff",
@@ -78,7 +114,9 @@ class VideoCombine:
         prompt=None,
         extra_pnginfo=None,
         audio=None,
+        unique_id=None,
     ):
+        kwargs = prompt[unique_id]['inputs']
         # convert images to numpy
         images = images.cpu().numpy() * 255.0
         images = np.clip(images, 0, 255).astype(np.uint8)
@@ -137,8 +175,6 @@ class VideoCombine:
             images = np.concatenate((images, images[-2:0:-1]))
 
         format_type, format_ext = format.split("/")
-        file = f"{filename}_{counter:05}.{format_ext}"
-        file_path = os.path.join(full_output_folder, file)
         if format_type == "image":
             frames = [Image.fromarray(f) for f in images]
             # Use pillow directly to save an animated image
@@ -160,11 +196,12 @@ class VideoCombine:
             video_format_path = folder_paths.get_full_path("video_formats", format_ext + ".json")
             with open(video_format_path, 'r') as stream:
                 video_format = json.load(stream)
+            video_format = apply_format_widgets(format_ext, kwargs)
             file = f"{filename}_{counter:05}.{video_format['extension']}"
             file_path = os.path.join(full_output_folder, file)
             dimensions = f"{len(images[0][0])}x{len(images[0])}"
             args = [ffmpeg_path, "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
-                    "-s", dimensions, "-r", str(frame_rate), "-i", "-", "-crf", str(crf) ] \
+                    "-s", dimensions, "-r", str(frame_rate), "-i", "-"] \
                     + video_format['main_pass']
 
             env=os.environ.copy()
@@ -243,6 +280,9 @@ class VideoCombine:
             }
         ]
         return {"ui": {"gifs": previews}}
+    @classmethod
+    def VALIDATE_INPUTS(self, **kwargs):
+        return True
 
 class LoadAudio:
     @classmethod

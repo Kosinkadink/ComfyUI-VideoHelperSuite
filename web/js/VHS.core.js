@@ -133,7 +133,7 @@ function useKVState(nodeType) {
 
 function fitHeight(node) {
     node.setSize([node.size[0], node.computeSize([node.size[0], node.size[1]])[1]])
-    node.graph.setDirtyCanvas(true);
+    node?.graph?.setDirtyCanvas(true);
 }
 
 async function uploadFile(file) {
@@ -415,6 +415,7 @@ function addVideoPreview(nodeType) {
         chainCallback(this, "onRemoved", () => {
             previewWidget?.parentEl?.remove();
         });
+        previewWidget.options = {serialize : false};
         this.addCustomWidget(previewWidget);
         previewWidget.parentEl = document.createElement("div");
         previewWidget.parentEl.className = "vhs_preview";
@@ -618,6 +619,84 @@ function addPreviewOptions(nodeType) {
         options.unshift(...optNew);
     });
 }
+function addFormatWidgets(nodeType) {
+    function parseFormats(options) {
+        options.fullvalues = options._values;
+        options._values = [];
+        for (let format of options.fullvalues) {
+            if (Array.isArray(format)) {
+                options._values.push(format[0]);
+            } else {
+                options._values.push(format);
+            }
+        }
+    }
+    chainCallback(nodeType.prototype, "onNodeCreated", function() {
+        var formatWidget = null;
+        var formatWidgetIndex = -1;
+        for(let i = 0; i < this.widgets.length; i++) {
+            if (this.widgets[i].name === "format"){
+                formatWidget = this.widgets[i];
+                formatWidgetIndex = i+1;
+            }
+        }
+        let formatWidgetsCount = 0;
+        //Pre-process options to just names
+        formatWidget.options._values = formatWidget.options.values;
+        parseFormats(formatWidget.options);
+        Object.defineProperty(formatWidget.options, "values", {
+            set : (value) => {
+                formatWidget.options._values  = value;
+                parseFormats(formatWidget.options);
+            },
+            get : () => {
+                return formatWidget.options._values;
+            }
+        })
+
+        formatWidget._value = formatWidget.value;
+        Object.defineProperty(formatWidget, "value", {
+            set : (value) => {
+                formatWidget._value = value;
+                let newWidgets = [];
+                const fullDef = formatWidget.options.fullvalues.find((w) => Array.isArray(w) ? w[0] === value : w === value);
+                if (!Array.isArray(fullDef)) {
+                    formatWidget._value = value;
+                } else {
+                    formatWidget._value = fullDef[0];
+                    for (let wDef of fullDef[1]) {
+                        //create widgets. Heavy borrowed from web/scripts/app.js
+                        let w = {};
+                        w.name = wDef[0];
+                        let inputData = wDef.slice(1);
+                        w.type = inputData[0];
+                        w.options = inputData[1] ? inputData[1] : {};
+                        if (Array.isArray(w.type)) {
+                            w.value = w.type[0];
+                            w.options.values = w.type;
+                            w.type = "combo";
+                        }
+                        if(inputData[1]?.default) {
+                            w.value = inputData[1].default;
+                        }
+                        const typeTable = {BOOLEAN: "toggle", STRING: "text", INT: "number", FLOAT: "number"};
+                        if (w.type in typeTable) {
+                            w.type = typeTable[w.type];
+                        }
+                        //TODO: implement precision/rounding/step
+                        newWidgets.push(w);
+                    }
+                }
+                this.widgets.splice(formatWidgetIndex, formatWidgetsCount, ...newWidgets);
+                fitHeight(this);
+                formatWidgetsCount = newWidgets.length;
+            },
+            get : () => {
+                return formatWidget._value;
+            }
+        });
+    });
+}
 
 function searchBox(event, [x,y], node) {
     //Ensure only one dialogue shows at a time
@@ -812,6 +891,7 @@ app.registerExtension({
             });
             addVideoPreview(nodeType);
             addPreviewOptions(nodeType);
+            addFormatWidgets(nodeType);
 
             //Hide the information passing 'gif' output
             //TODO: check how this is implemented for save image
