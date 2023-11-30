@@ -51,23 +51,26 @@ async def view_video(request):
         args += ["-vf", ",".join(vfilters)]
     if int(query.get('frame_load_cap', 0)) > 0:
         args += ["-frames:v", query['frame_load_cap']]
-    args += ['-f', 'webm', '-']
+    args += ['-c:v', 'libvpx-vp9','-deadline', 'realtime', '-cpu-used', '8', '-f', 'webm', '-']
 
-    with subprocess.Popen(args, stdout=subprocess.PIPE) as proc:
-        resp = web.StreamResponse()
-        resp.content_type = 'video/webm'
-        resp.headers["Content-Disposition"] = f"filename=\"{filename}\""
-        await resp.prepare(request)
-        while True:
-            bytes_read = proc.stdout.read()
-            if bytes_read is None:
-                #TODO: check for timeout here
-                time.sleep(.1)
-                continue
-            if len(bytes_read) == 0:
-                break
-            await resp.write(bytes_read)
-        return resp
+    try:
+        with subprocess.Popen(args, stdout=subprocess.PIPE) as proc:
+            resp = web.StreamResponse()
+            resp.content_type = 'video/webm'
+            resp.headers["Content-Disposition"] = f"filename=\"{filename}\""
+            await resp.prepare(request)
+            while True:
+                bytes_read = proc.stdout.read()
+                if bytes_read is None:
+                    #TODO: check for timeout here
+                    time.sleep(.1)
+                    continue
+                if len(bytes_read) == 0:
+                    break
+                await resp.write(bytes_read)
+    except:
+        pass
+    return resp
 
 @server.PromptServer.instance.routes.get("/getpath")
 async def get_path(request):
@@ -79,7 +82,9 @@ async def get_path(request):
     #For now, only continue if subpath of comfui
     basedir = os.path.abspath('.')
     common_path = os.path.commonpath([basedir, path])
-    if common_path != basedir or not os.path.exists(path):
+    if common_path != basedir:
+        return web.Response(status=403)
+    if not os.path.exists(path):
         return web.Response(status=404)
 
     #Use get so None is default instead of keyerror

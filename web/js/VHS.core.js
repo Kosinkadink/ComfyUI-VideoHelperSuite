@@ -380,7 +380,7 @@ function addVideoPreview(nodeType) {
         //videopreview is widget name
         //The previous implementation used type to distinguish between a video and gif,
         //but the type is not serialized and would not survive a reload
-        var previewWidget = { name : "videopreview", type : "preview", value : "",
+        var previewWidget = { name : "videopreview", type : "preview",
             draw : function(ctx, node, widgetWidth, widgetY, height) {
                 //update widget position, hide if off-screen
                 const transform = ctx.getTransform();
@@ -407,7 +407,7 @@ function addVideoPreview(nodeType) {
                 }
                 return [width, -4];//no loaded src, widget should not display
             },
-            _value : {hidden: false, paused: false}
+            value : {hidden: false, paused: false}
         };
         //onRemoved isn't a litegraph supported function on widgets
         //Given that onremoved widget and node callbacks are sparse, this
@@ -445,15 +445,25 @@ function addVideoPreview(nodeType) {
             fitHeight(this);
         };
 
-        this.setPreviewsrc = (params) => {previewWidget._value.params = params; this._setPreviewsrc(params)};
+        this.setPreviewsrc = (params) => {previewWidget.value.params = params; this._setPreviewsrc(params)};
         this._setPreviewsrc = function (params) {
             if (params == undefined) {
                 return
             }
-            previewWidget.parentEl.hidden = previewWidget._value.hidden;
+            previewWidget.parentEl.hidden = previewWidget.value.hidden;
             if (params?.format?.split('/')[0] == 'video') {
-                previewWidget.videoEl.autoplay = !previewWidget._value.paused && !previewWidget._value.hidden;
-                previewWidget.videoEl.src = api.apiURL('/view?' + new URLSearchParams(params));
+                previewWidget.videoEl.autoplay = !previewWidget.value.paused && !previewWidget.value.hidden;
+                //TODO: Add in ui config option to disable rendered previews
+                if (previewWidget.parentEl.style?.width) {
+                    params.force_size = previewWidget.parentEl.style.width.slice(0,-2) + "x?";
+                } else {
+                    params.force_size = "256x?"
+                }
+                if (app.ui.settings.getSettingValue("VHS.AdvancedPreviews", false)) {
+                    previewWidget.videoEl.src = api.apiURL('/viewvideo?' + new URLSearchParams(params));
+                } else {
+                    previewWidget.videoEl.src = api.apiURL('/view?' + new URLSearchParams(params));
+                }
                 previewWidget.videoEl.hidden = false;
                 previewWidget.imgEl.hidden = true;
             } else {
@@ -463,21 +473,6 @@ function addVideoPreview(nodeType) {
                 previewWidget.imgEl.hidden = false;
             }
         }
-        Object.defineProperty(previewWidget, "value", {
-            set : (value) => {
-                if (value) {
-                    if (typeof(value) == "string") {
-                        //old workflow which saves a url instead of constituent params
-                        return;
-                    }
-                    previewWidget._value = value
-                    this._setPreviewsrc(value.params)
-                }
-            },
-            get : () => {
-                return previewWidget._value;
-            }
-        });
         //Hide video element if offscreen
         //The multiline input implementation moves offscreen every frame
         //and doesn't apply until a node with an actual inputEl is loaded
@@ -502,35 +497,37 @@ function addAdvancedPreview(nodeType) {
         var stale = false;
         var recent_request = false;
 
-        this.testPreview = () => {
+        this.updatePreview = () => {
             if (recent_request) {
                 stale = true;
                 return;
+            }
+            if (!app.ui.settings.getSettingValue("VHS.AdvancedPreviews", false)) {
+                return
             }
             recent_request = true;
             //TODO: show some kind of load indicator/spin
             //here would accommodate staleness with a likely tolerable flicker
 
-            let params = previewWidget._value.params;
+            let params = previewWidget.value.params;
             params.frame_load_cap = frameCapWidget.value;
             params.skip_first_frames = frameSkipWidget.value;
             params.force_rate = rateWidget.value;
-            //TODO: consider size handing
-            //Reading from size is easy. It's a question of tuning responsiveness
-            params.force_size = this.size[0] + "x?";
+            //size is handled in preview widget as it applies to output as well.
 
-            previewWidget.videoEl.src = api.apiURL('viewvideo?' + new URLSearchParams(params));
+            this.setPreviewsrc(params)
             setTimeout(() =>{
                 recent_request = false;
                 if (stale) {
                     stale = false;
-                    this.testPreview();
+                    this.updatePreview();
                 }
             },2e3);
         }
-        chainCallback(frameCapWidget, "callback", this.testPreview);
-        chainCallback(frameSkipWidget, "callback", this.testPreview);
-        chainCallback(rateWidget, "callback", this.testPreview);
+        chainCallback(frameCapWidget, "callback", this.updatePreview);
+        chainCallback(frameSkipWidget, "callback", this.updatePreview);
+        chainCallback(rateWidget, "callback", this.updatePreview);
+        this.updatePreview();
     });
 }
 function addPreviewOptions(nodeType) {
@@ -543,14 +540,13 @@ function addPreviewOptions(nodeType) {
 
         let url = null
         if (previewWidget.videoEl?.hidden == false && previewWidget.videoEl.src) {
-            url = previewWidget.videoEl.src;
+            //Use full quality video
+            url = api.apiURL('/view?' + new URLSearchParams(previewWidget.value.params));
         } else if (previewWidget.imgEl?.hidden == false && previewWidget.imgEl.src) {
             url = previewWidget.imgEl.src;
+            url = new URL(url);
         }
         if (url) {
-            url = new URL(url);
-            //placeholder from Save Image, will matter once preview functionality is implemented
-            //url.searchParams.delete('preview')
             optNew.push(
                 {
                     content: "Open preview",
@@ -571,32 +567,32 @@ function addPreviewOptions(nodeType) {
                 }
             );
         }
-        const PauseDesc = (previewWidget._value.paused ? "Resume" : "Pause") + " preview";
+        const PauseDesc = (previewWidget.value.paused ? "Resume" : "Pause") + " preview";
         if(previewWidget.videoEl.hidden == false) {
             optNew.push({content: PauseDesc, callback: () => {
                 //animated images can't be paused and are more likely to cause performance issues.
                 //changing src to a single keyframe is possible,
                 //For now, the option is disabled if an animated image is being displayed
-                if(previewWidget._value.paused) {
+                if(previewWidget.value.paused) {
                     previewWidget.videoEl?.play();
                 } else {
                     previewWidget.videoEl?.pause();
                 }
-                previewWidget._value.paused = !previewWidget._value.paused;
+                previewWidget.value.paused = !previewWidget.value.paused;
             }});
         }
-        //TODO: Consider hiding elements if video no preview is available yet.
+        //TODO: Consider hiding elements if no video preview is available yet.
         //It would reduce confusion at the cost of functionality
         //(if a video preview lags the computer, the user should be able to hide in advance)
-        const visDesc = (previewWidget._value.hidden ? "Show" : "Hide") + " preview";
+        const visDesc = (previewWidget.value.hidden ? "Show" : "Hide") + " preview";
         optNew.push({content: visDesc, callback: () => {
-            if (!previewWidget.videoEl.hidden && !previewWidget._value.hidden) {
+            if (!previewWidget.videoEl.hidden && !previewWidget.value.hidden) {
                 previewWidget.videoEl.pause();
-            } else if (previewWidget._value.hidden && !previewWidget.videoEl.hidden && !previewWidget._value.paused) {
+            } else if (previewWidget.value.hidden && !previewWidget.videoEl.hidden && !previewWidget.value.paused) {
                 previewWidget.videoEl.play();
             }
-            previewWidget._value.hidden = !previewWidget._value.hidden;
-            previewWidget.parentEl.hidden = previewWidget._value.hidden;
+            previewWidget.value.hidden = !previewWidget.value.hidden;
+            previewWidget.parentEl.hidden = previewWidget.value.hidden;
             fitHeight(this);
 
         }});
@@ -698,6 +694,13 @@ function addFormatWidgets(nodeType) {
     });
 }
 
+function path_stem(path) {
+    let i = path.lastIndexOf("/");
+    if (i >= 0) {
+        return [path.slice(0,i+1),path.slice(i+1)];
+    }
+    return ["",path];
+}
 function searchBox(event, [x,y], node) {
     //Ensure only one dialogue shows at a time
     if (this.prompt)
@@ -802,13 +805,6 @@ function searchBox(event, [x,y], node) {
         }
         options_element.appendChild(el);
     }
-    function path_stem(path) {
-        let i = path.lastIndexOf("/");
-        if (i >= 0) {
-            return [path.slice(0,i+1),path.slice(i+1)];
-        }
-        return ["",path];
-    }
     async function updateOptions() {
         timeout = null;
         let [path, remainder] = path_stem(input.value);
@@ -816,11 +812,12 @@ function searchBox(event, [x,y], node) {
             //fetch options.  Must block execution here, so update should be async?
             let params = {path : path, extensions : pathWidget.options.extensions}
             let optionsURL = api.apiURL('getpath?' + new URLSearchParams(params));
-            let resp = await fetch(optionsURL);
-            if (resp.ok)
+            try {
+                let resp = await fetch(optionsURL);
                 options = await resp.json();
-            else
+            } catch(e) {
                 options = []
+            }
             last_path = path;
         }
         options_element.innerHTML = '';
@@ -840,6 +837,12 @@ function searchBox(event, [x,y], node) {
 
     return dialog;
 }
+app.ui.settings.addSetting({
+    id: "VHS.AdvancedPreviews",
+    name: "VHS Advanced Previews",
+    type: "boolean",
+    defaultValue: false,
+});
 
 app.registerExtension({
     name: "VideoHelperSuite.Core",
@@ -955,25 +958,44 @@ app.registerExtension({
                             }
                             ctx.fillStyle = text_color;
                             ctx.textAlign = "right";
-                            //TODO: from start of file if filename > 30, include each dirlevel on fit
-                            let disp_text = ((this.value.length > 29) ? '…' : "") + this.value.substr(-29)
+                            let disp_text = this.format_path(String(this.value))
                             ctx.fillText(disp_text, widget_width - margin * 2, y + H * 0.7); //30 chars max
                             ctx.restore();
                         }
                     },
                     mouse : searchBox,
-                    options : {}
+                    options : {},
+                    format_path : function(path) {
+                        //Formats the full path to be under 30 characters
+                        if (path.length <= 30) {
+                            return path;
+                        }
+                        let filename = path_stem(path)[1]
+                        if (filename.length > 28) {
+                            //may all fit, but can't squeeze more info
+                            return filename.substr(0,30);
+                        }
+                        let isAbs = path[0] == '/';
+                        let partial = path.substr(path.length - (isAbs ? 28:29))
+                        let cutoff = partial.indexOf('/');
+                        if (cutoff < 0) {
+                            console.warn("Failed to pretty format: " + path);
+                            return path.substr(path.length-30);
+                        }
+                        return (isAbs ? '/…':'…') + partial.substr(cutoff);
+
+                    }
                 };
                 if (inputData.length > 1) {
                     if (inputData[1].extensions) {
-                        w.options.extensions = inputData[1].extensions
+                        w.options.extensions = inputData[1].extensions;
                     }
                     if (inputData[1].default) {
-                        w.value = inputData[1].default
+                        w.value = inputData[1].default;
                     }
                 }
                 if (!node.widgets) {
-                    node.widgets = []
+                    node.widgets = [];
                 }
                 node.widgets.push(w);
                 return w;

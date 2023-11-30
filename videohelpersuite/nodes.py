@@ -290,17 +290,18 @@ class LoadAudio:
         #Hide ffmpeg formats if ffmpeg isn't available
         return {
             "required": {
-                "audio_file": ("STRING", {"default": ""}),
-                }
+                "audio_file": ("VHSPATH", {"default": "input/", "extensions": ['wav','mp3','ogg','m4a','flac']}),
+                },
+            "optional" : {"seek_seconds": ("FLOAT", {"default": 0, "min": 0})}
         }
 
     RETURN_TYPES = ("AUDIO",)
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
     FUNCTION = "load_audio"
-    def load_audio(self, audio_file):
+    def load_audio(self, audio_file, seek_seconds):
         #Eagerly fetch the audio since the user must be using it if the
         #node executes, unlike Load Video
-        audio = get_audio(audio_file)
+        audio = get_audio(audio_file, start_time=seek_seconds)
         return (lambda : audio,)
 
     @classmethod

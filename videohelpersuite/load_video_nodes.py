@@ -34,9 +34,8 @@ def target_size(width, height, force_size) -> tuple[int, int]:
         return (width, height)
 
 def load_video_cv(video: str, force_rate: int, force_size: str, frame_load_cap: int, skip_first_frames: int, select_every_nth: int):
-    filename = folder_paths.get_annotated_filepath(video.strip("\""))
     try:
-        video_cap = cv2.VideoCapture(filename)
+        video_cap = cv2.VideoCapture(video)
         if not video_cap.isOpened():
             raise ValueError(f"{video} could not be loaded with cv.")
         # set video_cap to look at start_index frame
