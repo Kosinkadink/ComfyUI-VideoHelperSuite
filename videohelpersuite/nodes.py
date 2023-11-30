@@ -39,7 +39,7 @@ def gen_format_widgets(video_format):
             if isinstance(video_format[k], list):
                 item = [video_format[k]]
                 yield item
-                video_format[k][sk] = item[0]
+                video_format[k] = item[0]
 
 def get_video_formats():
     formats = []
@@ -64,6 +64,15 @@ def apply_format_widgets(format_name, kwargs):
         w[0] = str(kwargs[w[0][0]])
     return video_format
 
+def tensor_to_int(tensor, bits):
+    #TODO: investigate benefit of rounding by adding 0.5 before clip/cast
+    tensor = tensor.cpu().numpy() * (2**bits-1)
+    return np.clip(tensor, 0, (2**bits-1))
+def tensor_to_shorts(tensor):
+    return tensor_to_int(tensor, 16).astype(np.uint16)
+def tensor_to_bytes(tensor):
+    return tensor_to_int(tensor, 8).astype(np.uint8)
+
 class VideoCombine:
     @classmethod
     def INPUT_TYPES(s):
@@ -86,7 +95,6 @@ class VideoCombine:
                 "save_image": ("BOOLEAN", {"default": True}),
             },
             "optional": {
-                "save_metadata": ("BOOLEAN", {"default": True}),
                 "audio": ("AUDIO",),
             },
             "hidden": {
@@ -110,7 +118,6 @@ class VideoCombine:
         format="image/gif",
         pingpong=False,
         save_image=True,
-        save_metadata=True,
         prompt=None,
         extra_pnginfo=None,
         audio=None,
@@ -118,8 +125,6 @@ class VideoCombine:
     ):
         kwargs = prompt[unique_id]['inputs']
         # convert images to numpy
-        images = images.cpu().numpy() * 255.0
-        images = np.clip(images, 0, 255).astype(np.uint8)
 
         # get output information
         output_dir = (
@@ -166,16 +171,17 @@ class VideoCombine:
         # save first frame as png to keep metadata
         file = f"{filename}_{counter:05}.png"
         file_path = os.path.join(full_output_folder, file)
-        Image.fromarray(images[0]).save(
+        Image.fromarray(tensor_to_bytes(images[0])).save(
             file_path,
             pnginfo=metadata,
             compress_level=4,
         )
-        if pingpong:
-            images = np.concatenate((images, images[-2:0:-1]))
 
         format_type, format_ext = format.split("/")
         if format_type == "image":
+            images = tensor_to_bytes(images)
+            if pingpong:
+                images = np.concatenate((images, images[-2:0:-1]))
             frames = [Image.fromarray(f) for f in images]
             # Use pillow directly to save an animated image
             frames[0].save(
@@ -197,10 +203,18 @@ class VideoCombine:
             with open(video_format_path, 'r') as stream:
                 video_format = json.load(stream)
             video_format = apply_format_widgets(format_ext, kwargs)
+            if video_format.get('input_color_depth', '8bit') == '16bit':
+                images = tensor_to_shorts(images)
+                i_pix_fmt = 'rgb48'
+            else:
+                images = tensor_to_bytes(images)
+                i_pix_fmt = 'rgb24'
+            if pingpong:
+                images = np.concatenate((images, images[-2:0:-1]))
             file = f"{filename}_{counter:05}.{video_format['extension']}"
             file_path = os.path.join(full_output_folder, file)
             dimensions = f"{len(images[0][0])}x{len(images[0])}"
-            args = [ffmpeg_path, "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
+            args = [ffmpeg_path, "-v", "error", "-f", "rawvideo", "-pix_fmt", i_pix_fmt,
                     "-s", dimensions, "-r", str(frame_rate), "-i", "-"] \
                     + video_format['main_pass']
 
@@ -208,7 +222,7 @@ class VideoCombine:
             if  "environment" in video_format:
                 env.update(video_format["environment"])
             res = None
-            if save_metadata:
+            if video_format.get('save_metadata', 'False') != 'False':
                 os.makedirs(folder_paths.get_temp_directory(), exist_ok=True)
                 metadata = json.dumps(video_metadata)
                 metadata_path = os.path.join(folder_paths.get_temp_directory(), "metadata.txt")
@@ -218,7 +232,7 @@ class VideoCombine:
                 metadata = metadata.replace("#","\\#")
                 metadata = metadata.replace("=","\\=")
                 metadata = metadata.replace("\n","\\\n")
-                metadata = "comment=" + metadata
+                metadata = video_format['save_metadata']+ "=" + metadata
                 with open(metadata_path, "w") as f:
                     f.write(";FFMETADATA1\n")
                     f.write(metadata)

@@ -19,19 +19,22 @@ def is_gif(filename) -> bool:
 
 
 def target_size(width, height, force_size) -> tuple[int, int]:
-        if force_size != "Disabled":
-            force_size = force_size.split("x")
-            if force_size[0] == "?":
-                width = (width*int(force_size[1]))//height
-                #Limit to a multple of 8 for latent conversion
-                #TODO: Consider instead cropping and centering to main aspect ratio
-                width = int(width)+4 & ~7
-                height = int(force_size[1])
-            elif force_size[1] == "?":
-                height = (height*int(force_size[0]))//width
-                height = int(height)+4 & ~7
-                width = int(force_size[0])
-        return (width, height)
+    if force_size != "Disabled":
+        force_size = force_size.split("x")
+        if force_size[0] == "?":
+            width = (width*int(force_size[1]))//height
+            #Limit to a multple of 8 for latent conversion
+            #TODO: Consider instead cropping and centering to main aspect ratio
+            width = int(width)+4 & ~7
+            height = int(force_size[1])
+        elif force_size[1] == "?":
+            height = (height*int(force_size[0]))//width
+            height = int(height)+4 & ~7
+            width = int(force_size[0])
+        else:
+            width = int(force_size[0])
+            height = int(force_size[0])
+    return (width, height)
 
 def load_video_cv(video: str, force_rate: int, force_size: str, frame_load_cap: int, skip_first_frames: int, select_every_nth: int):
     try:
@@ -94,12 +97,12 @@ def load_video_cv(video: str, force_rate: int, force_size: str, frame_load_cap: 
         new_size = target_size(width, height, force_size)
         if new_size[0] != width or new_size[1] != height:
             s = images.movedim(-1,1)
-            s = common_upscale(s, new_size[0], new_size[1], "lanczos", "disabled")
+            s = common_upscale(s, new_size[0], new_size[1], "lanczos", "center")
             images = s.movedim(1,-1)
     # TODO: raise an error maybe if no frames were loaded?
 
     #Setup lambda for lazy audio capture
-    audio = lambda : get_audio(filename, skip_first_frames * target_frame_time,
+    audio = lambda : get_audio(video, skip_first_frames * target_frame_time,
                                frame_load_cap*target_frame_time)
     return (images, frames_added, lazy_eval(audio))
 
@@ -131,11 +134,8 @@ class LoadVideoUpload:
 
     known_exceptions = []
     def load_video(self, **kwargs):
-        try:
-            kwargs['video'] = folder_paths.get_annotated_filepath(kwargs['video'].strip("\""))
-            return load_video_cv(**kwargs)
-        except Exception as e:
-            raise RuntimeError(f"Failed to load video: {kwargs['video']}\ndue to: {e.__str__()}")
+        kwargs['video'] = folder_paths.get_annotated_filepath(kwargs['video'].strip("\""))
+        return load_video_cv(**kwargs)
 
     @classmethod
     def IS_CHANGED(s, video, **kwargs):
@@ -171,10 +171,7 @@ class LoadVideoPath:
 
     known_exceptions = []
     def load_video(self, **kwargs):
-        try:
-            return load_video_cv(**kwargs)
-        except Exception as e:
-            raise RuntimeError(f"Failed to load video: {kwargs['video']}\ndue to: {e.__str__()}")
+        return load_video_cv(**kwargs)
 
     @classmethod
     def IS_CHANGED(s, video, **kwargs):

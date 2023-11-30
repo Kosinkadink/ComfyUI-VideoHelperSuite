@@ -451,7 +451,7 @@ function addVideoPreview(nodeType) {
                 return
             }
             previewWidget.parentEl.hidden = previewWidget.value.hidden;
-            if (params?.format?.split('/')[0] == 'video') {
+            if (params?.format?.split('/')[0] == 'video' || app.ui.settings.getSettingValue("VHS.AdvancedPreviews", false)) {
                 previewWidget.videoEl.autoplay = !previewWidget.value.paused && !previewWidget.value.hidden;
                 //TODO: Add in ui config option to disable rendered previews
                 if (previewWidget.parentEl.style?.width) {

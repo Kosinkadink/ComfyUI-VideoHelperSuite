@@ -68,7 +68,7 @@ async def view_video(request):
                 if len(bytes_read) == 0:
                     break
                 await resp.write(bytes_read)
-    except:
+    except BrokenPipeError as e:
         pass
     return resp
 

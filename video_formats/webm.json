@@ -6,5 +6,6 @@
         "-crf", ["crf","INT", {"default": 20, "min": 0, "max": 100, "step": 1}]
     ],
     "audio_pass": ["-c:a", "libvorbis"],
+    "save_metadata": ["save_metadata", ["comment", "False"]],
     "extension": "webm"
 }

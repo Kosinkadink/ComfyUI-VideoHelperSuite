@@ -4,6 +4,8 @@ from typing import Iterable
 import shutil
 import subprocess
 
+from .logger import logger
+
 ffmpeg_path = shutil.which("ffmpeg")
 if ffmpeg_path is None:
     logger.info("ffmpeg could not be found. Using ffmpeg from imageio-ffmpeg.")

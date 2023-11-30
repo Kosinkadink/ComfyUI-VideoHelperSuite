@@ -6,6 +6,8 @@
         "-crf", ["crf","INT", {"default": 23, "min": 0, "max": 100, "step": 1}]
     ],
     "audio_pass": ["-c:a", "libopus"],
+    "input_color_depth": ["input_color_depth", ["8bit", "16bit"]],
+    "save_metadata": ["save_metadata", ["comment", "False"]],
     "extension": "webm",
     "environment": {"SVT_LOG": "1"}
 }

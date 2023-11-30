@@ -8,5 +8,6 @@
         "-x265-params", "log-level=quiet"
     ],
     "audio_pass": ["-c:a", "aac"],
+    "save_metadata": ["save_metadata", ["comment", "False"]],
     "extension": "mp4"
 }
