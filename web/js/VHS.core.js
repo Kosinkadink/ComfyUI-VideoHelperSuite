@@ -407,7 +407,7 @@ function addVideoPreview(nodeType) {
                 }
                 return [width, -4];//no loaded src, widget should not display
             },
-            value : {hidden: false, paused: false}
+            value : {hidden: false, paused: false, params: {}}
         };
         //onRemoved isn't a litegraph supported function on widgets
         //Given that onremoved widget and node callbacks are sparse, this
@@ -445,33 +445,49 @@ function addVideoPreview(nodeType) {
             fitHeight(this);
         };
 
-        this.setPreviewsrc = (params) => {previewWidget.value.params = params; this._setPreviewsrc(params)};
-        this._setPreviewsrc = function (params) {
-            if (params == undefined) {
-                return
+        var timeout = null;
+        this.updateParameters = (params, force_update) => {
+            Object.assign(previewWidget.value.params, params)
+            if (!force_update &&
+                !app.ui.settings.getSettingValue("VHS.AdvancedPreviews", false)) {
+                return;
             }
-            previewWidget.parentEl.hidden = previewWidget.value.hidden;
-            if (params?.format?.split('/')[0] == 'video' ||
+            if (timeout) {
+                clearTimeout(timeout);
+            }
+            if (force_update) {
+                previewWidget.updateSource();
+            } else {
+                timeout = setTimeout(() => previewWidget.updateSource(),100);
+            }
+        };
+        previewWidget.updateSource = function () {
+            let params = this.value.params
+            if (params == undefined) {
+                return;
+            }
+            this.parentEl.hidden = this.value.hidden;
+            if (params.format?.split('/')[0] == 'video' ||
                 app.ui.settings.getSettingValue("VHS.AdvancedPreviews", false) &&
-                params?.format?.split('/')[1] == 'gif') {
-                previewWidget.videoEl.autoplay = !previewWidget.value.paused && !previewWidget.value.hidden;
-                if (previewWidget.parentEl.style?.width) {
-                    params.force_size = previewWidget.parentEl.style.width.slice(0,-2) + "x?";
+                params.format?.split('/')[1] == 'gif') {
+                this.videoEl.autoplay = !this.value.paused && !this.value.hidden;
+                if (this.parentEl.style?.width) {
+                    params.force_size = this.parentEl.style.width.slice(0,-2) + "x?";
                 } else {
                     params.force_size = "256x?"
                 }
                 if (app.ui.settings.getSettingValue("VHS.AdvancedPreviews", false)) {
-                    previewWidget.videoEl.src = api.apiURL('/viewvideo?' + new URLSearchParams(params));
+                    this.videoEl.src = api.apiURL('/viewvideo?' + new URLSearchParams(params));
                 } else {
                     previewWidget.videoEl.src = api.apiURL('/view?' + new URLSearchParams(params));
                 }
-                previewWidget.videoEl.hidden = false;
-                previewWidget.imgEl.hidden = true;
+                this.videoEl.hidden = false;
+                this.imgEl.hidden = true;
             } else {
                 //Is animated image
-                previewWidget.imgEl.src = api.apiURL('/view?' + new URLSearchParams(params));
-                previewWidget.videoEl.hidden = true;
-                previewWidget.imgEl.hidden = false;
+                this.imgEl.src = api.apiURL('/view?' + new URLSearchParams(params));
+                this.videoEl.hidden = true;
+                this.imgEl.hidden = false;
             }
         }
         //Hide video element if offscreen
@@ -486,55 +502,6 @@ function addVideoPreview(nodeType) {
         previewWidget.parentEl.appendChild(previewWidget.videoEl)
         previewWidget.parentEl.appendChild(previewWidget.imgEl)
         document.body.appendChild(previewWidget.parentEl);
-    });
-}
-function addAdvancedPreview(nodeType) {
-    chainCallback(nodeType.prototype, "onNodeCreated", function() {
-        const frameCapWidget = this.widgets.find((w) => w.name === 'frame_load_cap');
-        const frameSkipWidget = this.widgets.find((w) => w.name === 'skip_first_frames');
-        const rateWidget = this.widgets.find((w) => w.name === 'force_rate');
-        const previewWidget = this.widgets.find((w) => w.name === 'videopreview');
-        var stale = false;
-        var recent_request = true;
-
-        this.updatePreview = () => {
-            if (recent_request) {
-                stale = true;
-                return;
-            }
-            if (!app.ui.settings.getSettingValue("VHS.AdvancedPreviews", false)) {
-                return
-            }
-            recent_request = true;
-            //TODO: show some kind of load indicator/spin
-            //here would accommodate staleness with a likely tolerable flicker
-
-            let params = previewWidget.value.params;
-            params.frame_load_cap = frameCapWidget.value;
-            params.skip_first_frames = frameSkipWidget.value;
-            params.force_rate = rateWidget.value;
-            //size is handled in preview widget as it applies to output as well.
-
-            this.setPreviewsrc(params)
-            setTimeout(() =>{
-                recent_request = false;
-                if (stale) {
-                    stale = false;
-                    this.updatePreview();
-                }
-            },2e3);
-        }
-        setTimeout(() =>{
-            recent_request = false;
-            if (stale) {
-                stale = false;
-                this.updatePreview();
-            }
-        },100);
-        chainCallback(frameCapWidget, "callback", this.updatePreview);
-        chainCallback(frameSkipWidget, "callback", this.updatePreview);
-        chainCallback(rateWidget, "callback", this.updatePreview);
-        this.updatePreview();
     });
 }
 function addPreviewOptions(nodeType) {
@@ -700,6 +667,32 @@ function addFormatWidgets(nodeType) {
         });
     });
 }
+function addLoadVideoCommon(nodeType, nodeData) {
+    addCustomSize(nodeType, nodeData, "force_size")
+    addVideoPreview(nodeType);
+    addPreviewOptions(nodeType);
+    chainCallback(nodeType.prototype, "onNodeCreated", function() {
+        const pathWidget = this.widgets.find((w) => w.name === "video");
+        const frameCapWidget = this.widgets.find((w) => w.name === 'frame_load_cap');
+        const frameSkipWidget = this.widgets.find((w) => w.name === 'skip_first_frames');
+        const rateWidget = this.widgets.find((w) => w.name === 'force_rate');
+        //widget.callback adds unused arguements which need culling
+        let update = function (value, _, node) {
+            let param = {}
+            param[this.name] = value
+            node.updateParameters(param);
+        }
+        chainCallback(frameCapWidget, "callback", update);
+        chainCallback(frameSkipWidget, "callback", update);
+        chainCallback(rateWidget, "callback", update);
+        //do first load
+        requestAnimationFrame(() => {
+            for (let w of [frameCapWidget, frameSkipWidget, rateWidget, pathWidget]) {
+                w.callback(w.value, null, this);
+            }
+        });
+    });
+}
 
 function path_stem(path) {
     let i = path.lastIndexOf("/");
@@ -740,6 +733,7 @@ function searchBox(event, [x,y], node) {
             dialog.close();
         } else if (e.keyCode == 13 && e.target.localName != "textarea") {
             pathWidget.value = input.value;
+            pathWidget?.callback(pathWidget.value);
             dialog.close();
         } else {
             if (e.keyCode == 9) {
@@ -768,6 +762,7 @@ function searchBox(event, [x,y], node) {
     var button = dialog.querySelector("button");
     button.addEventListener("click", (e) => {
         pathWidget.value = input.value;
+        pathWidget?.callback(pathWidget.value);
         //unsure why dirty is set here, but not on enter-key above
         node.graph.setDirtyCanvas(true);
         dialog.close();
@@ -806,6 +801,7 @@ function searchBox(event, [x,y], node) {
         } else {
             el.addEventListener("click", (e) => {
                 pathWidget.value = last_path+name;
+                pathWidget?.callback(pathWidget.value);
                 dialog.close();
                 pathWidget.prompt = false;
             });
@@ -844,6 +840,7 @@ function searchBox(event, [x,y], node) {
 
     return dialog;
 }
+
 app.ui.settings.addSetting({
     id: "VHS.AdvancedPreviews",
     name: "VHS Advanced Previews",
@@ -860,49 +857,45 @@ app.registerExtension({
         if (nodeData?.name == "VHS_LoadImages") {
             addUploadWidget(nodeType, nodeData, "directory", "folder");
         } else if (nodeData?.name == "VHS_LoadVideo") {
-            addCustomSize(nodeType, nodeData, "force_size")
-
             addUploadWidget(nodeType, nodeData, "video");
-            addVideoPreview(nodeType);
-            addPreviewOptions(nodeType);
             chainCallback(nodeType.prototype, "onNodeCreated", function() {
                 const pathWidget = this.widgets.find((w) => w.name === "video");
-                const previewWidget = this.widgets.find((w) => w.name === "videopreview");
-                pathWidget._value = pathWidget.value;
-                Object.defineProperty(pathWidget, "value", {
-                    set : (value) => {
-                        pathWidget._value = value;
-                        if (!value) {
-                            return
-                        }
-                        //let parts = value.split("//");
-                        let parts = ["input", value];
-                        let extension_index = parts[1].lastIndexOf(".");
-                        let extension = parts[1].slice(extension_index+1);
-                        let format = "video"
-                        if (["gif", "webp", "avif"].includes(extension)) {
-                            format = "image"
-                        }
-                        previewWidget.value.params ={filename : parts[1], type : parts[0], format: format};
-                        if (this.updatePreview && app.ui.settings.getSettingValue("VHS.AdvancedPreviews", false)) {
-                            this.updatePreview();
-                        } else {
-                            this.setPreviewsrc(previewWidget.value.params)
-                        }
-                    },
-                    get : () => {
-                        return pathWidget._value;
+                chainCallback(pathWidget, "callback", (value) => {
+                    if (!value) {
+                        return;
                     }
+                    let parts = ["input", value];
+                    let extension_index = parts[1].lastIndexOf(".");
+                    let extension = parts[1].slice(extension_index+1);
+                    let format = "video"
+                    if (["gif", "webp", "avif"].includes(extension)) {
+                        format = "image"
+                    }
+                    let params = {filename : parts[1], type : parts[0], format: format};
+                    this.updateParameters(params, true);
                 });
-                //Set value to ensure preview displays on initial add.
-                pathWidget.value = pathWidget._value;
             });
-            addAdvancedPreview(nodeType);
+            addLoadVideoCommon(nodeType, nodeData);
+        } else if (nodeData?.name =="VHS_LoadVideoPath") {
+            chainCallback(nodeType.prototype, "onNodeCreated", function() {
+                const pathWidget = this.widgets.find((w) => w.name === "video");
+                chainCallback(pathWidget, "callback", (value) => {
+                    let extension_index = value.lastIndexOf(".");
+                    let extension = value.slice(extension_index+1);
+                    let format = "video"
+                    if (["gif", "webp", "avif"].includes(extension)) {
+                        format = "image"
+                    }
+                    let params = {filename : value, type: "path", format: format};
+                    this.updateParameters(params, true);
+                });
+            });
+            addLoadVideoCommon(nodeType, nodeData);
         } else if (nodeData?.name == "VHS_VideoCombine") {
             addDateFormatting(nodeType, "filename_prefix");
             chainCallback(nodeType.prototype, "onExecuted", function(message) {
                 if (message?.gifs) {
-                    this.setPreviewsrc(message.gifs[0]);
+                    this.updateParameters(message.gifs[0], true);
                 }
             });
             addVideoPreview(nodeType);
@@ -918,7 +911,7 @@ app.registerExtension({
                         this._outputs = value;
                         requestAnimationFrame(() => {
                             if (app.nodeOutputs[this.id + ""]) {
-                                this.setPreviewsrc(app.nodeOutputs[this.id+""].gifs[0]);
+                                this.updateParameters(app.nodeOutputs[this.id+""].gifs[0], true);
                             }
                         })
                     },

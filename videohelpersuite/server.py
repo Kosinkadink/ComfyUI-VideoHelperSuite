@@ -5,6 +5,13 @@ import subprocess
 
 web = server.web
 
+def is_safe(path):
+    if "VHS_UNSAFE_PATHS" in os.environ:
+        return True
+    basedir = os.path.abspath('.')
+    common_path = os.path.commonpath([basedir, path])
+    return common_path == basedir
+
 @server.PromptServer.instance.routes.get("/viewvideo")
 async def view_video(request):
     query = request.rel_url.query
@@ -13,24 +20,22 @@ async def view_video(request):
     filename = query["filename"]
     filename, output_dir = folder_paths.annotated_filepath(filename)
 
-    filename,output_dir = folder_paths.annotated_filepath(filename)
-
-    # validation for security: prevent accessing arbitrary path
-    if filename[0] == '/' or '..' in filename:
-        return web.Response(status=400)
-
+    type = request.rel_url.query.get("type", "output")
+    if type == "path":
+        #special case for path_based nodes
+        #NOTE: output_dir may be empty, but non-None
+        output_dir, filename = os.path.split(filename)
     if output_dir is None:
-        type = request.rel_url.query.get("type", "output")
         output_dir = folder_paths.get_directory_by_type(type)
 
     if output_dir is None:
         return web.Response(status=400)
 
+    if not is_safe(output_dir):
+        return web.Response(status=403)
+
     if "subfolder" in request.rel_url.query:
-        full_output_dir = os.path.join(output_dir, request.rel_url.query["subfolder"])
-        if os.path.commonpath((os.path.abspath(full_output_dir), output_dir)) != output_dir:
-            return web.Response(status=403)
-        output_dir = full_output_dir
+        output_dir = os.path.join(output_dir, request.rel_url.query["subfolder"])
 
     filename = os.path.basename(filename)
     file = os.path.join(output_dir, filename)
@@ -79,19 +84,13 @@ async def get_path(request):
         return web.Response(status=404)
     path = os.path.abspath(query["path"])
 
-    #For now, only continue if subpath of comfui
-    basedir = os.path.abspath('.')
-    common_path = os.path.commonpath([basedir, path])
-    if common_path != basedir:
-        return web.Response(status=403)
-    if not os.path.exists(path):
-        return web.Response(status=404)
+    if not os.path.exists(path) or not is_safe(path):
+        return web.json_response([])
 
     #Use get so None is default instead of keyerror
     valid_extensions = query.get("extensions")
     valid_items = []
     for item in os.scandir(path):
-        #TODO: change type to designate if dir or file
         if item.is_dir():
             valid_items.append(item.name + "/")
             continue

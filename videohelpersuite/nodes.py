@@ -139,6 +139,7 @@ class VideoCombine:
             subfolder,
             _,
         ) = folder_paths.get_save_image_path(filename_prefix, output_dir)
+        output_files = []
 
         metadata = PngInfo()
         video_metadata = {}
@@ -176,6 +177,7 @@ class VideoCombine:
             pnginfo=metadata,
             compress_level=4,
         )
+        output_files.append(file)
 
         format_type, format_ext = format.split("/")
         if format_type == "image":
@@ -195,6 +197,7 @@ class VideoCombine:
                 loop=loop_count,
                 compress_level=4,
             )
+            output_files.append(file)
         else:
             # Use ffmpeg to save a video
             if ffmpeg_path is None:
@@ -256,6 +259,7 @@ class VideoCombine:
                             + e.stderr.decode("utf-8"))
             if res.stderr:
                 print(res.stderr.decode("utf-8"), end="", file=sys.stderr)
+            output_files.append(file)
 
 
             # Audio Injection ater video is created, saves additional video with -audio.mp4
@@ -276,7 +280,6 @@ class VideoCombine:
                             "-i", "-", "-c:v", "copy"] \
                             + video_format["audio_pass"] \
                             + ["-af", "apad", "-shortest", output_file_with_audio_path]
-                            #"-c:a", "libopus", "-b:a", "192k", "-strict", "experimental",
 
                 try:
                     res = subprocess.run(mux_args, input=audio(), env=env,
@@ -286,6 +289,7 @@ class VideoCombine:
                             + e.stderr.decode("utf-8"))
                 if res.stderr:
                     print(res.stderr.decode("utf-8"), end="", file=sys.stderr)
+                output_files.append(output_file_with_audio)
 
         previews = [
             {
@@ -295,7 +299,7 @@ class VideoCombine:
                 "format": format,
             }
         ]
-        return {"ui": {"gifs": previews}}
+        return {"ui": {"gifs": previews}, "result": output_files}
     @classmethod
     def VALIDATE_INPUTS(self, **kwargs):
         return True
