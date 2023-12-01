@@ -154,7 +154,7 @@ class VideoCombine:
         max_counter = 0
 
         # Loop through the existing files
-        matcher = re.compile(f"{re.escape(filename)}_(\d+)_?\.[a-zA-Z0-9]+")
+        matcher = re.compile(f"{re.escape(filename)}_(\d+)\D*\.[a-zA-Z0-9]+")
         for existing_file in os.listdir(full_output_folder):
             # Check if the file matches the expected format
             match = matcher.fullmatch(existing_file)
@@ -179,6 +179,8 @@ class VideoCombine:
 
         format_type, format_ext = format.split("/")
         if format_type == "image":
+            file = f"{filename}_{counter:05}.{format_ext}"
+            file_path = os.path.join(full_output_folder, file)
             images = tensor_to_bytes(images)
             if pingpong:
                 images = np.concatenate((images, images[-2:0:-1]))

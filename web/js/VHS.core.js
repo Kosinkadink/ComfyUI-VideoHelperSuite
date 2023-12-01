@@ -451,9 +451,10 @@ function addVideoPreview(nodeType) {
                 return
             }
             previewWidget.parentEl.hidden = previewWidget.value.hidden;
-            if (params?.format?.split('/')[0] == 'video' || app.ui.settings.getSettingValue("VHS.AdvancedPreviews", false)) {
+            if (params?.format?.split('/')[0] == 'video' ||
+                app.ui.settings.getSettingValue("VHS.AdvancedPreviews", false) &&
+                params?.format?.split('/')[1] == 'gif') {
                 previewWidget.videoEl.autoplay = !previewWidget.value.paused && !previewWidget.value.hidden;
-                //TODO: Add in ui config option to disable rendered previews
                 if (previewWidget.parentEl.style?.width) {
                     params.force_size = previewWidget.parentEl.style.width.slice(0,-2) + "x?";
                 } else {
@@ -489,13 +490,12 @@ function addVideoPreview(nodeType) {
 }
 function addAdvancedPreview(nodeType) {
     chainCallback(nodeType.prototype, "onNodeCreated", function() {
-        //TODO: do proper integration
         const frameCapWidget = this.widgets.find((w) => w.name === 'frame_load_cap');
         const frameSkipWidget = this.widgets.find((w) => w.name === 'skip_first_frames');
         const rateWidget = this.widgets.find((w) => w.name === 'force_rate');
         const previewWidget = this.widgets.find((w) => w.name === 'videopreview');
         var stale = false;
-        var recent_request = false;
+        var recent_request = true;
 
         this.updatePreview = () => {
             if (recent_request) {
@@ -524,6 +524,13 @@ function addAdvancedPreview(nodeType) {
                 }
             },2e3);
         }
+        setTimeout(() =>{
+            recent_request = false;
+            if (stale) {
+                stale = false;
+                this.updatePreview();
+            }
+        },100);
         chainCallback(frameCapWidget, "callback", this.updatePreview);
         chainCallback(frameSkipWidget, "callback", this.updatePreview);
         chainCallback(rateWidget, "callback", this.updatePreview);
@@ -860,6 +867,7 @@ app.registerExtension({
             addPreviewOptions(nodeType);
             chainCallback(nodeType.prototype, "onNodeCreated", function() {
                 const pathWidget = this.widgets.find((w) => w.name === "video");
+                const previewWidget = this.widgets.find((w) => w.name === "videopreview");
                 pathWidget._value = pathWidget.value;
                 Object.defineProperty(pathWidget, "value", {
                     set : (value) => {
@@ -875,7 +883,12 @@ app.registerExtension({
                         if (["gif", "webp", "avif"].includes(extension)) {
                             format = "image"
                         }
-                        this.setPreviewsrc({filename : parts[1], type : parts[0], format: format});
+                        previewWidget.value.params ={filename : parts[1], type : parts[0], format: format};
+                        if (this.updatePreview && app.ui.settings.getSettingValue("VHS.AdvancedPreviews", false)) {
+                            this.updatePreview();
+                        } else {
+                            this.setPreviewsrc(previewWidget.value.params)
+                        }
                     },
                     get : () => {
                         return pathWidget._value;
