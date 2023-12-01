@@ -23,10 +23,6 @@ folder_paths.folder_names_and_paths["video_formats"] = (
     [".json"]
 )
 
-preferred_backend = "opencv"
-if "VHS_PREFERRED_BACKEND" in os.environ:
-    preferred_backend = os.environ['VHS_PREFERRED_BACKEND']
-
 def gen_format_widgets(video_format):
     for k in video_format:
         if k.endswith("_pass"):
@@ -104,7 +100,8 @@ class VideoCombine:
             },
         }
 
-    RETURN_TYPES = ("GIF",)
+    RETURN_TYPES = ("VHS_FILENAMES",)
+    RETURN_NAMES = ("Filenames",)
     OUTPUT_NODE = True
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
     FUNCTION = "combine_video"
@@ -299,7 +296,7 @@ class VideoCombine:
                 "format": format,
             }
         ]
-        return {"ui": {"gifs": previews}, "result": output_files}
+        return {"ui": {"gifs": previews}, "result": (output_files,)}
     @classmethod
     def VALIDATE_INPUTS(self, **kwargs):
         return True
@@ -335,14 +332,13 @@ class LoadAudio:
         #TODO: Perform simple check for audio formats?
         return True
 
-
-
 NODE_CLASS_MAPPINGS = {
     "VHS_VideoCombine": VideoCombine,
     "VHS_LoadVideo": LoadVideoUpload,
     "VHS_LoadVideoPath": LoadVideoPath,
     "VHS_LoadImages": LoadImagesFromDirectoryUpload,
     "VHS_LoadImagesPath": LoadImagesFromDirectoryPath,
+    "VHS_LoadAudio": LoadAudio,
     # Latent and Image nodes
     "VHS_SplitLatents": SplitLatents,
     "VHS_SplitImages": SplitImages,
@@ -354,7 +350,6 @@ NODE_CLASS_MAPPINGS = {
     "VHS_GetImageCount": GetImageCount,
     "VHS_DuplicateLatents": DuplicateLatents,
     "VHS_DuplicateImages": DuplicateImages,
-    "VHS_LoadAudio": LoadAudio,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_VideoCombine": "Video Combine 🎥🅥🅗🅢",
@@ -362,6 +357,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_LoadVideoPath": "Load Video (Path) 🎥🅥🅗🅢",
     "VHS_LoadImages": "Load Images (Upload) 🎥🅥🅗🅢",
     "VHS_LoadImagesPath": "Load Images (Path) 🎥🅥🅗🅢",
+    "VHS_LoadAudio": "Load Audio (Path)🎥🅥🅗🅢",
     # Latent and Image nodes
     "VHS_SplitLatents": "Split Latent Batch 🎥🅥🅗🅢",
     "VHS_SplitImages": "Split Image Batch 🎥🅥🅗🅢",
@@ -373,5 +369,4 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_GetImageCount": "Get Image Count 🎥🅥🅗🅢",
     "VHS_DuplicateLatents": "Duplicate Latent Batch 🎥🅥🅗🅢",
     "VHS_DuplicateImages": "Duplicate Image Batch 🎥🅥🅗🅢",
-    "VHS_LoadAudio": "Load Audio (Path)🎥🅥🅗🅢",
 }

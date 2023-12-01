@@ -9,7 +9,11 @@ def is_safe(path):
     if "VHS_UNSAFE_PATHS" in os.environ:
         return True
     basedir = os.path.abspath('.')
-    common_path = os.path.commonpath([basedir, path])
+    try:
+        common_path = os.path.commonpath([basedir, path])
+    except:
+        #Different drive on windows
+        return False
     return common_path == basedir
 
 @server.PromptServer.instance.routes.get("/viewvideo")
@@ -43,15 +47,21 @@ async def view_video(request):
     if not os.path.isfile(file):
         return web.Response(status=404)
 
-    args = ["ffmpeg", "-v", "error", "-i", file]
+    args = ["ffmpeg", "-v", "error","-an", "-i", file]
     vfilters = []
     if int(query.get('force_rate',0)) != 0:
         vfilters.append("fps=fps="+query['force_rate'] + ":round=up")
     if int(query.get('skip_first_frames', 0)) > 0:
         vfilters.append(f"select=gt(n\\,{int(query['skip_first_frames'])-1})")
+    if int(query.get('select_every_nth', 1)) > 1:
+        vfilters.append(f"select=not(mod(n\\,{query['select_every_nth']}))")
     if query.get('force_size','Disabled') != "Disabled":
-        size = query['force_size'].replace('?','-2').replace('x',':')
+        size = query['force_size'].split('x')
+        size[0] = "-2" if size[0] == '?' else f"'min({size[0]},iw)'"
+        size[1] = "-2" if size[1] == '?' else f"'min({size[1]},ih)'"
+        size = ':'.join(size)
         vfilters.append(f"scale={size}")
+    vfilters.append("setpts=PTS-STARTPTS")
     if len(vfilters) > 0:
         args += ["-vf", ",".join(vfilters)]
     if int(query.get('frame_load_cap', 0)) > 0:

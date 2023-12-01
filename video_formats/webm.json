@@ -3,7 +3,8 @@
     [
         "-n",
         "-pix_fmt", "yuv420p",
-        "-crf", ["crf","INT", {"default": 20, "min": 0, "max": 100, "step": 1}]
+        "-crf", ["crf","INT", {"default": 20, "min": 0, "max": 100, "step": 1}],
+        "-b:v", "0"
     ],
     "audio_pass": ["-c:a", "libvorbis"],
     "save_metadata": ["save_metadata", ["comment", "False"]],

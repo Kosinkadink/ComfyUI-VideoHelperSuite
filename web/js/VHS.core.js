@@ -676,6 +676,7 @@ function addLoadVideoCommon(nodeType, nodeData) {
         const frameCapWidget = this.widgets.find((w) => w.name === 'frame_load_cap');
         const frameSkipWidget = this.widgets.find((w) => w.name === 'skip_first_frames');
         const rateWidget = this.widgets.find((w) => w.name === 'force_rate');
+        const skipWidget = this.widgets.find((w) => w.name === 'select_every_nth');
         //widget.callback adds unused arguements which need culling
         let update = function (value, _, node) {
             let param = {}
@@ -685,9 +686,10 @@ function addLoadVideoCommon(nodeType, nodeData) {
         chainCallback(frameCapWidget, "callback", update);
         chainCallback(frameSkipWidget, "callback", update);
         chainCallback(rateWidget, "callback", update);
+        chainCallback(skipWidget, "callback", update);
         //do first load
         requestAnimationFrame(() => {
-            for (let w of [frameCapWidget, frameSkipWidget, rateWidget, pathWidget]) {
+            for (let w of [frameCapWidget, frameSkipWidget, rateWidget, pathWidget, skipWidget]) {
                 w.callback(w.value, null, this);
             }
         });
@@ -733,7 +735,9 @@ function searchBox(event, [x,y], node) {
             dialog.close();
         } else if (e.keyCode == 13 && e.target.localName != "textarea") {
             pathWidget.value = input.value;
-            pathWidget?.callback(pathWidget.value);
+            if (pathWidget.callback) {
+                pathWidget.callback(pathWidget.value);
+            }
             dialog.close();
         } else {
             if (e.keyCode == 9) {
@@ -762,7 +766,9 @@ function searchBox(event, [x,y], node) {
     var button = dialog.querySelector("button");
     button.addEventListener("click", (e) => {
         pathWidget.value = input.value;
-        pathWidget?.callback(pathWidget.value);
+        if (pathWidget.callback) {
+            pathWidget.callback(pathWidget.value);
+        }
         //unsure why dirty is set here, but not on enter-key above
         node.graph.setDirtyCanvas(true);
         dialog.close();
@@ -801,7 +807,9 @@ function searchBox(event, [x,y], node) {
         } else {
             el.addEventListener("click", (e) => {
                 pathWidget.value = last_path+name;
-                pathWidget?.callback(pathWidget.value);
+                if (pathWidget.callback) {
+                    pathWidget.callback(pathWidget.value);
+                }
                 dialog.close();
                 pathWidget.prompt = false;
             });
@@ -916,7 +924,7 @@ app.registerExtension({
                         })
                     },
                     get : function() {
-                        return [];
+                        return this._outputs;
                     }
                 });
             });
@@ -932,7 +940,7 @@ app.registerExtension({
                 let w = {
                     name : inputName,
                     type : "VHS.PATH",
-                    value : "",//TODO: respect default
+                    value : "",
                     draw : function(ctx, node, widget_width, y, H) {
                         //Adapted from litegraph.core.js:drawNodeWidgets
                         var show_text = app.canvas.ds.scale > 0.5;
@@ -981,6 +989,7 @@ app.registerExtension({
                             //may all fit, but can't squeeze more info
                             return filename.substr(0,30);
                         }
+                        //TODO: find solution for windows, path[1] == ':'?
                         let isAbs = path[0] == '/';
                         let partial = path.substr(path.length - (isAbs ? 28:29))
                         let cutoff = partial.indexOf('/');
