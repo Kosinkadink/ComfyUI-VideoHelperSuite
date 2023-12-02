@@ -128,8 +128,8 @@ class LoadVideoUpload:
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
 
-    RETURN_TYPES = ("IMAGE", "INT", "AUDIO", )
-    RETURN_NAMES = ("IMAGE", "frame_count", "AUDIO",)
+    RETURN_TYPES = ("IMAGE", "INT", "VHS_AUDIO", )
+    RETURN_NAMES = ("IMAGE", "frame_count", "audio",)
     FUNCTION = "load_video"
 
     known_exceptions = []
@@ -165,8 +165,8 @@ class LoadVideoPath:
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
 
-    RETURN_TYPES = ("IMAGE", "INT", "AUDIO", )
-    RETURN_NAMES = ("IMAGE", "frame_count", "AUDIO",)
+    RETURN_TYPES = ("IMAGE", "INT", "VHS_AUDIO", )
+    RETURN_NAMES = ("IMAGE", "frame_count", "audio",)
     FUNCTION = "load_video"
 
     known_exceptions = []

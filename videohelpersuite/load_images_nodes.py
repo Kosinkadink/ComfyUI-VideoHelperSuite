@@ -123,7 +123,7 @@ class LoadImagesFromDirectoryPath:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "directory": ("VHSPATH", {"default": "X://path/to/images", "extensiosn": []}),
+                "directory": ("VHSPATH", {"default": "X://path/to/images", "extensions": []}),
             },
             "optional": {
                 "image_load_cap": ("INT", {"default": 0, "min": 0, "step": 1}),

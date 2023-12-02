@@ -291,7 +291,7 @@ function addCustomSize(nodeType, nodeData, widgetName) {
             if (this.value == "Custom Width") {
                 return widthWidget.value + "x?";
             } else if (this.value == "Custom Height") {
-                return "?x" + heightWidget;
+                return "?x" + heightWidget.value;
             } else if (this.value == "Custom") {
                 return widthWidget.value + "x" + heightWidget.value;
             } else {
@@ -879,6 +879,7 @@ app.registerExtension({
                     if (["gif", "webp", "avif"].includes(extension)) {
                         format = "image"
                     }
+                    format += "/" + extension;
                     let params = {filename : parts[1], type : parts[0], format: format};
                     this.updateParameters(params, true);
                 });
@@ -894,6 +895,7 @@ app.registerExtension({
                     if (["gif", "webp", "avif"].includes(extension)) {
                         format = "image"
                     }
+                    format += "/" + extension;
                     let params = {filename : value, type: "path", format: format};
                     this.updateParameters(params, true);
                 });

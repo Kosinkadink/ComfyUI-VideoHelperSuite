@@ -50,7 +50,7 @@ async def view_video(request):
     args = ["ffmpeg", "-v", "error","-an", "-i", file]
     vfilters = []
     if int(query.get('force_rate',0)) != 0:
-        vfilters.append("fps=fps="+query['force_rate'] + ":round=up")
+        vfilters.append("fps=fps="+query['force_rate'] + ":round=up:start_time=0.001")
     if int(query.get('skip_first_frames', 0)) > 0:
         vfilters.append(f"select=gt(n\\,{int(query['skip_first_frames'])-1})")
     if int(query.get('select_every_nth', 1)) > 1:

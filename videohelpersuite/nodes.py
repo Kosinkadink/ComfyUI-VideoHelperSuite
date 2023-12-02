@@ -91,7 +91,7 @@ class VideoCombine:
                 "save_image": ("BOOLEAN", {"default": True}),
             },
             "optional": {
-                "audio": ("AUDIO",),
+                "audio": ("VHS_AUDIO",),
             },
             "hidden": {
                 "prompt": "PROMPT",
@@ -312,7 +312,8 @@ class LoadAudio:
             "optional" : {"seek_seconds": ("FLOAT", {"default": 0, "min": 0})}
         }
 
-    RETURN_TYPES = ("AUDIO",)
+    RETURN_TYPES = ("VHS_AUDIO",)
+    RETURN_NAMES = ("audio",)
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
     FUNCTION = "load_audio"
     def load_audio(self, audio_file, seek_seconds):
