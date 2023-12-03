@@ -472,7 +472,8 @@ function addVideoPreview(nodeType) {
                 params.format?.split('/')[1] == 'gif') {
                 this.videoEl.autoplay = !this.value.paused && !this.value.hidden;
                 if (this.parentEl.style?.width) {
-                    params.force_size = this.parentEl.style.width.slice(0,-2) + "x?";
+                    //overscale to allow scrolling. Endpoint won't return higher than native
+                    params.force_size = (this.parentEl.style.width.slice(0,-2)*2) + "x?";
                 } else {
                     params.force_size = "256x?"
                 }
@@ -636,6 +637,9 @@ function addFormatWidgets(nodeType) {
                     formatWidget._value = fullDef[0];
                     for (let wDef of fullDef[1]) {
                         //create widgets. Heavy borrowed from web/scripts/app.js
+                        //default implementation doesn't work since it automatically adds
+                        //the widget in the wrong spot.
+                        //TODO: consider letting this happen and just removing from list?
                         let w = {};
                         w.name = wDef[0];
                         let inputData = wDef.slice(1);
@@ -649,11 +653,17 @@ function addFormatWidgets(nodeType) {
                         if(inputData[1]?.default) {
                             w.value = inputData[1].default;
                         }
+                        if (w.type == "INT") {
+                            Object.assign(w.options, {"precision": 0, "step": 10})
+                            w.callback = function (v) {
+                                const s = this.options.step / 10;
+                                this.value = Math.round(v / s) * s;
+                            }
+                        }
                         const typeTable = {BOOLEAN: "toggle", STRING: "text", INT: "number", FLOAT: "number"};
                         if (w.type in typeTable) {
                             w.type = typeTable[w.type];
                         }
-                        //TODO: implement precision/rounding/step
                         newWidgets.push(w);
                     }
                 }

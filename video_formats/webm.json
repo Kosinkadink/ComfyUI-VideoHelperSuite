@@ -7,6 +7,6 @@
         "-b:v", "0"
     ],
     "audio_pass": ["-c:a", "libvorbis"],
-    "save_metadata": ["save_metadata", ["comment", "False"]],
+    "save_metadata": ["save_metadata", "BOOLEAN", {"default": true}],
     "extension": "webm"
 }

@@ -47,7 +47,7 @@ async def view_video(request):
     if not os.path.isfile(file):
         return web.Response(status=404)
 
-    args = ["ffmpeg", "-v", "error","-an", "-i", file]
+    args = ["ffmpeg", "-v", "fatal","-an", "-i", file]
     vfilters = []
     if int(query.get('force_rate',0)) != 0:
         vfilters.append("fps=fps="+query['force_rate'] + ":round=up:start_time=0.001")
@@ -69,6 +69,9 @@ async def view_video(request):
     args += ['-c:v', 'libvpx-vp9','-deadline', 'realtime', '-cpu-used', '8', '-f', 'webm', '-']
 
     try:
+        #TODO: Reconsider stderr handling here.
+        #Capturing requires giving up on streaming or risking deadlocke
+        #Muting risks eating meaningful errors
         with subprocess.Popen(args, stdout=subprocess.PIPE) as proc:
             resp = web.StreamResponse()
             resp.content_type = 'video/webm'
@@ -84,6 +87,8 @@ async def view_video(request):
                     break
                 await resp.write(bytes_read)
     except BrokenPipeError as e:
+        pass
+    except ConnectionResetError as e:
         pass
     return resp
 

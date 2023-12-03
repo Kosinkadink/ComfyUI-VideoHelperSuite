@@ -7,7 +7,7 @@
     ],
     "audio_pass": ["-c:a", "libopus"],
     "input_color_depth": ["input_color_depth", ["8bit", "16bit"]],
-    "save_metadata": ["save_metadata", ["comment", "False"]],
+    "save_metadata": ["save_metadata", "BOOLEAN", {"default": true}],
     "extension": "webm",
     "environment": {"SVT_LOG": "1"}
 }

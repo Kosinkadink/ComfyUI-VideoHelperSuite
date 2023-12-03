@@ -234,7 +234,7 @@ class VideoCombine:
                 metadata = metadata.replace("#","\\#")
                 metadata = metadata.replace("=","\\=")
                 metadata = metadata.replace("\n","\\\n")
-                metadata = video_format['save_metadata']+ "=" + metadata
+                metadata = "comment=" + metadata
                 with open(metadata_path, "w") as f:
                     f.write(";FFMETADATA1\n")
                     f.write(metadata)
@@ -287,6 +287,9 @@ class VideoCombine:
                 if res.stderr:
                     print(res.stderr.decode("utf-8"), end="", file=sys.stderr)
                 output_files.append(output_file_with_audio)
+                #Return this file with audio to the webui.
+                #It will be muted unless opened or saved with right click
+                file = output_file_with_audio
 
         previews = [
             {

@@ -6,6 +6,6 @@
         "-crf", ["crf","INT", {"default": 19, "min": 0, "max": 100, "step": 1}]
     ],
     "audio_pass": ["-c:a", "aac"],
-    "save_metadata": ["save_metadata", ["comment", "False"]],
+    "save_metadata": ["save_metadata", "BOOLEAN", {"default": true}],
     "extension": "mp4"
 }
