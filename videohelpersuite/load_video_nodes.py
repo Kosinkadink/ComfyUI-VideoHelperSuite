@@ -7,7 +7,7 @@ import cv2
 import folder_paths
 from comfy.utils import common_upscale
 from .logger import logger
-from .utils import calculate_file_hash, get_sorted_dir_files_from_directory, get_audio, lazy_eval
+from .utils import calculate_file_hash, get_sorted_dir_files_from_directory, get_audio, lazy_eval, is_url
 
 
 video_extensions = ['webm', 'mp4', 'mkv', 'gif']
@@ -175,10 +175,16 @@ class LoadVideoPath:
 
     @classmethod
     def IS_CHANGED(s, video, **kwargs):
+        if is_url(video):
+            #Fetching a remote video heavy, so hash check is skipped
+            return 1
         return calculate_file_hash(video.strip("\""))
 
     @classmethod
     def VALIDATE_INPUTS(s, video, **kwargs):
+        if is_url(video):
+            #Probably not feasible to check if url resolves here
+            return True
         if not os.path.isfile(video.strip("\"")):
             return "Invalid video file: {}".format(video)
         return True

@@ -68,3 +68,6 @@ def lazy_eval(func):
             return self.res
     cache = Cache(func)
     return lambda : cache.get()
+
+def is_url(url):
+    return url.split("://")[0] in ["http", "https"]
