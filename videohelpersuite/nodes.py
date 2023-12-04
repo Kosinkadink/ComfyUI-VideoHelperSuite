@@ -88,7 +88,7 @@ class VideoCombine:
                 "filename_prefix": ("STRING", {"default": "AnimateDiff"}),
                 "format": (["image/gif", "image/webp"] + ffmpeg_formats,),
                 "pingpong": ("BOOLEAN", {"default": False}),
-                "save_image": ("BOOLEAN", {"default": True}),
+                "save_output": ("BOOLEAN", {"default": True}),
             },
             "optional": {
                 "audio": ("VHS_AUDIO",),
@@ -114,7 +114,7 @@ class VideoCombine:
         filename_prefix="AnimateDiff",
         format="image/gif",
         pingpong=False,
-        save_image=True,
+        save_output=True,
         prompt=None,
         extra_pnginfo=None,
         audio=None,
@@ -126,7 +126,7 @@ class VideoCombine:
         # get output information
         output_dir = (
             folder_paths.get_output_directory()
-            if save_image
+            if save_output
             else folder_paths.get_temp_directory()
         )
         (
@@ -295,7 +295,7 @@ class VideoCombine:
             {
                 "filename": file,
                 "subfolder": subfolder,
-                "type": "output" if save_image else "temp",
+                "type": "output" if save_output else "temp",
                 "format": format,
             }
         ]

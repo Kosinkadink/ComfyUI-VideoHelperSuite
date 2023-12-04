@@ -47,6 +47,7 @@ const convDict = {
     VHS_LoadVideo : ["video", "force_rate", "force_size", "frame_load_cap", "skip_first_frames", "select_every_nth"],
     VHS_LoadVideoPath : ["video", "force_rate", "force_size", "frame_load_cap", "skip_first_frames", "select_every_nth"]
 };
+const renameDict  = {VHS_VideoCombine : {save_output : "save_image"}}
 function useKVState(nodeType) {
     chainCallback(nodeType.prototype, "onNodeCreated", function () {
         chainCallback(this, "onConfigure", function(info) {
@@ -85,6 +86,13 @@ function useKVState(nodeType) {
                     if (w.name in widgetDict) {
                         w.value = widgetDict[w.name];
                     } else {
+                        //Check for a legacy name that needs migrating
+                        if (this.type in renameDict && w.name in renameDict[this.type]) {
+                            if (renameDict[this.type][w.name] in widgetDict) {
+                                w.value = widgetDict[renameDict[this.type][w.name]]
+                                continue
+                            }
+                        }
                         //attempt to restore default value
                         let inputs = LiteGraph.getNodeType(this.type).nodeData.input;
                         let initialValue = null;
