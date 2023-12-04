@@ -447,6 +447,9 @@ function addVideoPreview(nodeType) {
 
         var timeout = null;
         this.updateParameters = (params, force_update) => {
+            if (!previewWidget.value.params) {
+                previewWidget.value.params = {}
+            }
             Object.assign(previewWidget.value.params, params)
             if (!force_update &&
                 !app.ui.settings.getSettingValue("VHS.AdvancedPreviews", false)) {
@@ -534,7 +537,7 @@ function addPreviewOptions(nodeType) {
                     callback: () => {
                         const a = document.createElement("a");
                         a.href = url;
-                        a.setAttribute("download", new URLSearchParams(url.search).get("filename"));
+                        a.setAttribute("download", new URLSearchParams(previewWidget.value.params).get("filename"));
                         document.body.append(a);
                         a.click();
                         requestAnimationFrame(() => a.remove());
@@ -1006,7 +1009,7 @@ app.registerExtension({
                         let partial = path.substr(path.length - (isAbs ? 28:29))
                         let cutoff = partial.indexOf('/');
                         if (cutoff < 0) {
-                            console.warn("Failed to pretty format: " + path);
+                            //Can occur, but there isn't a nicer way to format
                             return path.substr(path.length-30);
                         }
                         return (isAbs ? '/…':'…') + partial.substr(cutoff);
