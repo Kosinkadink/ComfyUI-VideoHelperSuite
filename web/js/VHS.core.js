@@ -292,6 +292,17 @@ function addCustomSize(nodeType, nodeData, widgetName) {
                 return this._value;
             }
         });
+        //prevent clobbering of new options on refresh
+        sizeOptionWidget.options._values = sizeOptionWidget.options.values;
+        Object.defineProperty(sizeOptionWidget.options, "values", {
+            set : function(values) {
+                this._values = values;
+                this._values.push("Custom Width", "Custom Height", "Custom");
+            },
+            get : function() {
+                return this._values;
+            }
+        });
         //Ensure proper visibility/size state for initial value
         sizeOptionWidget.value = sizeOptionWidget._value;
 
@@ -456,6 +467,9 @@ function addVideoPreview(nodeType) {
         var timeout = null;
         this.updateParameters = (params, force_update) => {
             if (!previewWidget.value.params) {
+                if(typeof(previewWidget.value != 'object')) {
+                    previewWidget.value =  {hidden: false, paused: false}
+                }
                 previewWidget.value.params = {}
             }
             Object.assign(previewWidget.value.params, params)
