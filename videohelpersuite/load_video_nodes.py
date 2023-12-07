@@ -33,7 +33,7 @@ def target_size(width, height, force_size) -> tuple[int, int]:
             width = int(force_size[0])
         else:
             width = int(force_size[0])
-            height = int(force_size[0])
+            height = int(force_size[1])
     return (width, height)
 
 def load_video_cv(video: str, force_rate: int, force_size: str, frame_load_cap: int, skip_first_frames: int, select_every_nth: int):
@@ -118,7 +118,7 @@ class LoadVideoUpload:
                 if len(file_parts) > 1 and (file_parts[-1] in video_extensions):
                     files.append(f)
         return {"required": {
-                    "video": (sorted(files), {"video_upload": True}),
+                    "video": (sorted(files),),
                      "force_rate": ("INT", {"default": 0, "min": 0, "max": 24, "step": 1}),
                      "force_size": (["Disabled", "256x?", "?x256", "256x256", "512x?", "?x512", "512x512"],),
                      "frame_load_cap": ("INT", {"default": 0, "min": 0, "step": 1}),
