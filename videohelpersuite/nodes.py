@@ -216,9 +216,10 @@ class VideoCombine:
             file = f"{filename}_{counter:05}.{video_format['extension']}"
             file_path = os.path.join(full_output_folder, file)
             dimensions = f"{len(images[0][0])}x{len(images[0])}"
+            loop_args = ["-vf", "loop=loop=" + str(loop_count)+":size=" + str(len(images))]
             args = [ffmpeg_path, "-v", "error", "-f", "rawvideo", "-pix_fmt", i_pix_fmt,
                     "-s", dimensions, "-r", str(frame_rate), "-i", "-"] \
-                    + video_format['main_pass']
+                    + loop_args + video_format['main_pass']
 
             env=os.environ.copy()
             if  "environment" in video_format:
@@ -243,6 +244,12 @@ class VideoCombine:
                     res = subprocess.run(m_args + [file_path], input=images.tobytes(),
                                          capture_output=True, check=True, env=env)
                 except subprocess.CalledProcessError as e:
+                    #Check if output file exists. If it does, the re-execution
+                    #will also fail. This obscures the cause of the error
+                    #and seems to never occur concurrent to the metadata issue
+                    if os.path.exists(file_path):
+                        raise Exception("An error occured in the ffmpeg subprocess:\n" \
+                                + e.stderr.decode("utf-8"))
                     #Res was not set
                     print(e.stderr.decode("utf-8"), end="", file=sys.stderr)
                     logger.warn("An error occurred when saving with metadata")

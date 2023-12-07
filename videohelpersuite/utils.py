@@ -7,13 +7,14 @@ import subprocess
 from .logger import logger
 
 ffmpeg_path = shutil.which("ffmpeg")
-if ffmpeg_path is None:
-    logger.info("ffmpeg could not be found. Using ffmpeg from imageio-ffmpeg.")
-    from imageio_ffmpeg import get_ffmpeg_exe
+if "VHS_USE_IMAGEIO_FFMPEG" in os.environ or ffmpeg_path is None:
     try:
+        from imageio_ffmpeg import get_ffmpeg_exe
         ffmpeg_path = get_ffmpeg_exe()
     except:
-        logger.warning("ffmpeg could not be found. Outputs that require it have been disabled")
+        logger.warn("Failed to import imageio_ffmpeg")
+if ffmpeg_path is None:
+    logger.warning("ffmpeg could not be found. Outputs that require it have been disabled")
 
 def get_sorted_dir_files_from_directory(directory: str, skip_first_images: int=0, select_every_nth: int=1, extensions: Iterable=None):
     directory = directory.strip()
