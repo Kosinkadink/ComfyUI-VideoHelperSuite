@@ -174,7 +174,7 @@ class VideoCombine:
             pnginfo=metadata,
             compress_level=4,
         )
-        output_files.append(file)
+        output_files.append(file_path)
 
         format_type, format_ext = format.split("/")
         if format_type == "image":
@@ -194,7 +194,7 @@ class VideoCombine:
                 loop=loop_count,
                 compress_level=4,
             )
-            output_files.append(file)
+            output_files.append(file_path)
         else:
             # Use ffmpeg to save a video
             if ffmpeg_path is None:
@@ -263,10 +263,10 @@ class VideoCombine:
                             + e.stderr.decode("utf-8"))
             if res.stderr:
                 print(res.stderr.decode("utf-8"), end="", file=sys.stderr)
-            output_files.append(file)
+            output_files.append(file_path)
 
 
-            # Audio Injection ater video is created, saves additional video with -audio.mp4
+            # Audio Injection after video is created, saves additional video with -audio.mp4
 
             # Create audio file if input was provided
             if audio:
@@ -293,7 +293,7 @@ class VideoCombine:
                             + e.stderr.decode("utf-8"))
                 if res.stderr:
                     print(res.stderr.decode("utf-8"), end="", file=sys.stderr)
-                output_files.append(output_file_with_audio)
+                output_files.append(output_file_with_audio_path)
                 #Return this file with audio to the webui.
                 #It will be muted unless opened or saved with right click
                 file = output_file_with_audio
@@ -306,7 +306,7 @@ class VideoCombine:
                 "format": format,
             }
         ]
-        return {"ui": {"gifs": previews}, "result": (output_files,)}
+        return {"ui": {"gifs": previews}, "result": ((save_output, output_files),)}
     @classmethod
     def VALIDATE_INPUTS(self, **kwargs):
         return True
