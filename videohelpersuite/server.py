@@ -111,10 +111,14 @@ async def get_path(request):
     valid_extensions = query.get("extensions")
     valid_items = []
     for item in os.scandir(path):
-        if item.is_dir():
-            valid_items.append(item.name + "/")
-            continue
-        if valid_extensions is None or item.name.split(".")[-1] in valid_extensions:
-            valid_items.append(item.name)
+        try:
+            if item.is_dir():
+                valid_items.append(item.name + "/")
+                continue
+            if valid_extensions is None or item.name.split(".")[-1] in valid_extensions:
+                valid_items.append(item.name)
+        except OSError:
+            #Broken symlinks can throw a very unhelpful "Invalid argument"
+            pass
 
     return web.json_response(valid_items)

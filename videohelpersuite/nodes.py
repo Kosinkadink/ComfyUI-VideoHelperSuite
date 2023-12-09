@@ -16,9 +16,9 @@ from .load_video_nodes import LoadVideoUpload, LoadVideoPath
 from .load_images_nodes import LoadImagesFromDirectoryUpload, LoadImagesFromDirectoryPath
 from .utils import ffmpeg_path, get_audio, calculate_file_hash
 
-folder_paths.folder_names_and_paths["video_formats"] = (
+folder_paths.folder_names_and_paths["VHS_video_formats"] = (
     [
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "video_formats"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "VHS_video_formats"),
     ],
     [".json"]
 )
@@ -39,9 +39,9 @@ def gen_format_widgets(video_format):
 
 def get_video_formats():
     formats = []
-    for format_name in folder_paths.get_filename_list("video_formats"):
+    for format_name in folder_paths.get_filename_list("VHS_video_formats"):
         format_name = format_name[:-5]
-        video_format_path = folder_paths.get_full_path("video_formats", format_name + ".json")
+        video_format_path = folder_paths.get_full_path("VHS_video_formats", format_name + ".json")
         with open(video_format_path, 'r') as stream:
             video_format = json.load(stream)
         widgets = [w[0] for w in gen_format_widgets(video_format)]
@@ -52,7 +52,7 @@ def get_video_formats():
     return formats
 
 def apply_format_widgets(format_name, kwargs):
-    video_format_path = folder_paths.get_full_path("video_formats", format_name + ".json")
+    video_format_path = folder_paths.get_full_path("VHS_video_formats", format_name + ".json")
     with open(video_format_path, 'r') as stream:
         video_format = json.load(stream)
     for w in gen_format_widgets(video_format):
@@ -201,7 +201,7 @@ class VideoCombine:
                 #Should never be reachable
                 raise ProcessLookupError("Could not find ffmpeg")
 
-            video_format_path = folder_paths.get_full_path("video_formats", format_ext + ".json")
+            video_format_path = folder_paths.get_full_path("VHS_video_formats", format_ext + ".json")
             with open(video_format_path, 'r') as stream:
                 video_format = json.load(stream)
             video_format = apply_format_widgets(format_ext, kwargs)

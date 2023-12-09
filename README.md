@@ -31,7 +31,8 @@ If the optional audio input is provided, it will also be combined into the outpu
   - Like the builtin Save Image node, you can add timestamps. `%date:yyyy-MM-ddThh:mm:ss%` might become 2023-10-31T6:45:25
 - format: The file format to use. Advanced information on configuring or adding additional video formats can be found in the [Video Formats](#video-formats) section.
 - pingpong: Causes the input to be played back in the reverse to create a clean loop.
-- save_image: Whether the image should be put into the output directory or the temp directory.
+- save_output: Whether the image should be put into the output directory or the temp directory.
+Returns: a `VHS_FILENAMES` which consists of a boolean indicating if save_output is enabled and a list of the full filepaths of all generated outputs in the order created. Accordingly `output[1][-1]` will be the most complete output.
  
 Depending on the format chosen, additional options may become available, including
 - crf: Describes the quality of the output video. A lower number gives a higher quality video and a larger file size, while a higher number gives a lower quality video with a smaller size. Scaling varies by codec, but visually lossless output generally occurs around 20.
