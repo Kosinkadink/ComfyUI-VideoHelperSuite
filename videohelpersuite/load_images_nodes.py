@@ -15,7 +15,8 @@ def is_changed_load_images(directory: str, image_load_cap: int = 0, skip_first_i
             return False
         
     dir_files = get_sorted_dir_files_from_directory(directory, skip_first_images, select_every_nth, FolderOfImages.IMG_EXTENSIONS)
-    dir_files = dir_files[:image_load_cap]
+    if image_load_cap != 0:
+        dir_files = dir_files[:image_load_cap]
 
     m = hashlib.sha256()
     for filepath in dir_files:

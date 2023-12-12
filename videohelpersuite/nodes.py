@@ -18,7 +18,7 @@ from .utils import ffmpeg_path, get_audio, calculate_file_hash
 
 folder_paths.folder_names_and_paths["VHS_video_formats"] = (
     [
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "VHS_video_formats"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "video_formats"),
     ],
     [".json"]
 )
