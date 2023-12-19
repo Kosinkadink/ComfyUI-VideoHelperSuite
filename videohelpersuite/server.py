@@ -63,8 +63,14 @@ async def view_video(request):
         vfilters.append(f"select=not(mod(n\\,{query['select_every_nth']}))")
     if query.get('force_size','Disabled') != "Disabled":
         size = query['force_size'].split('x')
-        size[0] = "-2" if size[0] == '?' else f"'min({size[0]},iw)'"
-        size[1] = "-2" if size[1] == '?' else f"'min({size[1]},ih)'"
+        if size[0] == '?' or size[1] == '?':
+            size[0] = "-2" if size[0] == '?' else f"'min({size[0]},iw)'"
+            size[1] = "-2" if size[1] == '?' else f"'min({size[1]},ih)'"
+        else:
+            #Aspect ratio is likely changed. A more complex command is required
+            #to crop the output to the new aspect ratio
+            ar = float(size[0])/float(size[1])
+            vfilters.append(f"crop=if(gt({ar}\\,a)\\,iw\\,ih*{ar}):if(gt({ar}\\,a)\\,iw/{ar}\\,ih)")
         size = ':'.join(size)
         vfilters.append(f"scale={size}")
     vfilters.append("setpts=PTS-STARTPTS")

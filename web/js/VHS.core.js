@@ -487,20 +487,27 @@ function addVideoPreview(nodeType) {
             }
         };
         previewWidget.updateSource = function () {
-            let params = this.value.params
-            if (params == undefined) {
+            if (this.value.params == undefined) {
                 return;
             }
+            let params =  {}
+            Object.assign(params, this.value.params);//shallow copy
             this.parentEl.hidden = this.value.hidden;
             if (params.format?.split('/')[0] == 'video' ||
                 app.ui.settings.getSettingValue("VHS.AdvancedPreviews", false) &&
                 params.format?.split('/')[1] == 'gif') {
                 this.videoEl.autoplay = !this.value.paused && !this.value.hidden;
+                let target_width = 256
                 if (this.parentEl.style?.width) {
                     //overscale to allow scrolling. Endpoint won't return higher than native
-                    params.force_size = (this.parentEl.style.width.slice(0,-2)*2) + "x?";
+                    target_width = this.parentEl.style.width.slice(0,-2)*2;
+                }
+                if (!params.force_size || params.force_size.includes("?")) {
+                    params.force_size = target_width+"x?"
                 } else {
-                    params.force_size = "256x?"
+                    let size = params.force_size.split("x")
+                    let ar = parseInt(size[0])/parseInt(size[1])
+                    params.force_size = target_width+"x"+(target_width/ar)
                 }
                 if (app.ui.settings.getSettingValue("VHS.AdvancedPreviews", false)) {
                     this.videoEl.src = api.apiURL('/viewvideo?' + new URLSearchParams(params));
@@ -712,6 +719,7 @@ function addLoadVideoCommon(nodeType, nodeData) {
         const frameSkipWidget = this.widgets.find((w) => w.name === 'skip_first_frames');
         const rateWidget = this.widgets.find((w) => w.name === 'force_rate');
         const skipWidget = this.widgets.find((w) => w.name === 'select_every_nth');
+        const sizeWidget = this.widgets.find((w) => w.name === 'force_size');
         //widget.callback adds unused arguements which need culling
         let update = function (value, _, node) {
             let param = {}
@@ -722,6 +730,13 @@ function addLoadVideoCommon(nodeType, nodeData) {
         chainCallback(frameSkipWidget, "callback", update);
         chainCallback(rateWidget, "callback", update);
         chainCallback(skipWidget, "callback", update);
+        let updateSize = function(value, _, node) {
+            node.updateParameters({"force_size": sizeWidget.serializeValue()})
+        }
+        chainCallback(sizeWidget, "callback", updateSize);
+        chainCallback(this.widgets.find((w) => w.name === "custom_width"), "callback", updateSize);
+        chainCallback(this.widgets.find((w) => w.name === "custom_height"), "callback", updateSize);
+
         //do first load
         requestAnimationFrame(() => {
             for (let w of [frameCapWidget, frameSkipWidget, rateWidget, pathWidget, skipWidget]) {
