@@ -71,7 +71,7 @@ If enabled, videos which are displayed in the ui will be converted with ffmpeg o
 - It can use substantially less bandwidth if running the server remotely
 - It can greatly improve the browser performance by downsizing videos to the in ui resolution, particularly useful with animated gifs
 - It allows for previews of videos that would not normally be playable in browser.
-- It allows previews to be displayed for videos in external folders when `VHS_UNSAFE_PATHS` is set as an environment variable.
+- Can be limited to subdirectories of ComyUI if `VHS_STRICT_PATHS` is set as an environment variable.
 
 This fucntionality is disabled since it comes with several downsides
 - There is a delay before videos show in the browser. This delay can become quite large if the input video is long

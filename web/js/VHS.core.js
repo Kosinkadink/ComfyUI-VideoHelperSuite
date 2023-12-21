@@ -502,7 +502,7 @@ function addVideoPreview(nodeType) {
                     //overscale to allow scrolling. Endpoint won't return higher than native
                     target_width = this.parentEl.style.width.slice(0,-2)*2;
                 }
-                if (!params.force_size || params.force_size.includes("?")) {
+                if (!params.force_size || params.force_size.includes("?") || params.force_size == "Disabled") {
                     params.force_size = target_width+"x?"
                 } else {
                     let size = params.force_size.split("x")

@@ -7,7 +7,7 @@ from .utils import is_url
 web = server.web
 
 def is_safe(path):
-    if "VHS_UNSAFE_PATHS" in os.environ:
+    if "VHS_STRICT_PATHS" not in os.environ:
         return True
     basedir = os.path.abspath('.')
     try:
@@ -78,6 +78,8 @@ async def view_video(request):
         args += ["-vf", ",".join(vfilters)]
     if int(query.get('frame_load_cap', 0)) > 0:
         args += ["-frames:v", query['frame_load_cap']]
+    #TODO:reconsider adding high frame cap/setting default frame cap on node
+
     args += ['-c:v', 'libvpx-vp9','-deadline', 'realtime', '-cpu-used', '8', '-f', 'webm', '-']
 
     try:
