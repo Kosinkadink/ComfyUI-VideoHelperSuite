@@ -3,6 +3,7 @@ import folder_paths
 import os
 import subprocess
 from .utils import is_url
+from comfy.k_diffusion.utils import FolderOfImages
 
 web = server.web
 
@@ -50,10 +51,31 @@ async def view_video(request):
         filename = os.path.basename(filename)
         file = os.path.join(output_dir, filename)
 
-        if not os.path.isfile(file):
-            return web.Response(status=404)
+        if query.get('format', 'video') == 'folder':
+            if not os.path.isdir(file):
+                return web.Response(status=404)
+        else:
+            if not os.path.isfile(file):
+                return web.Response(status=404)
 
-    args = ["ffmpeg", "-v", "error","-an", "-i", file]
+    if query.get('format', 'video') == "folder":
+        #Check that folder contains some valid image file, get it's extension
+        #ffmpeg seems to not support list globs, so support for mixed extensions seems unfeasible
+        os.makedirs(folder_paths.get_temp_directory(), exist_ok=True)
+        concat_file = os.path.join(folder_paths.get_temp_directory(), "image_sequence_preview.txt")
+        valid_images = get_sorted_dir_files_from_directory(directory, skip_first_images, select_every_nth, FolderOfImages.IMG_EXTENSIONS)
+        if len(valid_images) == 0:
+            return web.Response(status=400)
+        with open(concat_file, "w") as f:
+            f.write("ffconcat version 1.0\n")
+            for path in valid_images:
+                f.write("file '" + path + "'\n")
+                f.write("duration 0.125\n")
+        in_args = ["-safe", "0", "-i", concat_file]
+    else:
+        in_args = ["-an", "-i", file]
+
+    args = ["ffmpeg", "-v", "error"] + in_args
     vfilters = []
     if int(query.get('force_rate',0)) != 0:
         vfilters.append("fps=fps="+query['force_rate'] + ":round=up:start_time=0.001")

@@ -495,7 +495,7 @@ function addVideoPreview(nodeType) {
             this.parentEl.hidden = this.value.hidden;
             if (params.format?.split('/')[0] == 'video' ||
                 app.ui.settings.getSettingValue("VHS.AdvancedPreviews", false) &&
-                params.format?.split('/')[1] == 'gif') {
+                (params.format?.split('/')[1] == 'gif') || params.format == 'folder') {
                 this.videoEl.autoplay = !this.value.paused && !this.value.hidden;
                 let target_width = 256
                 if (this.parentEl.style?.width) {
@@ -516,7 +516,7 @@ function addVideoPreview(nodeType) {
                 }
                 this.videoEl.hidden = false;
                 this.imgEl.hidden = true;
-            } else {
+            } else if (params.format?.split('/')[0] == 'image'){
                 //Is animated image
                 this.imgEl.src = api.apiURL('/view?' + new URLSearchParams(params));
                 this.videoEl.hidden = true;
@@ -745,6 +745,33 @@ function addLoadVideoCommon(nodeType, nodeData) {
         });
     });
 }
+function addLoadImagesCommon(nodeType, nodeData) {
+    addVideoPreview(nodeType);
+    addPreviewOptions(nodeType);
+    chainCallback(nodeType.prototype, "onNodeCreated", function() {
+        const pathWidget = this.widgets.find((w) => w.name === "directory");
+        const frameCapWidget = this.widgets.find((w) => w.name === 'image_load_cap');
+        const frameSkipWidget = this.widgets.find((w) => w.name === 'skip_first_images');
+        const skipWidget = this.widgets.find((w) => w.name === 'select_every_nth');
+        //widget.callback adds unused arguements which need culling
+        let update = function (value, _, node) {
+            let param = {}
+            param[this.name] = value
+            node.updateParameters(param);
+        }
+        chainCallback(frameCapWidget, "callback", (value, _, node) => {
+            node.updateParameters({frame_load_cap: value})
+        });
+        chainCallback(frameSkipWidget, "callback", update);
+        chainCallback(skipWidget, "callback", update);
+        //do first load
+        requestAnimationFrame(() => {
+            for (let w of [frameCapWidget, frameSkipWidget, pathWidget, skipWidget]) {
+                w.callback(w.value, null, this);
+            }
+        });
+    });
+}
 
 function path_stem(path) {
     let i = path.lastIndexOf("/");
@@ -914,6 +941,30 @@ app.registerExtension({
         }
         if (nodeData?.name == "VHS_LoadImages") {
             addUploadWidget(nodeType, nodeData, "directory", "folder");
+            chainCallback(nodeType.prototype, "onNodeCreated", function() {
+                const pathWidget = this.widgets.find((w) => w.name === "directory");
+                chainCallback(pathWidget, "callback", (value) => {
+                    if (!value) {
+                        return;
+                    }
+                    let params = {filename : value, type : "input", format: "folder"};
+                    this.updateParameters(params, true);
+                });
+            });
+            addLoadImagesCommon(nodeType, nodeData);
+        } else if (nodeData?.name == "VHS_LoadImagesPath") {
+            addUploadWidget(nodeType, nodeData, "directory", "folder");
+            chainCallback(nodeType.prototype, "onNodeCreated", function() {
+                const pathWidget = this.widgets.find((w) => w.name === "directory");
+                chainCallback(pathWidget, "callback", (value) => {
+                    if (!value) {
+                        return;
+                    }
+                    let params = {filename : value, type : "path", format: "folder"};
+                    this.updateParameters(params, true);
+                });
+            });
+            addLoadImagesCommon(nodeType, nodeData);
         } else if (nodeData?.name == "VHS_LoadVideo") {
             addUploadWidget(nodeType, nodeData, "video");
             chainCallback(nodeType.prototype, "onNodeCreated", function() {

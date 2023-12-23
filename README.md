@@ -55,7 +55,7 @@ The first of every `select_every_nth` input is passed and the remainder are disc
 ### Duplicate Batch
 
 ## Video Previews
-Load Video (Upload), Load Video (Path) and Video Combine provide animated previews.  
+Load Video (Upload), Load Video (Path), Load Images (Upload), Load Images (Path) and Video Combine provide animated previews.  
 Nodes with previews provide additional functionality when right clicked
 - Open preview
 - Save preview
