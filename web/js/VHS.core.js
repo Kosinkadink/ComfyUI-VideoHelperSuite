@@ -1,5 +1,7 @@
 import { app } from '../../../scripts/app.js'
 import { api } from '../../../scripts/api.js'
+import { applyTextReplacements } from "../../../scripts/utils.js";
+
 
 function chainCallback(object, property, callback) {
     if (object == undefined) {
@@ -174,40 +176,11 @@ async function uploadFile(file) {
     }
 }
 
-function formatDate(text, date) {
-    const parts = {
-        d: (d) => d.getDate(),
-        M: (d) => d.getMonth() + 1,
-        h: (d) => d.getHours(),
-        m: (d) => d.getMinutes(),
-        s: (d) => d.getSeconds(),
-    };
-    const format =
-        Object.keys(parts)
-        .map((k) => k + k + "?")
-        .join("|") + "|yyy?y?";
-    return text.replace(new RegExp(format, "g"), function (text) {
-        if (text === "yy") return (date.getFullYear() + "").substring(2);
-        if (text === "yyyy") return date.getFullYear();
-        if (text[0] in parts) {
-            const p = parts[text[0]](date);
-            return (p + "").padStart(text.length, "0");
-        }
-        return text;
-    });
-}
-
 function addDateFormatting(nodeType, field, timestamp_widget = false) {
     chainCallback(nodeType.prototype, "onNodeCreated", function() {
-        const widget = this.widgets.find((w) => w.name === "filename_prefix");
+        const widget = this.widgets.find((w) => w.name === field);
         widget.serializeValue = () => {
-            return widget.value.replace(/%([^%]+)%/g, function (match, text) {
-                const split = text.split(".");
-                if (split[0].startsWith("date:")) {
-                    return formatDate(split[0].substring(5), new Date());
-                }
-                return match;
-            });
+            return applyTextReplacements(app, widget.value);
         };
     });
 }
