@@ -1,5 +1,7 @@
 import { app } from '../../../scripts/app.js'
 import { api } from '../../../scripts/api.js'
+import { applyTextReplacements } from "../../../scripts/utils.js";
+
 
 function chainCallback(object, property, callback) {
     if (object == undefined) {
@@ -47,6 +49,7 @@ const convDict = {
     VHS_LoadVideo : ["video", "force_rate", "force_size", "frame_load_cap", "skip_first_frames", "select_every_nth"],
     VHS_LoadVideoPath : ["video", "force_rate", "force_size", "frame_load_cap", "skip_first_frames", "select_every_nth"]
 };
+const renameDict  = {VHS_VideoCombine : {save_output : "save_image"}}
 function useKVState(nodeType) {
     chainCallback(nodeType.prototype, "onNodeCreated", function () {
         chainCallback(this, "onConfigure", function(info) {
@@ -85,6 +88,13 @@ function useKVState(nodeType) {
                     if (w.name in widgetDict) {
                         w.value = widgetDict[w.name];
                     } else {
+                        //Check for a legacy name that needs migrating
+                        if (this.type in renameDict && w.name in renameDict[this.type]) {
+                            if (renameDict[this.type][w.name] in widgetDict) {
+                                w.value = widgetDict[renameDict[this.type][w.name]]
+                                continue
+                            }
+                        }
                         //attempt to restore default value
                         let inputs = LiteGraph.getNodeType(this.type).nodeData.input;
                         let initialValue = null;
@@ -133,7 +143,7 @@ function useKVState(nodeType) {
 
 function fitHeight(node) {
     node.setSize([node.size[0], node.computeSize([node.size[0], node.size[1]])[1]])
-    node.graph.setDirtyCanvas(true);
+    node?.graph?.setDirtyCanvas(true);
 }
 
 async function uploadFile(file) {
@@ -166,40 +176,11 @@ async function uploadFile(file) {
     }
 }
 
-function formatDate(text, date) {
-    const parts = {
-        d: (d) => d.getDate(),
-        M: (d) => d.getMonth() + 1,
-        h: (d) => d.getHours(),
-        m: (d) => d.getMinutes(),
-        s: (d) => d.getSeconds(),
-    };
-    const format =
-        Object.keys(parts)
-        .map((k) => k + k + "?")
-        .join("|") + "|yyy?y?";
-    return text.replace(new RegExp(format, "g"), function (text) {
-        if (text === "yy") return (date.getFullYear() + "").substring(2);
-        if (text === "yyyy") return date.getFullYear();
-        if (text[0] in parts) {
-            const p = parts[text[0]](date);
-            return (p + "").padStart(text.length, "0");
-        }
-        return text;
-    });
-}
-
 function addDateFormatting(nodeType, field, timestamp_widget = false) {
     chainCallback(nodeType.prototype, "onNodeCreated", function() {
-        const widget = this.widgets.find((w) => w.name === "filename_prefix");
+        const widget = this.widgets.find((w) => w.name === field);
         widget.serializeValue = () => {
-            return widget.value.replace(/%([^%]+)%/g, function (match, text) {
-                const split = text.split(".");
-                if (split[0].startsWith("date:")) {
-                    return formatDate(split[0].substring(5), new Date());
-                }
-                return match;
-            });
+            return applyTextReplacements(app, widget.value);
         };
     });
 }
@@ -284,6 +265,17 @@ function addCustomSize(nodeType, nodeData, widgetName) {
                 return this._value;
             }
         });
+        //prevent clobbering of new options on refresh
+        sizeOptionWidget.options._values = sizeOptionWidget.options.values;
+        Object.defineProperty(sizeOptionWidget.options, "values", {
+            set : function(values) {
+                this._values = values;
+                this._values.push("Custom Width", "Custom Height", "Custom");
+            },
+            get : function() {
+                return this._values;
+            }
+        });
         //Ensure proper visibility/size state for initial value
         sizeOptionWidget.value = sizeOptionWidget._value;
 
@@ -291,7 +283,7 @@ function addCustomSize(nodeType, nodeData, widgetName) {
             if (this.value == "Custom Width") {
                 return widthWidget.value + "x?";
             } else if (this.value == "Custom Height") {
-                return "?x" + heightWidget;
+                return "?x" + heightWidget.value;
             } else if (this.value == "Custom") {
                 return widthWidget.value + "x" + heightWidget.value;
             } else {
@@ -380,7 +372,7 @@ function addVideoPreview(nodeType) {
         //videopreview is widget name
         //The previous implementation used type to distinguish between a video and gif,
         //but the type is not serialized and would not survive a reload
-        var previewWidget = { name : "videopreview", type : "preview", value : "",
+        var previewWidget = { name : "videopreview", type : "preview",
             draw : function(ctx, node, widgetWidth, widgetY, height) {
                 //update widget position, hide if off-screen
                 const transform = ctx.getTransform();
@@ -407,7 +399,7 @@ function addVideoPreview(nodeType) {
                 }
                 return [width, -4];//no loaded src, widget should not display
             },
-            _value : {hidden: false, paused: false}
+            value : {hidden: false, paused: false, params: {}}
         };
         //onRemoved isn't a litegraph supported function on widgets
         //Given that onremoved widget and node callbacks are sparse, this
@@ -415,6 +407,7 @@ function addVideoPreview(nodeType) {
         chainCallback(this, "onRemoved", () => {
             previewWidget?.parentEl?.remove();
         });
+        previewWidget.options = {serialize : false};
         this.addCustomWidget(previewWidget);
         previewWidget.parentEl = document.createElement("div");
         previewWidget.parentEl.className = "vhs_preview";
@@ -444,39 +437,65 @@ function addVideoPreview(nodeType) {
             fitHeight(this);
         };
 
-        this.setPreviewsrc = (params) => {previewWidget._value.params = params; this._setPreviewsrc(params)};
-        this._setPreviewsrc = function (params) {
-            if (params == undefined) {
-                return
+        var timeout = null;
+        this.updateParameters = (params, force_update) => {
+            if (!previewWidget.value.params) {
+                if(typeof(previewWidget.value != 'object')) {
+                    previewWidget.value =  {hidden: false, paused: false}
+                }
+                previewWidget.value.params = {}
             }
-            previewWidget.parentEl.hidden = previewWidget._value.hidden;
-            if (params?.format?.split('/')[0] == 'video') {
-                previewWidget.videoEl.autoplay = !previewWidget._value.paused && !previewWidget._value.hidden;
-                previewWidget.videoEl.src = api.apiURL('/view?' + new URLSearchParams(params));
-                previewWidget.videoEl.hidden = false;
-                previewWidget.imgEl.hidden = true;
+            Object.assign(previewWidget.value.params, params)
+            if (!force_update &&
+                !app.ui.settings.getSettingValue("VHS.AdvancedPreviews", false)) {
+                return;
+            }
+            if (timeout) {
+                clearTimeout(timeout);
+            }
+            if (force_update) {
+                previewWidget.updateSource();
             } else {
+                timeout = setTimeout(() => previewWidget.updateSource(),100);
+            }
+        };
+        previewWidget.updateSource = function () {
+            if (this.value.params == undefined) {
+                return;
+            }
+            let params =  {}
+            Object.assign(params, this.value.params);//shallow copy
+            this.parentEl.hidden = this.value.hidden;
+            if (params.format?.split('/')[0] == 'video' ||
+                app.ui.settings.getSettingValue("VHS.AdvancedPreviews", false) &&
+                (params.format?.split('/')[1] == 'gif') || params.format == 'folder') {
+                this.videoEl.autoplay = !this.value.paused && !this.value.hidden;
+                let target_width = 256
+                if (this.parentEl.style?.width) {
+                    //overscale to allow scrolling. Endpoint won't return higher than native
+                    target_width = this.parentEl.style.width.slice(0,-2)*2;
+                }
+                if (!params.force_size || params.force_size.includes("?") || params.force_size == "Disabled") {
+                    params.force_size = target_width+"x?"
+                } else {
+                    let size = params.force_size.split("x")
+                    let ar = parseInt(size[0])/parseInt(size[1])
+                    params.force_size = target_width+"x"+(target_width/ar)
+                }
+                if (app.ui.settings.getSettingValue("VHS.AdvancedPreviews", false)) {
+                    this.videoEl.src = api.apiURL('/viewvideo?' + new URLSearchParams(params));
+                } else {
+                    previewWidget.videoEl.src = api.apiURL('/view?' + new URLSearchParams(params));
+                }
+                this.videoEl.hidden = false;
+                this.imgEl.hidden = true;
+            } else if (params.format?.split('/')[0] == 'image'){
                 //Is animated image
-                previewWidget.imgEl.src = api.apiURL('/view?' + new URLSearchParams(params));
-                previewWidget.videoEl.hidden = true;
-                previewWidget.imgEl.hidden = false;
+                this.imgEl.src = api.apiURL('/view?' + new URLSearchParams(params));
+                this.videoEl.hidden = true;
+                this.imgEl.hidden = false;
             }
         }
-        Object.defineProperty(previewWidget, "value", {
-            set : (value) => {
-                if (value) {
-                    if (typeof(value) == "string") {
-                        //old workflow which saves a url instead of constituent params
-                        return;
-                    }
-                    previewWidget._value = value
-                    this._setPreviewsrc(value.params)
-                }
-            },
-            get : () => {
-                return previewWidget._value;
-            }
-        });
         //Hide video element if offscreen
         //The multiline input implementation moves offscreen every frame
         //and doesn't apply until a node with an actual inputEl is loaded
@@ -501,14 +520,13 @@ function addPreviewOptions(nodeType) {
 
         let url = null
         if (previewWidget.videoEl?.hidden == false && previewWidget.videoEl.src) {
-            url = previewWidget.videoEl.src;
+            //Use full quality video
+            url = api.apiURL('/view?' + new URLSearchParams(previewWidget.value.params));
         } else if (previewWidget.imgEl?.hidden == false && previewWidget.imgEl.src) {
             url = previewWidget.imgEl.src;
+            url = new URL(url);
         }
         if (url) {
-            url = new URL(url);
-            //placeholder from Save Image, will matter once preview functionality is implemented
-            //url.searchParams.delete('preview')
             optNew.push(
                 {
                     content: "Open preview",
@@ -521,7 +539,7 @@ function addPreviewOptions(nodeType) {
                     callback: () => {
                         const a = document.createElement("a");
                         a.href = url;
-                        a.setAttribute("download", new URLSearchParams(url.search).get("filename"));
+                        a.setAttribute("download", new URLSearchParams(previewWidget.value.params).get("filename"));
                         document.body.append(a);
                         a.click();
                         requestAnimationFrame(() => a.remove());
@@ -529,32 +547,32 @@ function addPreviewOptions(nodeType) {
                 }
             );
         }
-        const PauseDesc = (previewWidget._value.paused ? "Resume" : "Pause") + " preview";
+        const PauseDesc = (previewWidget.value.paused ? "Resume" : "Pause") + " preview";
         if(previewWidget.videoEl.hidden == false) {
             optNew.push({content: PauseDesc, callback: () => {
                 //animated images can't be paused and are more likely to cause performance issues.
                 //changing src to a single keyframe is possible,
                 //For now, the option is disabled if an animated image is being displayed
-                if(previewWidget._value.paused) {
+                if(previewWidget.value.paused) {
                     previewWidget.videoEl?.play();
                 } else {
                     previewWidget.videoEl?.pause();
                 }
-                previewWidget._value.paused = !previewWidget._value.paused;
+                previewWidget.value.paused = !previewWidget.value.paused;
             }});
         }
-        //TODO: Consider hiding elements if video no preview is available yet.
+        //TODO: Consider hiding elements if no video preview is available yet.
         //It would reduce confusion at the cost of functionality
         //(if a video preview lags the computer, the user should be able to hide in advance)
-        const visDesc = (previewWidget._value.hidden ? "Show" : "Hide") + " preview";
+        const visDesc = (previewWidget.value.hidden ? "Show" : "Hide") + " preview";
         optNew.push({content: visDesc, callback: () => {
-            if (!previewWidget.videoEl.hidden && !previewWidget._value.hidden) {
+            if (!previewWidget.videoEl.hidden && !previewWidget.value.hidden) {
                 previewWidget.videoEl.pause();
-            } else if (previewWidget._value.hidden && !previewWidget.videoEl.hidden && !previewWidget._value.paused) {
+            } else if (previewWidget.value.hidden && !previewWidget.videoEl.hidden && !previewWidget.value.paused) {
                 previewWidget.videoEl.play();
             }
-            previewWidget._value.hidden = !previewWidget._value.hidden;
-            previewWidget.parentEl.hidden = previewWidget._value.hidden;
+            previewWidget.value.hidden = !previewWidget.value.hidden;
+            previewWidget.parentEl.hidden = previewWidget.value.hidden;
             fitHeight(this);
 
         }});
@@ -577,6 +595,316 @@ function addPreviewOptions(nodeType) {
         options.unshift(...optNew);
     });
 }
+function addFormatWidgets(nodeType) {
+    function parseFormats(options) {
+        options.fullvalues = options._values;
+        options._values = [];
+        for (let format of options.fullvalues) {
+            if (Array.isArray(format)) {
+                options._values.push(format[0]);
+            } else {
+                options._values.push(format);
+            }
+        }
+    }
+    chainCallback(nodeType.prototype, "onNodeCreated", function() {
+        var formatWidget = null;
+        var formatWidgetIndex = -1;
+        for(let i = 0; i < this.widgets.length; i++) {
+            if (this.widgets[i].name === "format"){
+                formatWidget = this.widgets[i];
+                formatWidgetIndex = i+1;
+            }
+        }
+        let formatWidgetsCount = 0;
+        //Pre-process options to just names
+        formatWidget.options._values = formatWidget.options.values;
+        parseFormats(formatWidget.options);
+        Object.defineProperty(formatWidget.options, "values", {
+            set : (value) => {
+                formatWidget.options._values  = value;
+                parseFormats(formatWidget.options);
+            },
+            get : () => {
+                return formatWidget.options._values;
+            }
+        })
+
+        formatWidget._value = formatWidget.value;
+        Object.defineProperty(formatWidget, "value", {
+            set : (value) => {
+                formatWidget._value = value;
+                let newWidgets = [];
+                const fullDef = formatWidget.options.fullvalues.find((w) => Array.isArray(w) ? w[0] === value : w === value);
+                if (!Array.isArray(fullDef)) {
+                    formatWidget._value = value;
+                } else {
+                    formatWidget._value = fullDef[0];
+                    for (let wDef of fullDef[1]) {
+                        //create widgets. Heavy borrowed from web/scripts/app.js
+                        //default implementation doesn't work since it automatically adds
+                        //the widget in the wrong spot.
+                        //TODO: consider letting this happen and just removing from list?
+                        let w = {};
+                        w.name = wDef[0];
+                        let inputData = wDef.slice(1);
+                        w.type = inputData[0];
+                        w.options = inputData[1] ? inputData[1] : {};
+                        if (Array.isArray(w.type)) {
+                            w.value = w.type[0];
+                            w.options.values = w.type;
+                            w.type = "combo";
+                        }
+                        if(inputData[1]?.default) {
+                            w.value = inputData[1].default;
+                        }
+                        if (w.type == "INT") {
+                            Object.assign(w.options, {"precision": 0, "step": 10})
+                            w.callback = function (v) {
+                                const s = this.options.step / 10;
+                                this.value = Math.round(v / s) * s;
+                            }
+                        }
+                        const typeTable = {BOOLEAN: "toggle", STRING: "text", INT: "number", FLOAT: "number"};
+                        if (w.type in typeTable) {
+                            w.type = typeTable[w.type];
+                        }
+                        newWidgets.push(w);
+                    }
+                }
+                this.widgets.splice(formatWidgetIndex, formatWidgetsCount, ...newWidgets);
+                fitHeight(this);
+                formatWidgetsCount = newWidgets.length;
+            },
+            get : () => {
+                return formatWidget._value;
+            }
+        });
+    });
+}
+function addLoadVideoCommon(nodeType, nodeData) {
+    addCustomSize(nodeType, nodeData, "force_size")
+    addVideoPreview(nodeType);
+    addPreviewOptions(nodeType);
+    chainCallback(nodeType.prototype, "onNodeCreated", function() {
+        const pathWidget = this.widgets.find((w) => w.name === "video");
+        const frameCapWidget = this.widgets.find((w) => w.name === 'frame_load_cap');
+        const frameSkipWidget = this.widgets.find((w) => w.name === 'skip_first_frames');
+        const rateWidget = this.widgets.find((w) => w.name === 'force_rate');
+        const skipWidget = this.widgets.find((w) => w.name === 'select_every_nth');
+        const sizeWidget = this.widgets.find((w) => w.name === 'force_size');
+        //widget.callback adds unused arguements which need culling
+        let update = function (value, _, node) {
+            let param = {}
+            param[this.name] = value
+            node.updateParameters(param);
+        }
+        chainCallback(frameCapWidget, "callback", update);
+        chainCallback(frameSkipWidget, "callback", update);
+        chainCallback(rateWidget, "callback", update);
+        chainCallback(skipWidget, "callback", update);
+        let updateSize = function(value, _, node) {
+            node.updateParameters({"force_size": sizeWidget.serializeValue()})
+        }
+        chainCallback(sizeWidget, "callback", updateSize);
+        chainCallback(this.widgets.find((w) => w.name === "custom_width"), "callback", updateSize);
+        chainCallback(this.widgets.find((w) => w.name === "custom_height"), "callback", updateSize);
+
+        //do first load
+        requestAnimationFrame(() => {
+            for (let w of [frameCapWidget, frameSkipWidget, rateWidget, pathWidget, skipWidget]) {
+                w.callback(w.value, null, this);
+            }
+        });
+    });
+}
+function addLoadImagesCommon(nodeType, nodeData) {
+    addVideoPreview(nodeType);
+    addPreviewOptions(nodeType);
+    chainCallback(nodeType.prototype, "onNodeCreated", function() {
+        const pathWidget = this.widgets.find((w) => w.name === "directory");
+        const frameCapWidget = this.widgets.find((w) => w.name === 'image_load_cap');
+        const frameSkipWidget = this.widgets.find((w) => w.name === 'skip_first_images');
+        const skipWidget = this.widgets.find((w) => w.name === 'select_every_nth');
+        //widget.callback adds unused arguements which need culling
+        let update = function (value, _, node) {
+            let param = {}
+            param[this.name] = value
+            node.updateParameters(param);
+        }
+        chainCallback(frameCapWidget, "callback", (value, _, node) => {
+            node.updateParameters({frame_load_cap: value})
+        });
+        chainCallback(frameSkipWidget, "callback", update);
+        chainCallback(skipWidget, "callback", update);
+        //do first load
+        requestAnimationFrame(() => {
+            for (let w of [frameCapWidget, frameSkipWidget, pathWidget, skipWidget]) {
+                w.callback(w.value, null, this);
+            }
+        });
+    });
+}
+
+function path_stem(path) {
+    let i = path.lastIndexOf("/");
+    if (i >= 0) {
+        return [path.slice(0,i+1),path.slice(i+1)];
+    }
+    return ["",path];
+}
+function searchBox(event, [x,y], node) {
+    //Ensure only one dialogue shows at a time
+    if (this.prompt)
+        return;
+    this.prompt = true;
+
+    let pathWidget = this;
+    let dialog = document.createElement("div");
+    dialog.className = "litegraph litesearchbox graphdialog rounded"
+    dialog.innerHTML = '<span class="name">Path</span> <input autofocus="" type="text" class="value"><button class="rounded">OK</button><div class="helper"></div>'
+    dialog.close = () => {
+        dialog.remove();
+    }
+    document.body.append(dialog);
+    if (app.canvas.ds.scale > 1) {
+        dialog.style.transform = "scale(" + app.canvas.ds.scale + ")";
+    }
+    var name_element = dialog.querySelector(".name");
+    var input = dialog.querySelector(".value");
+    var options_element = dialog.querySelector(".helper");
+    input.value = pathWidget.value;
+
+    var timeout = null;
+    let last_path = null;
+
+    input.addEventListener("keydown", (e) => {
+        dialog.is_modified = true;
+        if (e.keyCode == 27) {
+            //ESC
+            dialog.close();
+        } else if (e.keyCode == 13 && e.target.localName != "textarea") {
+            pathWidget.value = input.value;
+            if (pathWidget.callback) {
+                pathWidget.callback(pathWidget.value);
+            }
+            dialog.close();
+        } else {
+            if (e.keyCode == 9) {
+                //TAB
+                input.value = last_path + options_element.firstChild.innerText;
+                e.preventDefault();
+                e.stopPropagation();
+            } else if (e.ctrlKey && e.keyCode == 87) {
+                //Ctrl+w
+                //most browsers won't support, but it's good QOL for those that do
+                input.value = path_stem(input.value.slice(0,-1))[0]
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            if (timeout) {
+                clearTimeout(timeout);
+            }
+            timeout = setTimeout(updateOptions, 10);
+            return;
+        }
+        this.prompt=false;
+        e.preventDefault();
+        e.stopPropagation();
+    });
+
+    var button = dialog.querySelector("button");
+    button.addEventListener("click", (e) => {
+        pathWidget.value = input.value;
+        if (pathWidget.callback) {
+            pathWidget.callback(pathWidget.value);
+        }
+        //unsure why dirty is set here, but not on enter-key above
+        node.graph.setDirtyCanvas(true);
+        dialog.close();
+        this.prompt = false;
+    });
+    var rect = app.canvas.canvas.getBoundingClientRect();
+    var offsetx = -20;
+    var offsety = -20;
+    if (rect) {
+        offsetx -= rect.left;
+        offsety -= rect.top;
+    }
+
+    if (event) {
+        dialog.style.left = event.clientX + offsetx + "px";
+        dialog.style.top = event.clientY + offsety + "px";
+    } else {
+        dialog.style.left = canvas.width * 0.5 + offsetx + "px";
+        dialog.style.top = canvas.height * 0.5 + offsety + "px";
+    }
+    //Search code
+    let options = []
+    function addResult(name, isDir) {
+        let el = document.createElement("div");
+        el.innerText = name;
+        el.className = "litegraph lite-search-item";
+        if (isDir) {
+            el.className += " is-dir";
+            el.addEventListener("click", (e) => {
+                input.value = last_path+name
+                if (timeout) {
+                    clearTimeout(timeout);
+                }
+            timeout = setTimeout(updateOptions, 10);
+            });
+        } else {
+            el.addEventListener("click", (e) => {
+                pathWidget.value = last_path+name;
+                if (pathWidget.callback) {
+                    pathWidget.callback(pathWidget.value);
+                }
+                dialog.close();
+                pathWidget.prompt = false;
+            });
+        }
+        options_element.appendChild(el);
+    }
+    async function updateOptions() {
+        timeout = null;
+        let [path, remainder] = path_stem(input.value);
+        if (last_path != path) {
+            //fetch options.  Must block execution here, so update should be async?
+            let params = {path : path, extensions : pathWidget.options.extensions}
+            let optionsURL = api.apiURL('getpath?' + new URLSearchParams(params));
+            try {
+                let resp = await fetch(optionsURL);
+                options = await resp.json();
+            } catch(e) {
+                options = []
+            }
+            last_path = path;
+        }
+        options_element.innerHTML = '';
+        //filter options based on remainder
+        for (let option of options) {
+            if (option.startsWith(remainder)) {
+                let isDir = option.endsWith('/')
+                addResult(option, isDir);
+            }
+        }
+    }
+
+    setTimeout(async function() {
+        input.focus();
+        await updateOptions();
+    }, 10);
+
+    return dialog;
+}
+
+app.ui.settings.addSetting({
+    id: "VHS.AdvancedPreviews",
+    name: "VHS Advanced Previews",
+    type: "boolean",
+    defaultValue: false,
+});
 
 app.registerExtension({
     name: "VideoHelperSuite.Core",
@@ -586,47 +914,77 @@ app.registerExtension({
         }
         if (nodeData?.name == "VHS_LoadImages") {
             addUploadWidget(nodeType, nodeData, "directory", "folder");
+            chainCallback(nodeType.prototype, "onNodeCreated", function() {
+                const pathWidget = this.widgets.find((w) => w.name === "directory");
+                chainCallback(pathWidget, "callback", (value) => {
+                    if (!value) {
+                        return;
+                    }
+                    let params = {filename : value, type : "input", format: "folder"};
+                    this.updateParameters(params, true);
+                });
+            });
+            addLoadImagesCommon(nodeType, nodeData);
+        } else if (nodeData?.name == "VHS_LoadImagesPath") {
+            addUploadWidget(nodeType, nodeData, "directory", "folder");
+            chainCallback(nodeType.prototype, "onNodeCreated", function() {
+                const pathWidget = this.widgets.find((w) => w.name === "directory");
+                chainCallback(pathWidget, "callback", (value) => {
+                    if (!value) {
+                        return;
+                    }
+                    let params = {filename : value, type : "path", format: "folder"};
+                    this.updateParameters(params, true);
+                });
+            });
+            addLoadImagesCommon(nodeType, nodeData);
         } else if (nodeData?.name == "VHS_LoadVideo") {
-            addCustomSize(nodeType, nodeData, "force_size")
-
             addUploadWidget(nodeType, nodeData, "video");
-            addVideoPreview(nodeType);
-            addPreviewOptions(nodeType);
             chainCallback(nodeType.prototype, "onNodeCreated", function() {
                 const pathWidget = this.widgets.find((w) => w.name === "video");
-                pathWidget._value = pathWidget.value;
-                Object.defineProperty(pathWidget, "value", {
-                    set : (value) => {
-                        pathWidget._value = value;
-                        if (!value) {
-                            return
-                        }
-                        //let parts = value.split("//");
-                        let parts = ["input", value];
-                        let extension_index = parts[1].lastIndexOf(".");
-                        let extension = parts[1].slice(extension_index+1);
-                        let format = "video"
-                        if (["gif", "webp", "avif"].includes(extension)) {
-                            format = "image"
-                        }
-                        this.setPreviewsrc({filename : parts[1], type : parts[0], format: format});
-                    },
-                    get : () => {
-                        return pathWidget._value;
+                chainCallback(pathWidget, "callback", (value) => {
+                    if (!value) {
+                        return;
                     }
+                    let parts = ["input", value];
+                    let extension_index = parts[1].lastIndexOf(".");
+                    let extension = parts[1].slice(extension_index+1);
+                    let format = "video"
+                    if (["gif", "webp", "avif"].includes(extension)) {
+                        format = "image"
+                    }
+                    format += "/" + extension;
+                    let params = {filename : parts[1], type : parts[0], format: format};
+                    this.updateParameters(params, true);
                 });
-                //Set value to ensure preview displays on initial add.
-                pathWidget.value = pathWidget._value;
             });
+            addLoadVideoCommon(nodeType, nodeData);
+        } else if (nodeData?.name =="VHS_LoadVideoPath") {
+            chainCallback(nodeType.prototype, "onNodeCreated", function() {
+                const pathWidget = this.widgets.find((w) => w.name === "video");
+                chainCallback(pathWidget, "callback", (value) => {
+                    let extension_index = value.lastIndexOf(".");
+                    let extension = value.slice(extension_index+1);
+                    let format = "video"
+                    if (["gif", "webp", "avif"].includes(extension)) {
+                        format = "image"
+                    }
+                    format += "/" + extension;
+                    let params = {filename : value, type: "path", format: format};
+                    this.updateParameters(params, true);
+                });
+            });
+            addLoadVideoCommon(nodeType, nodeData);
         } else if (nodeData?.name == "VHS_VideoCombine") {
             addDateFormatting(nodeType, "filename_prefix");
             chainCallback(nodeType.prototype, "onExecuted", function(message) {
                 if (message?.gifs) {
-                    this.setPreviewsrc(message.gifs[0]);
+                    this.updateParameters(message.gifs[0], true);
                 }
             });
             addVideoPreview(nodeType);
             addPreviewOptions(nodeType);
+            addFormatWidgets(nodeType);
 
             //Hide the information passing 'gif' output
             //TODO: check how this is implemented for save image
@@ -637,12 +995,12 @@ app.registerExtension({
                         this._outputs = value;
                         requestAnimationFrame(() => {
                             if (app.nodeOutputs[this.id + ""]) {
-                                this.setPreviewsrc(app.nodeOutputs[this.id+""].gifs[0]);
+                                this.updateParameters(app.nodeOutputs[this.id+""].gifs[0], true);
                             }
                         })
                     },
                     get : function() {
-                        return [];
+                        return this._outputs;
                     }
                 });
             });
@@ -650,6 +1008,89 @@ app.registerExtension({
             //Disabled for safety as VHS_SaveImageSequence is not currently merged
             //addDateFormating(nodeType, "directory_name", timestamp_widget=true);
             //addTimestampWidget(nodeType, nodeData, "directory_name")
+        }
+    },
+    async getCustomWidgets() {
+        return {
+            VHSPATH(node, inputName, inputData) {
+                let w = {
+                    name : inputName,
+                    type : "VHS.PATH",
+                    value : "",
+                    draw : function(ctx, node, widget_width, y, H) {
+                        //Adapted from litegraph.core.js:drawNodeWidgets
+                        var show_text = app.canvas.ds.scale > 0.5;
+                        var margin = 15;
+                        var text_color = LiteGraph.WIDGET_TEXT_COLOR;
+                        var secondary_text_color = LiteGraph.WIDGET_SECONDARY_TEXT_COLOR;
+                        ctx.textAlign = "left";
+                        ctx.strokeStyle = LiteGraph.WIDGET_OUTLINE_COLOR;
+                        ctx.fillStyle = LiteGraph.WIDGET_BGCOLOR;
+                        ctx.beginPath();
+                        if (show_text)
+                            ctx.roundRect(margin, y, widget_width - margin * 2, H, [H * 0.5]);
+                        else
+                            ctx.rect( margin, y, widget_width - margin * 2, H );
+                        ctx.fill();
+                        if (show_text) {
+                            if(!this.disabled)
+                                ctx.stroke();
+                            ctx.save();
+                            ctx.beginPath();
+                            ctx.rect(margin, y, widget_width - margin * 2, H);
+                            ctx.clip();
+
+                            //ctx.stroke();
+                            ctx.fillStyle = secondary_text_color;
+                            const label = this.label || this.name;
+                            if (label != null) {
+                                ctx.fillText(label, margin * 2, y + H * 0.7);
+                            }
+                            ctx.fillStyle = text_color;
+                            ctx.textAlign = "right";
+                            let disp_text = this.format_path(String(this.value))
+                            ctx.fillText(disp_text, widget_width - margin * 2, y + H * 0.7); //30 chars max
+                            ctx.restore();
+                        }
+                    },
+                    mouse : searchBox,
+                    options : {},
+                    format_path : function(path) {
+                        //Formats the full path to be under 30 characters
+                        if (path.length <= 30) {
+                            return path;
+                        }
+                        let filename = path_stem(path)[1]
+                        if (filename.length > 28) {
+                            //may all fit, but can't squeeze more info
+                            return filename.substr(0,30);
+                        }
+                        //TODO: find solution for windows, path[1] == ':'?
+                        let isAbs = path[0] == '/';
+                        let partial = path.substr(path.length - (isAbs ? 28:29))
+                        let cutoff = partial.indexOf('/');
+                        if (cutoff < 0) {
+                            //Can occur, but there isn't a nicer way to format
+                            return path.substr(path.length-30);
+                        }
+                        return (isAbs ? '/…':'…') + partial.substr(cutoff);
+
+                    }
+                };
+                if (inputData.length > 1) {
+                    if (inputData[1].extensions) {
+                        w.options.extensions = inputData[1].extensions;
+                    }
+                    if (inputData[1].default) {
+                        w.value = inputData[1].default;
+                    }
+                }
+                if (!node.widgets) {
+                    node.widgets = [];
+                }
+                node.widgets.push(w);
+                return w;
+            }
         }
     }
 });

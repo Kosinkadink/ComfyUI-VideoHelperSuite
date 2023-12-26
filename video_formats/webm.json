@@ -2,7 +2,11 @@
     "main_pass":
     [
         "-n",
-        "-pix_fmt", "yuv420p"
+        "-pix_fmt", "yuv420p",
+        "-crf", ["crf","INT", {"default": 20, "min": 0, "max": 100, "step": 1}],
+        "-b:v", "0"
     ],
-     "extension": "webm"
+    "audio_pass": ["-c:a", "libvorbis"],
+    "save_metadata": ["save_metadata", "BOOLEAN", {"default": true}],
+    "extension": "webm"
 }

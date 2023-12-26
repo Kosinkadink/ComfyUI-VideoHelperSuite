@@ -2,9 +2,12 @@
     "main_pass":
     [
         "-n", "-c:v", "libx265",
-        "-pix_fmt", "yuv420p10le",
+        "-pix_fmt", ["pix_fmt", ["yuv420p10le", "yuv420p"]],
+        "-crf", ["crf","INT", {"default": 22, "min": 0, "max": 100, "step": 1}],
         "-preset", "medium",
         "-x265-params", "log-level=quiet"
     ],
-     "extension": "mp4"
+    "audio_pass": ["-c:a", "aac"],
+    "save_metadata": ["save_metadata", "BOOLEAN", {"default": true}],
+    "extension": "mp4"
 }

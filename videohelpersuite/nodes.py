@@ -2,7 +2,6 @@ import os
 import sys
 import json
 import subprocess
-import shutil
 import numpy as np
 import re
 from typing import List
@@ -15,33 +14,67 @@ from .logger import logger
 from .image_latent_nodes import DuplicateImages, DuplicateLatents, GetImageCount, GetLatentCount, MergeImages, MergeLatents, SelectEveryNthImage, SelectEveryNthLatent, SplitLatents, SplitImages
 from .load_video_nodes import LoadVideoUpload, LoadVideoPath
 from .load_images_nodes import LoadImagesFromDirectoryUpload, LoadImagesFromDirectoryPath
+from .utils import ffmpeg_path, get_audio, calculate_file_hash
 
-folder_paths.folder_names_and_paths["video_formats"] = (
+folder_paths.folder_names_and_paths["VHS_video_formats"] = (
     [
         os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "video_formats"),
     ],
     [".json"]
 )
 
-ffmpeg_path = shutil.which("ffmpeg")
-if ffmpeg_path is None:
-    logger.info("ffmpeg could not be found. Using ffmpeg from imageio-ffmpeg.")
-    from imageio_ffmpeg import get_ffmpeg_exe
-    try:
-        ffmpeg_path = get_ffmpeg_exe()
-    except:
-        logger.warning("ffmpeg could not be found. Outputs that require it have been disabled")
+def gen_format_widgets(video_format):
+    for k in video_format:
+        if k.endswith("_pass"):
+            for i in range(len(video_format[k])):
+                if isinstance(video_format[k][i], list):
+                    item = [video_format[k][i]]
+                    yield item
+                    video_format[k][i] = item[0]
+        else:
+            if isinstance(video_format[k], list):
+                item = [video_format[k]]
+                yield item
+                video_format[k] = item[0]
 
-preferred_backend = "opencv"
-if "VHS_PREFERRED_BACKEND" in os.environ:
-    preferred_backend = os.environ['VHS_PREFERRED_BACKEND']
+def get_video_formats():
+    formats = []
+    for format_name in folder_paths.get_filename_list("VHS_video_formats"):
+        format_name = format_name[:-5]
+        video_format_path = folder_paths.get_full_path("VHS_video_formats", format_name + ".json")
+        with open(video_format_path, 'r') as stream:
+            video_format = json.load(stream)
+        widgets = [w[0] for w in gen_format_widgets(video_format)]
+        if (len(widgets) > 0):
+            formats.append(["video/" + format_name, widgets])
+        else:
+            formats.append("video/" + format_name)
+    return formats
+
+def apply_format_widgets(format_name, kwargs):
+    video_format_path = folder_paths.get_full_path("VHS_video_formats", format_name + ".json")
+    with open(video_format_path, 'r') as stream:
+        video_format = json.load(stream)
+    for w in gen_format_widgets(video_format):
+        assert(w[0][0] in kwargs)
+        w[0] = str(kwargs[w[0][0]])
+    return video_format
+
+def tensor_to_int(tensor, bits):
+    #TODO: investigate benefit of rounding by adding 0.5 before clip/cast
+    tensor = tensor.cpu().numpy() * (2**bits-1)
+    return np.clip(tensor, 0, (2**bits-1))
+def tensor_to_shorts(tensor):
+    return tensor_to_int(tensor, 16).astype(np.uint16)
+def tensor_to_bytes(tensor):
+    return tensor_to_int(tensor, 8).astype(np.uint8)
 
 class VideoCombine:
     @classmethod
     def INPUT_TYPES(s):
         #Hide ffmpeg formats if ffmpeg isn't available
         if ffmpeg_path is not None:
-            ffmpeg_formats = ["video/"+x[:-5] for x in folder_paths.get_filename_list("video_formats")]
+            ffmpeg_formats = get_video_formats()
         else:
             ffmpeg_formats = []
         return {
@@ -55,20 +88,20 @@ class VideoCombine:
                 "filename_prefix": ("STRING", {"default": "AnimateDiff"}),
                 "format": (["image/gif", "image/webp"] + ffmpeg_formats,),
                 "pingpong": ("BOOLEAN", {"default": False}),
-                "save_image": ("BOOLEAN", {"default": True}),
-                "crf": ("INT", {"default": 20, "min": 0, "max": 100, "step": 1}),
+                "save_output": ("BOOLEAN", {"default": True}),
             },
             "optional": {
-                "save_metadata": ("BOOLEAN", {"default": True}),
-                "audio_file": ("STRING", {"default": ""}),
+                "audio": ("VHS_AUDIO",),
             },
             "hidden": {
                 "prompt": "PROMPT",
                 "extra_pnginfo": "EXTRA_PNGINFO",
+                "unique_id": "UNIQUE_ID"
             },
         }
 
-    RETURN_TYPES = ("GIF",)
+    RETURN_TYPES = ("VHS_FILENAMES",)
+    RETURN_NAMES = ("Filenames",)
     OUTPUT_NODE = True
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
     FUNCTION = "combine_video"
@@ -76,26 +109,24 @@ class VideoCombine:
     def combine_video(
         self,
         images,
-        crf,
         frame_rate: int,
         loop_count: int,
         filename_prefix="AnimateDiff",
         format="image/gif",
         pingpong=False,
-        save_image=True,
-        save_metadata=True,
+        save_output=True,
         prompt=None,
         extra_pnginfo=None,
-        audio_file=""
+        audio=None,
+        unique_id=None,
     ):
+        kwargs = prompt[unique_id]['inputs']
         # convert images to numpy
-        images = images.cpu().numpy() * 255.0
-        images = np.clip(images, 0, 255).astype(np.uint8)
 
         # get output information
         output_dir = (
             folder_paths.get_output_directory()
-            if save_image
+            if save_output
             else folder_paths.get_temp_directory()
         )
         (
@@ -105,6 +136,7 @@ class VideoCombine:
             subfolder,
             _,
         ) = folder_paths.get_save_image_path(filename_prefix, output_dir)
+        output_files = []
 
         metadata = PngInfo()
         video_metadata = {}
@@ -120,7 +152,7 @@ class VideoCombine:
         max_counter = 0
 
         # Loop through the existing files
-        matcher = re.compile(f"{re.escape(filename)}_(\d+)_?\.[a-zA-Z0-9]+")
+        matcher = re.compile(f"{re.escape(filename)}_(\d+)\D*\.[a-zA-Z0-9]+")
         for existing_file in os.listdir(full_output_folder):
             # Check if the file matches the expected format
             match = matcher.fullmatch(existing_file)
@@ -137,18 +169,20 @@ class VideoCombine:
         # save first frame as png to keep metadata
         file = f"{filename}_{counter:05}.png"
         file_path = os.path.join(full_output_folder, file)
-        Image.fromarray(images[0]).save(
+        Image.fromarray(tensor_to_bytes(images[0])).save(
             file_path,
             pnginfo=metadata,
             compress_level=4,
         )
-        if pingpong:
-            images = np.concatenate((images, images[-2:0:-1]))
+        output_files.append(file_path)
 
         format_type, format_ext = format.split("/")
-        file = f"{filename}_{counter:05}.{format_ext}"
-        file_path = os.path.join(full_output_folder, file)
         if format_type == "image":
+            file = f"{filename}_{counter:05}.{format_ext}"
+            file_path = os.path.join(full_output_folder, file)
+            images = tensor_to_bytes(images)
+            if pingpong:
+                images = np.concatenate((images, images[-2:0:-1]))
             frames = [Image.fromarray(f) for f in images]
             # Use pillow directly to save an animated image
             frames[0].save(
@@ -160,27 +194,38 @@ class VideoCombine:
                 loop=loop_count,
                 compress_level=4,
             )
+            output_files.append(file_path)
         else:
             # Use ffmpeg to save a video
             if ffmpeg_path is None:
                 #Should never be reachable
                 raise ProcessLookupError("Could not find ffmpeg")
 
-            video_format_path = folder_paths.get_full_path("video_formats", format_ext + ".json")
+            video_format_path = folder_paths.get_full_path("VHS_video_formats", format_ext + ".json")
             with open(video_format_path, 'r') as stream:
                 video_format = json.load(stream)
+            video_format = apply_format_widgets(format_ext, kwargs)
+            if video_format.get('input_color_depth', '8bit') == '16bit':
+                images = tensor_to_shorts(images)
+                i_pix_fmt = 'rgb48'
+            else:
+                images = tensor_to_bytes(images)
+                i_pix_fmt = 'rgb24'
+            if pingpong:
+                images = np.concatenate((images, images[-2:0:-1]))
             file = f"{filename}_{counter:05}.{video_format['extension']}"
             file_path = os.path.join(full_output_folder, file)
             dimensions = f"{len(images[0][0])}x{len(images[0])}"
-            args = [ffmpeg_path, "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
-                    "-s", dimensions, "-r", str(frame_rate), "-i", "-", "-crf", str(crf) ] \
-                    + video_format['main_pass']
+            loop_args = ["-vf", "loop=loop=" + str(loop_count)+":size=" + str(len(images))]
+            args = [ffmpeg_path, "-v", "error", "-f", "rawvideo", "-pix_fmt", i_pix_fmt,
+                    "-s", dimensions, "-r", str(frame_rate), "-i", "-"] \
+                    + loop_args + video_format['main_pass']
 
             env=os.environ.copy()
             if  "environment" in video_format:
                 env.update(video_format["environment"])
             res = None
-            if save_metadata:
+            if video_format.get('save_metadata', 'False') != 'False':
                 os.makedirs(folder_paths.get_temp_directory(), exist_ok=True)
                 metadata = json.dumps(video_metadata)
                 metadata_path = os.path.join(folder_paths.get_temp_directory(), "metadata.txt")
@@ -199,6 +244,12 @@ class VideoCombine:
                     res = subprocess.run(m_args + [file_path], input=images.tobytes(),
                                          capture_output=True, check=True, env=env)
                 except subprocess.CalledProcessError as e:
+                    #Check if output file exists. If it does, the re-execution
+                    #will also fail. This obscures the cause of the error
+                    #and seems to never occur concurrent to the metadata issue
+                    if os.path.exists(file_path):
+                        raise Exception("An error occured in the ffmpeg subprocess:\n" \
+                                + e.stderr.decode("utf-8"))
                     #Res was not set
                     print(e.stderr.decode("utf-8"), end="", file=sys.stderr)
                     logger.warn("An error occurred when saving with metadata")
@@ -212,53 +263,85 @@ class VideoCombine:
                             + e.stderr.decode("utf-8"))
             if res.stderr:
                 print(res.stderr.decode("utf-8"), end="", file=sys.stderr)
+            output_files.append(file_path)
 
 
-            # Audio Injection ater video is created, saves additional video with -audio.mp4
-            # Accepts mp3 and wav formats
-            # TODO test unix and windows paths to make sure it works properly. Path module is Used
+            # Audio Injection after video is created, saves additional video with -audio.mp4
 
-            audio_file_path = Path(audio_file)
-            file_path = Path(file_path)
+            # Create audio file if input was provided
+            if audio:
+                output_file_with_audio = f"{filename}_{counter:05}-audio.{video_format['extension']}"
+                output_file_with_audio_path = os.path.join(full_output_folder, output_file_with_audio)
+                if "audio_pass" not in video_format:
+                    logger.warn("Selected video format does not have explicit audio support")
+                    video_format["audio_pass"] = ["-c:a", "libopus"]
 
-            # Check if 'audio_file' is not empty and the file exists
-            if audio_file and audio_file_path.exists() and audio_file_path.suffix.lower() in ['.wav', '.mp3']:
-                
-                # Mapping of input extensions to output settings (extension, audio codec)
-                format_settings = {
-                    '.mov': ('.mov', 'pcm_s16le'),  # ProRes codec in .mov container
-                    '.mp4': ('.mp4', 'aac'),        # H.264/H.265 in .mp4 container
-                    '.mkv': ('.mkv', 'aac'),        # H.265 in .mkv container
-                    '.webp': ('.webp', 'libvorbis'),
-                    '.webm': ('.webm', 'libvorbis'),
-                    '.av1': ('.webm', 'libvorbis')
-                }
 
-                output_extension, audio_codec = format_settings.get(file_path.suffix.lower(), (None, None))
+                # FFmpeg command with audio re-encoding
+                #TODO: expose audio quality options if format widgets makes it in
+                #Reconsider forcing apad/shortest
+                mux_args = [ffmpeg_path, "-v", "error", "-n", "-i", file_path,
+                            "-i", "-", "-c:v", "copy"] \
+                            + video_format["audio_pass"] \
+                            + ["-af", "apad", "-shortest", output_file_with_audio_path]
 
-                if output_extension and audio_codec:
-                    # Modify output file name
-                    output_file_with_audio_path = file_path.with_stem(file_path.stem + "-audio").with_suffix(output_extension)
-
-                    # FFmpeg command with audio re-encoding
-                    mux_args = [
-                        ffmpeg_path, "-y", "-i", str(file_path), "-i", str(audio_file_path),
-                        "-c:v", "copy", "-c:a", audio_codec, "-b:a", "192k", "-strict", "experimental", "-shortest", str(output_file_with_audio_path)
-                    ]
-                    
-                    subprocess.run(mux_args, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
-                # Else block for unsupported video format can be added if necessar
+                try:
+                    res = subprocess.run(mux_args, input=audio(), env=env,
+                                         capture_output=True, check=True)
+                except subprocess.CalledProcessError as e:
+                    raise Exception("An error occured in the ffmpeg subprocess:\n" \
+                            + e.stderr.decode("utf-8"))
+                if res.stderr:
+                    print(res.stderr.decode("utf-8"), end="", file=sys.stderr)
+                output_files.append(output_file_with_audio_path)
+                #Return this file with audio to the webui.
+                #It will be muted unless opened or saved with right click
+                file = output_file_with_audio
 
         previews = [
             {
                 "filename": file,
                 "subfolder": subfolder,
-                "type": "output" if save_image else "temp",
+                "type": "output" if save_output else "temp",
                 "format": format,
             }
         ]
-        return {"ui": {"gifs": previews}}
+        return {"ui": {"gifs": previews}, "result": ((save_output, output_files),)}
+    @classmethod
+    def VALIDATE_INPUTS(self, **kwargs):
+        return True
 
+class LoadAudio:
+    @classmethod
+    def INPUT_TYPES(s):
+        #Hide ffmpeg formats if ffmpeg isn't available
+        return {
+            "required": {
+                "audio_file": ("VHSPATH", {"default": "input/", "extensions": ['wav','mp3','ogg','m4a','flac']}),
+                },
+            "optional" : {"seek_seconds": ("FLOAT", {"default": 0, "min": 0})}
+        }
+
+    RETURN_TYPES = ("VHS_AUDIO",)
+    RETURN_NAMES = ("audio",)
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
+    FUNCTION = "load_audio"
+    def load_audio(self, audio_file, seek_seconds):
+        #Eagerly fetch the audio since the user must be using it if the
+        #node executes, unlike Load Video
+        audio = get_audio(audio_file, start_time=seek_seconds)
+        return (lambda : audio,)
+
+    @classmethod
+    def IS_CHANGED(s, audio_file):
+        return calculate_file_hash(audio_file.strip("\""))
+
+    @classmethod
+    def VALIDATE_INPUTS(s, audio_file):
+        if not os.path.isfile(audio_file.strip("\"")):
+            return "Invalid audio file: {}".format(audio_file)
+        #TODO: Perform simple check for audio formats?
+        return True
 
 NODE_CLASS_MAPPINGS = {
     "VHS_VideoCombine": VideoCombine,
@@ -266,6 +349,7 @@ NODE_CLASS_MAPPINGS = {
     "VHS_LoadVideoPath": LoadVideoPath,
     "VHS_LoadImages": LoadImagesFromDirectoryUpload,
     "VHS_LoadImagesPath": LoadImagesFromDirectoryPath,
+    "VHS_LoadAudio": LoadAudio,
     # Latent and Image nodes
     "VHS_SplitLatents": SplitLatents,
     "VHS_SplitImages": SplitImages,
@@ -284,6 +368,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_LoadVideoPath": "Load Video (Path) 🎥🅥🅗🅢",
     "VHS_LoadImages": "Load Images (Upload) 🎥🅥🅗🅢",
     "VHS_LoadImagesPath": "Load Images (Path) 🎥🅥🅗🅢",
+    "VHS_LoadAudio": "Load Audio (Path)🎥🅥🅗🅢",
     # Latent and Image nodes
     "VHS_SplitLatents": "Split Latent Batch 🎥🅥🅗🅢",
     "VHS_SplitImages": "Split Image Batch 🎥🅥🅗🅢",
