@@ -901,7 +901,7 @@ function searchBox(event, [x,y], node) {
 
 app.ui.settings.addSetting({
     id: "VHS.AdvancedPreviews",
-    name: "VHS Advanced Previews",
+    name: "🎥🅥🅗🅢 Advanced Previews",
     type: "boolean",
     defaultValue: false,
 });
