@@ -2,7 +2,7 @@ import server
 import folder_paths
 import os
 import subprocess
-from .utils import is_url
+from .utils import is_url, get_sorted_dir_files_from_directory
 from comfy.k_diffusion.utils import FolderOfImages
 
 web = server.web
@@ -63,7 +63,9 @@ async def view_video(request):
         #ffmpeg seems to not support list globs, so support for mixed extensions seems unfeasible
         os.makedirs(folder_paths.get_temp_directory(), exist_ok=True)
         concat_file = os.path.join(folder_paths.get_temp_directory(), "image_sequence_preview.txt")
-        valid_images = get_sorted_dir_files_from_directory(directory, skip_first_images, select_every_nth, FolderOfImages.IMG_EXTENSIONS)
+        skip_first_images = int(query.get('skip_first_images', 0))
+        select_every_nth = int(query.get('select_every_nth', 1))
+        valid_images = get_sorted_dir_files_from_directory(file, skip_first_images, select_every_nth, FolderOfImages.IMG_EXTENSIONS)
         if len(valid_images) == 0:
             return web.Response(status=400)
         with open(concat_file, "w") as f:
