@@ -3,7 +3,7 @@ import folder_paths
 import os
 import time
 import subprocess
-from .utils import is_url, get_sorted_dir_files_from_directory
+from .utils import is_url, get_sorted_dir_files_from_directory, ffmpeg_path
 from comfy.k_diffusion.utils import FolderOfImages
 
 web = server.web
@@ -78,7 +78,7 @@ async def view_video(request):
     else:
         in_args = ["-an", "-i", file]
 
-    args = ["ffmpeg", "-v", "error"] + in_args
+    args = [ffmpeg_path, "-v", "error"] + in_args
     vfilters = []
     if int(query.get('force_rate',0)) != 0:
         vfilters.append("fps=fps="+query['force_rate'] + ":round=up:start_time=0.001")
