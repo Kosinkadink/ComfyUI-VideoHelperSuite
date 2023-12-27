@@ -1003,6 +1003,8 @@ app.registerExtension({
                         return this._outputs;
                     }
                 });
+                //Display previews after reload/ loading workflow
+                requestAnimationFrame(() => {this.updateParameters({}, true);});
             });
         } else if (nodeData?.name == "VHS_SaveImageSequence") {
             //Disabled for safety as VHS_SaveImageSequence is not currently merged
