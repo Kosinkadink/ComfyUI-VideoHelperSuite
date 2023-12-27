@@ -1087,6 +1087,10 @@ app.registerExtension({
                         w.value = inputData[1].default;
                     }
                 }
+                //Support conversion to string input
+                inputData[0] = "STRING"
+                delete inputData[1].extensions
+
                 if (!node.widgets) {
                     node.widgets = [];
                 }
