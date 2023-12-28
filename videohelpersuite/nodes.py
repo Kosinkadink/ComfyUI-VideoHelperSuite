@@ -14,7 +14,7 @@ from .logger import logger
 from .image_latent_nodes import DuplicateImages, DuplicateLatents, GetImageCount, GetLatentCount, MergeImages, MergeLatents, SelectEveryNthImage, SelectEveryNthLatent, SplitLatents, SplitImages
 from .load_video_nodes import LoadVideoUpload, LoadVideoPath
 from .load_images_nodes import LoadImagesFromDirectoryUpload, LoadImagesFromDirectoryPath
-from .utils import ffmpeg_path, get_audio, calculate_file_hash
+from .utils import ffmpeg_path, get_audio, hash_path, validate_path
 
 folder_paths.folder_names_and_paths["VHS_video_formats"] = (
     [
@@ -317,7 +317,7 @@ class LoadAudio:
         #Hide ffmpeg formats if ffmpeg isn't available
         return {
             "required": {
-                "audio_file": ("VHSPATH", {"default": "input/", "extensions": ['wav','mp3','ogg','m4a','flac']}),
+                "audio_file": ("STRING", {"default": "input/", "vhs_path_extensions": ['wav','mp3','ogg','m4a','flac']}),
                 },
             "optional" : {"seek_seconds": ("FLOAT", {"default": 0, "min": 0})}
         }
@@ -327,21 +327,20 @@ class LoadAudio:
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
     FUNCTION = "load_audio"
     def load_audio(self, audio_file, seek_seconds):
+        if audio_file is None or validate_path(audio_file) != True:
+            raise Exception("audio_file is not a valid path: " + audio_file)
         #Eagerly fetch the audio since the user must be using it if the
         #node executes, unlike Load Video
         audio = get_audio(audio_file, start_time=seek_seconds)
         return (lambda : audio,)
 
     @classmethod
-    def IS_CHANGED(s, audio_file):
-        return calculate_file_hash(audio_file.strip("\""))
+    def IS_CHANGED(s, audio_file, seek_seconds):
+        return hash_path(audio_file)
 
     @classmethod
     def VALIDATE_INPUTS(s, audio_file):
-        if not os.path.isfile(audio_file.strip("\"")):
-            return "Invalid audio file: {}".format(audio_file)
-        #TODO: Perform simple check for audio formats?
-        return True
+        return validate_path(audio_file, allow_none=True)
 
 NODE_CLASS_MAPPINGS = {
     "VHS_VideoCombine": VideoCombine,
