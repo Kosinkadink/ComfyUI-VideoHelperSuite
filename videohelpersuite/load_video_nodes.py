@@ -170,7 +170,7 @@ class LoadVideoPath:
 
     def load_video(self, **kwargs):
         if kwargs['video'] is None or validate_path(kwargs['video']) != True:
-            raise "video is not a valid path: " + kwargs['video']
+            raise Exception("video is not a valid path: " + kwargs['video'])
         return load_video_cv(**kwargs)
 
     @classmethod

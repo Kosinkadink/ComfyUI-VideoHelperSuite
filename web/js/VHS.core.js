@@ -913,19 +913,21 @@ app.registerExtension({
             useKVState(nodeType);
             chainCallback(nodeType.prototype, "onNodeCreated", function () {
                 let new_widgets = []
-                for (let w of this.widgets) {
-                    let input = this.constructor.nodeData.input
-                    let config = input?.required[w.name] ?? input.optional[w.name]
-                    if (!config) {
-                        continue
+                if (this.widgets) {
+                    for (let w of this.widgets) {
+                        let input = this.constructor.nodeData.input
+                        let config = input?.required[w.name] ?? input.optional[w.name]
+                        if (!config) {
+                            continue
+                        }
+                        if (w?.type == "text" && config[1].vhs_path_extensions) {
+                            new_widgets.push(app.widgets.VHSPATH({}, w.name, ["VHSPATH", config[1]]));
+                        } else {
+                            new_widgets.push(w)
+                        }
                     }
-                    if (w?.type == "text" && config[1].vhs_path_extensions) {
-                        new_widgets.push(app.widgets.VHSPATH({}, w.name, ["VHSPATH", config[1]]));
-                    } else {
-                        new_widgets.push(w)
-                    }
+                    this.widgets = new_widgets;
                 }
-                this.widgets = new_widgets;
             });
         }
         if (nodeData?.name == "VHS_LoadImages") {
