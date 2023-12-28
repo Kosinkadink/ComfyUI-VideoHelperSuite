@@ -7,7 +7,7 @@ from PIL import Image, ImageOps
 import folder_paths
 from comfy.k_diffusion.utils import FolderOfImages
 from .logger import logger
-from .utils import calculate_file_hash, get_sorted_dir_files_from_directory
+from .utils import calculate_file_hash, get_sorted_dir_files_from_directory, validate_path
 
 
 def is_changed_load_images(directory: str, image_load_cap: int = 0, skip_first_images: int = 0, select_every_nth: int = 1):
@@ -124,7 +124,7 @@ class LoadImagesFromDirectoryPath:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "directory": ("VHSPATH", {"default": "X://path/to/images", "extensions": []}),
+                "directory": ("STRING", {"default": "X://path/to/images", "vhs_path_extensions": []}),
             },
             "optional": {
                 "image_load_cap": ("INT", {"default": 0, "min": 0, "step": 1}),
@@ -139,12 +139,19 @@ class LoadImagesFromDirectoryPath:
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
 
     def load_images(self, directory: str, **kwargs):
+        if directory is None or validate_load_images(directory, **kwargs) != True:
+            raise Exception("directory is not valid: " + directory)
+
         return load_images(directory, **kwargs)
     
     @classmethod
     def IS_CHANGED(s, directory: str, **kwargs):
+        if directory is None:
+            return "input"
         return is_changed_load_images(directory, **kwargs)
 
     @classmethod
     def VALIDATE_INPUTS(s, directory: str, **kwargs):
+        if directory is None:
+            return True
         return validate_load_images(directory, **kwargs)

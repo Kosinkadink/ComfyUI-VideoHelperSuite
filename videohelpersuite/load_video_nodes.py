@@ -7,7 +7,7 @@ import cv2
 import folder_paths
 from comfy.utils import common_upscale
 from .logger import logger
-from .utils import calculate_file_hash, get_sorted_dir_files_from_directory, get_audio, lazy_eval, is_url
+from .utils import calculate_file_hash, get_sorted_dir_files_from_directory, get_audio, lazy_eval, hash_path, validate_path
 
 
 video_extensions = ['webm', 'mp4', 'mkv', 'gif']
@@ -132,7 +132,6 @@ class LoadVideoUpload:
     RETURN_NAMES = ("IMAGE", "frame_count", "audio",)
     FUNCTION = "load_video"
 
-    known_exceptions = []
     def load_video(self, **kwargs):
         kwargs['video'] = folder_paths.get_annotated_filepath(kwargs['video'].strip("\""))
         return load_video_cv(**kwargs)
@@ -154,7 +153,7 @@ class LoadVideoPath:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "video": ("VHSPATH", {"default": "X://insert/path/here.mp4", "extensions": video_extensions}),
+                "video": ("STRING", {"default": "X://insert/path/here.mp4", "vhs_path_extensions": video_extensions}),
                 "force_rate": ("INT", {"default": 0, "min": 0, "max": 24, "step": 1}),
                 "force_size": (["Disabled", "256x?", "?x256", "256x256", "512x?", "?x512", "512x512"],),
                 "frame_load_cap": ("INT", {"default": 0, "min": 0, "step": 1}),
@@ -169,22 +168,15 @@ class LoadVideoPath:
     RETURN_NAMES = ("IMAGE", "frame_count", "audio",)
     FUNCTION = "load_video"
 
-    known_exceptions = []
     def load_video(self, **kwargs):
+        if kwargs['video'] is None or validate_path(kwargs['video']) != True:
+            raise "video is not a valid path: " + kwargs['video']
         return load_video_cv(**kwargs)
 
     @classmethod
     def IS_CHANGED(s, video, **kwargs):
-        if is_url(video):
-            #Fetching a remote video heavy, so hash check is skipped
-            return 1
-        return calculate_file_hash(video.strip("\""))
+        return hash_path(video)
 
     @classmethod
     def VALIDATE_INPUTS(s, video, **kwargs):
-        if is_url(video):
-            #Probably not feasible to check if url resolves here
-            return True
-        if not os.path.isfile(video.strip("\"")):
-            return "Invalid video file: {}".format(video)
-        return True
+        return validate_path(video, allow_none=True)

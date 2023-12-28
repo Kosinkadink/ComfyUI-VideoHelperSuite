@@ -72,7 +72,7 @@ async def view_video(request):
         with open(concat_file, "w") as f:
             f.write("ffconcat version 1.0\n")
             for path in valid_images:
-                f.write("file '" + path + "'\n")
+                f.write("file '" + os.path.abspath(path) + "'\n")
                 f.write("duration 0.125\n")
         in_args = ["-safe", "0", "-i", concat_file]
     else:

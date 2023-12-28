@@ -47,7 +47,9 @@ else:
             ffmpeg_paths.append(system_ffmpeg)
         if len(ffmpeg_paths) == 0:
             logger.error("No valid ffmpeg found.")
-        ffmpeg_path = max(ffmpeg_paths, key=ffmpeg_suitability)
+            ffmpeg_path = None
+        else:
+            ffmpeg_path = max(ffmpeg_paths, key=ffmpeg_suitability)
 
 def get_sorted_dir_files_from_directory(directory: str, skip_first_images: int=0, select_every_nth: int=1, extensions: Iterable=None):
     directory = directory.strip()
@@ -105,3 +107,19 @@ def lazy_eval(func):
 
 def is_url(url):
     return url.split("://")[0] in ["http", "https"]
+
+def hash_path(path):
+    if path is None:
+        return "input"
+    if is_url(path):
+        return "url"
+    return calculate_file_hash(path.strip("\""))
+def validate_path(path, allow_none=False, allow_url=True):
+    if path is None:
+        return allow_none
+    if is_url(path):
+        #Probably not feasible to check if url resolves here
+        return True if allow_url else "URLs are unsupported for this path"
+    if not os.path.isfile(path.strip("\"")):
+        return "Invalid file path: {}".format(path)
+    return True
