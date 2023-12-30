@@ -24,7 +24,7 @@ def is_changed_load_images(directory: str, image_load_cap: int = 0, skip_first_i
     return m.digest().hex()
 
 
-def validate_load_images(directory: str, **kwargs):
+def validate_load_images(directory: str):
     if not os.path.isdir(directory):
             return f"Directory '{directory}' cannot be found."
     dir_files = os.listdir(directory)
@@ -114,9 +114,9 @@ class LoadImagesFromDirectoryUpload:
         return is_changed_load_images(directory, **kwargs)
 
     @classmethod
-    def VALIDATE_INPUTS(s, directory: str, **kwargs):
+    def VALIDATE_INPUTS(s, directory: str):
         directory = folder_paths.get_annotated_filepath(directory.strip())
-        return validate_load_images(directory, **kwargs)
+        return validate_load_images(directory)
 
 
 class LoadImagesFromDirectoryPath:
@@ -151,7 +151,7 @@ class LoadImagesFromDirectoryPath:
         return is_changed_load_images(directory, **kwargs)
 
     @classmethod
-    def VALIDATE_INPUTS(s, directory: str, **kwargs):
+    def VALIDATE_INPUTS(s, directory: str):
         if directory is None:
             return True
-        return validate_load_images(directory, **kwargs)
+        return validate_load_images(directory)
