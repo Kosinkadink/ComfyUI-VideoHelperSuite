@@ -308,7 +308,7 @@ class VideoCombine:
         ]
         return {"ui": {"gifs": previews}, "result": ((save_output, output_files),)}
     @classmethod
-    def VALIDATE_INPUTS(self, format):
+    def VALIDATE_INPUTS(self, format, **kwargs):
         return True
 
 class LoadAudio:
@@ -339,7 +339,7 @@ class LoadAudio:
         return hash_path(audio_file)
 
     @classmethod
-    def VALIDATE_INPUTS(s, audio_file):
+    def VALIDATE_INPUTS(s, audio_file, **kwargs):
         return validate_path(audio_file, allow_none=True)
 
 NODE_CLASS_MAPPINGS = {
