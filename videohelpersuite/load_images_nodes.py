@@ -114,7 +114,7 @@ class LoadImagesFromDirectoryUpload:
         return is_changed_load_images(directory, **kwargs)
 
     @classmethod
-    def VALIDATE_INPUTS(s, directory: str):
+    def VALIDATE_INPUTS(s, directory: str, **kwargs):
         directory = folder_paths.get_annotated_filepath(directory.strip())
         return validate_load_images(directory)
 
@@ -139,7 +139,7 @@ class LoadImagesFromDirectoryPath:
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
 
     def load_images(self, directory: str, **kwargs):
-        if directory is None or validate_load_images(directory, **kwargs) != True:
+        if directory is None or validate_load_images(directory) != True:
             raise Exception("directory is not valid: " + directory)
 
         return load_images(directory, **kwargs)
@@ -151,7 +151,7 @@ class LoadImagesFromDirectoryPath:
         return is_changed_load_images(directory, **kwargs)
 
     @classmethod
-    def VALIDATE_INPUTS(s, directory: str):
+    def VALIDATE_INPUTS(s, directory: str, **kwargs):
         if directory is None:
             return True
         return validate_load_images(directory)
