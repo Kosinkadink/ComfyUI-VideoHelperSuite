@@ -217,9 +217,13 @@ class VideoCombine:
             file_path = os.path.join(full_output_folder, file)
             dimensions = f"{len(images[0][0])}x{len(images[0])}"
             loop_args = ["-vf", "loop=loop=" + str(loop_count)+":size=" + str(len(images))]
+            bitrate_arg = []
+            bitrate = video_format.get('bitrate')
+            if bitrate is not None:
+                bitrate_arg = ["-b:v", str(bitrate) + "M" if video_format.get('megabit') == 'True' else str(bitrate) + "K"]
             args = [ffmpeg_path, "-v", "error", "-f", "rawvideo", "-pix_fmt", i_pix_fmt,
                     "-s", dimensions, "-r", str(frame_rate), "-i", "-"] \
-                    + loop_args + video_format['main_pass']
+                    + loop_args + video_format['main_pass'] + bitrate_arg
 
             env=os.environ.copy()
             if  "environment" in video_format:
