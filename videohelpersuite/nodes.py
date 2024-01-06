@@ -14,6 +14,7 @@ from .logger import logger
 from .image_latent_nodes import DuplicateImages, DuplicateLatents, GetImageCount, GetLatentCount, MergeImages, MergeLatents, SelectEveryNthImage, SelectEveryNthLatent, SplitLatents, SplitImages
 from .load_video_nodes import LoadVideoUpload, LoadVideoPath
 from .load_images_nodes import LoadImagesFromDirectoryUpload, LoadImagesFromDirectoryPath
+from .batched_nodes import VAEEncodeBatched, VAEDecodeBatched
 from .utils import ffmpeg_path, get_audio, hash_path, validate_path
 
 folder_paths.folder_names_and_paths["VHS_video_formats"] = (
@@ -364,6 +365,9 @@ NODE_CLASS_MAPPINGS = {
     "VHS_GetImageCount": GetImageCount,
     "VHS_DuplicateLatents": DuplicateLatents,
     "VHS_DuplicateImages": DuplicateImages,
+    # Batched Nodes
+    "VHS_VAEEncodeBatched": VAEEncodeBatched,
+    "VHS_VAEDecodeBatched": VAEDecodeBatched,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_VideoCombine": "Video Combine 🎥🅥🅗🅢",
@@ -383,4 +387,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_GetImageCount": "Get Image Count 🎥🅥🅗🅢",
     "VHS_DuplicateLatents": "Duplicate Latent Batch 🎥🅥🅗🅢",
     "VHS_DuplicateImages": "Duplicate Image Batch 🎥🅥🅗🅢",
+    # Batched Nodes
+    "VHS_VAEEncodeBatched": "VAE Encode Batched 🎥🅥🅗🅢",
+    "VHS_VAEDecodeBatched": "VAE Decode Batched 🎥🅥🅗🅢",
 }
