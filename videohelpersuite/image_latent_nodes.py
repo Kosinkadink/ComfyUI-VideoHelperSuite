@@ -77,6 +77,28 @@ class SplitImages:
         return (group_a, group_a.size(0), group_b, group_b.size(0))
 
 
+class SplitMasks:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+                "required": {
+                    "mask": ("MASK",),
+                    "split_index": ("INT", {"default": 0, "step": 1, "min": -99999999999}),
+                },
+            }
+    
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢/mask"
+
+    RETURN_TYPES = ("MASK", "INT", "MASK", "INT")
+    RETURN_NAMES = ("MASK_A", "A_count", "MASK_B", "B_count")
+    FUNCTION = "split_masks"
+
+    def split_masks(self, mask: Tensor, split_index: int):
+        group_a = mask[:split_index]
+        group_b = mask[split_index:]
+        return (group_a, group_a.size(0), group_b, group_b.size(0))
+
+
 class MergeLatents:
     @classmethod
     def INPUT_TYPES(s):
@@ -178,6 +200,58 @@ class MergeImages:
         return (all_images, all_images.size(0),)
 
 
+class MergeMasks:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "mask_A": ("MASK",),
+                "mask_B": ("MASK",),
+                "merge_strategy": (MergeStrategies.list_all,),
+                "scale_method": (ScaleMethods.list_all,),
+                "crop": (CropMethods.list_all,),
+            }
+        }
+    
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢/mask"
+
+    RETURN_TYPES = ("MASK", "INT",)
+    RETURN_NAMES = ("MASK", "count",)
+    FUNCTION = "merge"
+
+    def merge(self, mask_A: Tensor, mask_B: Tensor, merge_strategy: str, scale_method: str, crop: str):
+        masks = []
+        # if not same dimensions, do scaling
+        if mask_A.shape[2] != mask_B.shape[2] or mask_A.shape[1] != mask_B.shape[1]:
+            A_size = mask_A.shape[2] * mask_A.shape[1]
+            B_size = mask_B.shape[2] * mask_B.shape[1]
+            # determine which to use
+            use_A_as_template = True
+            if merge_strategy == MergeStrategies.MATCH_A:
+                pass
+            elif merge_strategy == MergeStrategies.MATCH_B:
+                use_A_as_template = False
+            elif merge_strategy in (MergeStrategies.MATCH_SMALLER, MergeStrategies.MATCH_LARGER):
+                if A_size <= B_size:
+                    use_A_as_template = True if merge_strategy == MergeStrategies.MATCH_SMALLER else False
+            # add dimension where image channels would be expected to work with common_upscale
+            mask_A = torch.unsqueeze(mask_A, 1)
+            mask_B = torch.unsqueeze(mask_B, 1)
+            # apply scaling
+            if use_A_as_template:
+                mask_B = comfy.utils.common_upscale(mask_B, mask_A.shape[3], mask_A.shape[2], scale_method, crop)
+            else:
+                mask_A = comfy.utils.common_upscale(mask_A, mask_B.shape[3], mask_B.shape[2], scale_method, crop)
+            # undo dimension increase
+            mask_A = torch.squeeze(mask_A, 1)
+            mask_B = torch.squeeze(mask_B, 1)
+
+        masks.append(mask_A)
+        masks.append(mask_B)
+        all_masks = torch.cat(masks, dim=0)
+        return (all_masks, all_masks.size(0),)
+
+
 class SelectEveryNthLatent:
     @classmethod
     def INPUT_TYPES(s):
@@ -218,6 +292,27 @@ class SelectEveryNthImage:
     def select_images(self, images: Tensor, select_every_nth: int):
         sub_images = images[0::select_every_nth]
         return (sub_images, sub_images.size(0))
+    
+
+class SelectEveryNthMask:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+                "required": {
+                    "mask": ("MASK",),
+                    "select_every_nth": ("INT", {"default": 1, "min": 1, "step": 1}),
+                },
+            }
+    
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢/mask"
+
+    RETURN_TYPES = ("MASK", "INT",)
+    RETURN_NAMES = ("MASK", "count",)
+    FUNCTION = "select_masks"
+
+    def select_masks(self, mask: Tensor, select_every_nth: int):
+        sub_mask = mask[0::select_every_nth]
+        return (sub_mask, sub_mask.size(0))
 
 
 class GetLatentCount:
@@ -256,6 +351,25 @@ class GetImageCount:
 
     def count_input(self, images: Tensor):
         return (images.size(0),)
+    
+
+class GetMaskCount:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "mask": ("MASK",),
+            }
+        }
+    
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢/mask"
+
+    RETURN_TYPES = ("INT",)
+    RETURN_NAMES = ("count",)
+    FUNCTION = "count_input"
+
+    def count_input(self, mask: Tensor):
+        return (mask.size(0),)
 
 
 class DuplicateLatents:
@@ -305,6 +419,30 @@ class DuplicateImages:
             full_images.append(images)
         new_images = torch.cat(full_images, dim=0)
         return (new_images, new_images.size(0),)
+
+
+class DuplicateMasks:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "mask": ("MASK",),
+                "multiply_by": ("INT", {"default": 1, "min": 1, "step": 1})
+            }
+        }
+    
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢/mask"
+
+    RETURN_TYPES = ("MASK", "INT",)
+    RETURN_NAMES = ("MASK", "count",)
+    FUNCTION = "duplicate_input"
+
+    def duplicate_input(self, mask: Tensor, multiply_by: int):
+        full_masks = []
+        for n in range(0, multiply_by):
+            full_masks.append(mask)
+        new_mask = torch.cat(full_masks, dim=0)
+        return (new_mask, new_mask.size(0),)
 
 
 # class SelectLatents:

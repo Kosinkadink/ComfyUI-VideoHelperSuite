@@ -11,7 +11,7 @@ from pathlib import Path
 
 import folder_paths
 from .logger import logger
-from .image_latent_nodes import DuplicateImages, DuplicateLatents, GetImageCount, GetLatentCount, MergeImages, MergeLatents, SelectEveryNthImage, SelectEveryNthLatent, SplitLatents, SplitImages
+from .image_latent_nodes import *
 from .load_video_nodes import LoadVideoUpload, LoadVideoPath
 from .load_images_nodes import LoadImagesFromDirectoryUpload, LoadImagesFromDirectoryPath
 from .batched_nodes import VAEEncodeBatched, VAEDecodeBatched
@@ -357,14 +357,19 @@ NODE_CLASS_MAPPINGS = {
     # Latent and Image nodes
     "VHS_SplitLatents": SplitLatents,
     "VHS_SplitImages": SplitImages,
+    "VHS_SplitMasks": SplitMasks,
     "VHS_MergeLatents": MergeLatents,
     "VHS_MergeImages": MergeImages,
+    "VHS_MergeMasks": MergeMasks,
     "VHS_SelectEveryNthLatent": SelectEveryNthLatent,
     "VHS_SelectEveryNthImage": SelectEveryNthImage,
+    "VHS_SelectEveryNthMask": SelectEveryNthMask,
     "VHS_GetLatentCount": GetLatentCount,
     "VHS_GetImageCount": GetImageCount,
+    "VHS_GetMaskCount": GetMaskCount,
     "VHS_DuplicateLatents": DuplicateLatents,
     "VHS_DuplicateImages": DuplicateImages,
+    "VHS_DuplicateMasks": DuplicateMasks,
     # Batched Nodes
     "VHS_VAEEncodeBatched": VAEEncodeBatched,
     "VHS_VAEDecodeBatched": VAEDecodeBatched,
@@ -379,14 +384,19 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # Latent and Image nodes
     "VHS_SplitLatents": "Split Latent Batch 🎥🅥🅗🅢",
     "VHS_SplitImages": "Split Image Batch 🎥🅥🅗🅢",
+    "VHS_SplitMasks": "Split Mask Batch 🎥🅥🅗🅢",
     "VHS_MergeLatents": "Merge Latent Batches 🎥🅥🅗🅢",
     "VHS_MergeImages": "Merge Image Batches 🎥🅥🅗🅢",
+    "VHS_MergeMasks": "Merge Mask Batches 🎥🅥🅗🅢",
     "VHS_SelectEveryNthLatent": "Select Every Nth Latent 🎥🅥🅗🅢",
     "VHS_SelectEveryNthImage": "Select Every Nth Image 🎥🅥🅗🅢",
+    "VHS_SelectEveryNthMask": "Select Every Nth Mask 🎥🅥🅗🅢",
     "VHS_GetLatentCount": "Get Latent Count 🎥🅥🅗🅢",
     "VHS_GetImageCount": "Get Image Count 🎥🅥🅗🅢",
+    "VHS_GetMaskCount": "Get Mask Count 🎥🅥🅗🅢",
     "VHS_DuplicateLatents": "Duplicate Latent Batch 🎥🅥🅗🅢",
     "VHS_DuplicateImages": "Duplicate Image Batch 🎥🅥🅗🅢",
+    "VHS_DuplicateMasks": "Duplicate Mask Batch 🎥🅥🅗🅢",
     # Batched Nodes
     "VHS_VAEEncodeBatched": "VAE Encode Batched 🎥🅥🅗🅢",
     "VHS_VAEDecodeBatched": "VAE Decode Batched 🎥🅥🅗🅢",
