@@ -218,19 +218,6 @@ function addTimestampWidget(nodeType, nodeData, targetWidget) {
 }
 
 function addCustomSize(nodeType, nodeData, widgetName) {
-    //Add the extra size widgets now
-    //This takes some finagling as widget order is defined by key order
-    const newWidgets = {};
-    for (let key in nodeData.input.required) {
-        newWidgets[key] = nodeData.input.required[key]
-        if (key == widgetName) {
-            newWidgets[key][0] = newWidgets[key][0].concat(["Custom Width", "Custom Height", "Custom"])
-            newWidgets["custom_width"] = ["INT", {"default": 512, "min": 8, "step": 8}]
-            newWidgets["custom_height"] = ["INT", {"default": 512, "min": 8, "step": 8}]
-        }
-    }
-    nodeData.input.required = newWidgets;
-
     //Add a callback which sets up the actual logic once the node is created
     chainCallback(nodeType.prototype, "onNodeCreated", function() {
         const node = this;
@@ -238,9 +225,7 @@ function addCustomSize(nodeType, nodeData, widgetName) {
         const widthWidget = node.widgets.find((w) => w.name === "custom_width");
         const heightWidget = node.widgets.find((w) => w.name === "custom_height");
         injectHidden(widthWidget);
-        widthWidget.options.serialize = false;
         injectHidden(heightWidget);
-        heightWidget.options.serialize = false;
         sizeOptionWidget._value = sizeOptionWidget.value;
         Object.defineProperty(sizeOptionWidget, "value", {
             set : function(value) {
@@ -265,21 +250,10 @@ function addCustomSize(nodeType, nodeData, widgetName) {
                 return this._value;
             }
         });
-        //prevent clobbering of new options on refresh
-        sizeOptionWidget.options._values = sizeOptionWidget.options.values;
-        Object.defineProperty(sizeOptionWidget.options, "values", {
-            set : function(values) {
-                this._values = values;
-                this._values.push("Custom Width", "Custom Height", "Custom");
-            },
-            get : function() {
-                return this._values;
-            }
-        });
         //Ensure proper visibility/size state for initial value
         sizeOptionWidget.value = sizeOptionWidget._value;
 
-        sizeOptionWidget.serializeValue = function() {
+        sizeOptionWidget.serializePreview = function() {
             if (this.value == "Custom Width") {
                 return widthWidget.value + "x?";
             } else if (this.value == "Custom Height") {
@@ -704,7 +678,7 @@ function addLoadVideoCommon(nodeType, nodeData) {
         chainCallback(rateWidget, "callback", update);
         chainCallback(skipWidget, "callback", update);
         let updateSize = function(value, _, node) {
-            node.updateParameters({"force_size": sizeWidget.serializeValue()})
+            node.updateParameters({"force_size": sizeWidget.serializePreview()})
         }
         chainCallback(sizeWidget, "callback", updateSize);
         chainCallback(this.widgets.find((w) => w.name === "custom_width"), "callback", updateSize);

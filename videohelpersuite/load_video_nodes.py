@@ -18,7 +18,14 @@ def is_gif(filename) -> bool:
     return len(file_parts) > 1 and file_parts[-1] == "gif"
 
 
-def target_size(width, height, force_size) -> tuple[int, int]:
+def target_size(width, height, force_size, custom_width, custom_height) -> tuple[int, int]:
+    if force_size == "Custom":
+        return (custom_width, custom_height)
+    elif force_size == "Custom Height":
+        force_size = "?x"+str(custom_height)
+    elif force_size == "Custom Width":
+        force_size = str(custom_width)+"x?"
+
     if force_size != "Disabled":
         force_size = force_size.split("x")
         if force_size[0] == "?":
@@ -36,7 +43,9 @@ def target_size(width, height, force_size) -> tuple[int, int]:
             height = int(force_size[1])
     return (width, height)
 
-def load_video_cv(video: str, force_rate: int, force_size: str, frame_load_cap: int, skip_first_frames: int, select_every_nth: int):
+def load_video_cv(video: str, force_rate: int, force_size: str,
+                  custom_width: int,custom_height: int, frame_load_cap: int,
+                  skip_first_frames: int, select_every_nth: int):
     try:
         video_cap = cv2.VideoCapture(video)
         if not video_cap.isOpened():
@@ -94,7 +103,7 @@ def load_video_cv(video: str, force_rate: int, force_size: str, frame_load_cap: 
         raise RuntimeError("No frames generated")
     images = torch.cat(images, dim=0)
     if force_size != "Disabled":
-        new_size = target_size(width, height, force_size)
+        new_size = target_size(width, height, force_size, custom_width, custom_height)
         if new_size[0] != width or new_size[1] != height:
             s = images.movedim(-1,1)
             s = common_upscale(s, new_size[0], new_size[1], "lanczos", "center")
@@ -120,7 +129,9 @@ class LoadVideoUpload:
         return {"required": {
                     "video": (sorted(files),),
                      "force_rate": ("INT", {"default": 0, "min": 0, "max": 24, "step": 1}),
-                     "force_size": (["Disabled", "256x?", "?x256", "256x256", "512x?", "?x512", "512x512"],),
+                     "force_size": (["Disabled", "Custom Height", "Custom Width", "Custom", "256x?", "?x256", "256x256", "512x?", "?x512", "512x512"],),
+                     "custom_width": ("INT", {"default": 512, "min": 0, "step": 8}),
+                     "custom_height": ("INT", {"default": 512, "min": 0, "step": 8}),
                      "frame_load_cap": ("INT", {"default": 0, "min": 0, "step": 1}),
                      "skip_first_frames": ("INT", {"default": 0, "min": 0, "step": 1}),
                      "select_every_nth": ("INT", {"default": 1, "min": 1, "step": 1}),
@@ -155,7 +166,9 @@ class LoadVideoPath:
             "required": {
                 "video": ("STRING", {"default": "X://insert/path/here.mp4", "vhs_path_extensions": video_extensions}),
                 "force_rate": ("INT", {"default": 0, "min": 0, "max": 24, "step": 1}),
-                "force_size": (["Disabled", "256x?", "?x256", "256x256", "512x?", "?x512", "512x512"],),
+                 "force_size": (["Disabled", "Custom Height", "Custom Width", "Custom", "256x?", "?x256", "256x256", "512x?", "?x512", "512x512"],),
+                 "custom_width": ("INT", {"default": 512, "min": 0, "step": 8}),
+                 "custom_height": ("INT", {"default": 512, "min": 0, "step": 8}),
                 "frame_load_cap": ("INT", {"default": 0, "min": 0, "step": 1}),
                 "skip_first_frames": ("INT", {"default": 0, "min": 0, "step": 1}),
                 "select_every_nth": ("INT", {"default": 1, "min": 1, "step": 1}),
@@ -178,5 +191,5 @@ class LoadVideoPath:
         return hash_path(video)
 
     @classmethod
-    def VALIDATE_INPUTS(s, video, force_size, **kwargs):
+    def VALIDATE_INPUTS(s, video, **kwargs):
         return validate_path(video, allow_none=True)
