@@ -3,6 +3,7 @@ import os
 from typing import Iterable
 import shutil
 import subprocess
+import re
 
 from .logger import logger
 
@@ -116,6 +117,24 @@ def lazy_eval(func):
 def is_url(url):
     return url.split("://")[0] in ["http", "https"]
 
+def validate_sequence(path):
+    #Check if path is a valid ffmpeg sequence that points to at least one file
+    (path, file) = os.path.split(path)
+    if not os.path.isdir(path):
+        return False
+    match = re.search('%0?\d+d', file)
+    if not match:
+        return False
+    seq = match.group()
+    if seq == '%d':
+        seq = '\\\\d+'
+    else:
+        seq = '\\\\d{%s}' % seq[1:-1]
+    file_matcher = re.compile(re.sub('%0?\d+d', seq, file))
+    for file in os.listdir(path):
+        if file_matcher.fullmatch(file):
+            return True
+    return False
 
 def hash_path(path):
     if path is None:

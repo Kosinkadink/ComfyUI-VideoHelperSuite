@@ -3,7 +3,7 @@ import folder_paths
 import os
 import time
 import subprocess
-from .utils import is_url, get_sorted_dir_files_from_directory, ffmpeg_path
+from .utils import is_url, get_sorted_dir_files_from_directory, ffmpeg_path, validate_sequence
 from comfy.k_diffusion.utils import FolderOfImages
 
 web = server.web
@@ -56,8 +56,8 @@ async def view_video(request):
             if not os.path.isdir(file):
                 return web.Response(status=404)
         else:
-            if not os.path.isfile(file):
-                return web.Response(status=404)
+            if not os.path.isfile(file) and not validate_sequence(file):
+                    return web.Response(status=404)
 
     if query.get('format', 'video') == "folder":
         #Check that folder contains some valid image file, get it's extension
