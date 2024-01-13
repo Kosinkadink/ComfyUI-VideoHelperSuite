@@ -140,10 +140,6 @@ class VideoCombine:
         unique_id=None,
         manual_format_widgets=None
     ):
-
-
-        # convert images to numpy
-
         # get output information
         output_dir = (
             folder_paths.get_output_directory()
@@ -243,10 +239,16 @@ class VideoCombine:
             video_format = apply_format_widgets(format_ext, kwargs)
             if video_format.get('input_color_depth', '8bit') == '16bit':
                 images = tensor_to_shorts(images)
-                i_pix_fmt = 'rgb48'
+                if images.shape[-1] == 4:
+                    i_pix_fmt = 'rgba64'
+                else:
+                    i_pix_fmt = 'rgb48'
             else:
                 images = tensor_to_bytes(images)
-                i_pix_fmt = 'rgb24'
+                if images.shape[-1] == 4:
+                    i_pix_fmt = 'rgba'
+                else:
+                    i_pix_fmt = 'rgb24'
             if pingpong:
                 images = np.concatenate((images, images[-2:0:-1]))
             file = f"{filename}_{counter:05}.{video_format['extension']}"

@@ -677,8 +677,12 @@ function addLoadVideoCommon(nodeType, nodeData) {
         chainCallback(frameSkipWidget, "callback", update);
         chainCallback(rateWidget, "callback", update);
         chainCallback(skipWidget, "callback", update);
+        let priorSize = sizeWidget.value;
         let updateSize = function(value, _, node) {
-            node.updateParameters({"force_size": sizeWidget.serializePreview()})
+            if (sizeWidget.value == 'Custom' || priorSize == 'Custom') {
+                node.updateParameters({"force_size": sizeWidget.serializePreview()});
+            }
+            priorSize = sizeWidget.value;
         }
         chainCallback(sizeWidget, "callback", updateSize);
         chainCallback(this.widgets.find((w) => w.name === "custom_width"), "callback", updateSize);
