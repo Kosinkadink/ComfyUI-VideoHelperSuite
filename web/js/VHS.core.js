@@ -2,7 +2,6 @@ import { app } from '../../../scripts/app.js'
 import { api } from '../../../scripts/api.js'
 import { applyTextReplacements } from "../../../scripts/utils.js";
 
-
 function chainCallback(object, property, callback) {
     if (object == undefined) {
         //This should not happen.
@@ -341,52 +340,34 @@ function addUploadWidget(nodeType, nodeData, widgetName, type="video") {
 
 function addVideoPreview(nodeType) {
     chainCallback(nodeType.prototype, "onNodeCreated", function() {
-        let previewNode = this;
-        //preview is a made up widget type to enable user defined functions
-        //videopreview is widget name
-        //The previous implementation used type to distinguish between a video and gif,
-        //but the type is not serialized and would not survive a reload
-        var previewWidget = { name : "videopreview", type : "preview",
-            draw : function(ctx, node, widgetWidth, widgetY, height) {
-                //update widget position, hide if off-screen
-                const transform = ctx.getTransform();
-                const scale = app.canvas.ds.scale;//gets the litegraph zoom
-                //calculate coordinates with account for browser zoom
-                const x = transform.e*scale/transform.a;
-                const y = transform.f*scale/transform.a;
-                Object.assign(this.parentEl.style, {
-                    left: (x+15*scale) + "px",
-                    top: (y + widgetY*scale) + "px",
-                    width: ((widgetWidth-30)*scale) + "px",
-                    zIndex: 2 + (node.is_selected ? 1 : 0),
-                    position: "absolute",
-                });
-                this._boundingCount = 0;
+        var element = document.createElement("div");
+        const previewNode = this;
+        var previewWidget = this.addDOMWidget("videopreview", "preview", element, {
+            serialize: false,
+            getValue() {
+                return element.value;
             },
-            computeSize : function(width) {
-                if (this.aspectRatio && !this.parentEl.hidden) {
-                    let height = (previewNode.size[0]-30)/ this.aspectRatio;
-                    if (!(height > 0)) {
-                        height = 0;
-                    }
-                    return [width, height];
-                }
-                return [width, -4];//no loaded src, widget should not display
+            setValue(v) {
+                element.value = v;
             },
-            value : {hidden: false, paused: false, params: {}}
-        };
-        //onRemoved isn't a litegraph supported function on widgets
-        //Given that onremoved widget and node callbacks are sparse, this
-        //saves the required iteration.
-        chainCallback(this, "onRemoved", () => {
-            previewWidget?.parentEl?.remove();
         });
-        previewWidget.options = {serialize : false};
-        this.addCustomWidget(previewWidget);
+        previewWidget.computeSize = function(width) {
+            if (this.aspectRatio && !this.parentEl.hidden) {
+                let height = (previewNode.size[0]-20)/ this.aspectRatio + 10;
+                if (!(height > 0)) {
+                    height = 0;
+                }
+                this.computedHeight = height + 10;
+                return [width, height];
+            }
+            return [width, -4];//no loaded src, widget should not display
+        }
+        element.style['pointer-events'] = "none"
+        previewWidget.value = {hidden: false, paused: false, params: {}}
         previewWidget.parentEl = document.createElement("div");
         previewWidget.parentEl.className = "vhs_preview";
-        previewWidget.parentEl.style['pointer-events'] = "none"
-
+        previewWidget.parentEl.style['width'] = "100%"
+        element.appendChild(previewWidget.parentEl);
         previewWidget.videoEl = document.createElement("video");
         previewWidget.videoEl.controls = false;
         previewWidget.videoEl.loop = true;
@@ -445,9 +426,9 @@ function addVideoPreview(nodeType) {
                 (params.format?.split('/')[1] == 'gif') || params.format == 'folder') {
                 this.videoEl.autoplay = !this.value.paused && !this.value.hidden;
                 let target_width = 256
-                if (this.parentEl.style?.width) {
+                if (element.style?.width) {
                     //overscale to allow scrolling. Endpoint won't return higher than native
-                    target_width = this.parentEl.style.width.slice(0,-2)*2;
+                    target_width = element.style.width.slice(0,-2)*2;
                 }
                 if (!params.force_size || params.force_size.includes("?") || params.force_size == "Disabled") {
                     params.force_size = target_width+"x?"
@@ -470,18 +451,8 @@ function addVideoPreview(nodeType) {
                 this.imgEl.hidden = false;
             }
         }
-        //Hide video element if offscreen
-        //The multiline input implementation moves offscreen every frame
-        //and doesn't apply until a node with an actual inputEl is loaded
-        this._boundingCount = 0;
-        this.onBounding = function() {
-            if (this._boundingCount++>5) {
-                previewWidget.parentEl.style.left = "-8000px";
-            }
-        }
         previewWidget.parentEl.appendChild(previewWidget.videoEl)
         previewWidget.parentEl.appendChild(previewWidget.imgEl)
-        document.body.appendChild(previewWidget.parentEl);
     });
 }
 function addPreviewOptions(nodeType) {
@@ -679,7 +650,7 @@ function addLoadVideoCommon(nodeType, nodeData) {
         chainCallback(skipWidget, "callback", update);
         let priorSize = sizeWidget.value;
         let updateSize = function(value, _, node) {
-            if (sizeWidget.value == 'Custom' || priorSize == 'Custom') {
+            if (sizeWidget.value == 'Custom' || priorSize != sizeWidget.value) {
                 node.updateParameters({"force_size": sizeWidget.serializePreview()});
             }
             priorSize = sizeWidget.value;
