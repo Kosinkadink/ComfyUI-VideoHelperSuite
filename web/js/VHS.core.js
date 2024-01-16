@@ -726,6 +726,7 @@ function searchBox(event, [x,y], node) {
 
     var timeout = null;
     let last_path = null;
+    let extensions = pathWidget.options.extensions
 
     input.addEventListener("keydown", (e) => {
         dialog.is_modified = true;
@@ -750,6 +751,13 @@ function searchBox(event, [x,y], node) {
                 input.value = path_stem(input.value.slice(0,-1))[0]
                 e.preventDefault();
                 e.stopPropagation();
+            } else if (e.ctrlKey && e.keyCode == 71) {
+                //Ctrl+g
+                //Temporarily disables extension filtering to show all files
+                e.preventDefault();
+                e.stopPropagation();
+                extensions = undefined
+                last_path = null;
             }
             if (timeout) {
                 clearTimeout(timeout);
@@ -820,7 +828,10 @@ function searchBox(event, [x,y], node) {
         let [path, remainder] = path_stem(input.value);
         if (last_path != path) {
             //fetch options.  Must block execution here, so update should be async?
-            let params = {path : path, extensions : pathWidget.options.extensions}
+            let params = {path : path}
+            if (extensions) {
+                params.extensions = extensions
+            }
             let optionsURL = api.apiURL('getpath?' + new URLSearchParams(params));
             try {
                 let resp = await fetch(optionsURL);
