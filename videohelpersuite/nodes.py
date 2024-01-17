@@ -384,6 +384,41 @@ class LoadAudio:
     def VALIDATE_INPUTS(s, audio_file, **kwargs):
         return validate_path(audio_file, allow_none=True)
 
+class PruneOutputs:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+                "required": {
+                    "filenames": ("VHS_FILENAMES",),
+                    "options": (["Intermediate", "Intermediate and Utility"],)
+                    }
+                }
+
+    RETURN_TYPES = ()
+    OUTPUT_NODE = True
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
+    FUNCTION = "prune_outputs"
+
+    def prune_outputs(self, filenames, options):
+        assert(len(filenames[1]) <= 3 and len(filenames[1]) >= 2)
+        delete_list = []
+        if options in ["Intermediate", "Intermediate and Utility", "All"]:
+            delete_list += filenames[1][1:-1]
+        if options in ["Intermediate and Utility", "All"]:
+            delete_list.append(filenames[1][0])
+        if options in ["All"]:
+            delete_list.append(filenames[1][-1])
+
+        output_dirs = [os.path.abspath("output"), os.path.abspath("temp")]
+        for file in delete_list:
+            #Check that path is actually an output directory
+            if (os.path.commonpath([output_dirs[0], file]) != output_dirs[0]) \
+                    and (os.path.commonpath([output_dirs[1], file]) != output_dirs[1]):
+                        raise Exception("Tried to prune output from invalid directory: " + file)
+            if os.path.exists(file):
+                os.remove(file)
+        return ()
+
 NODE_CLASS_MAPPINGS = {
     "VHS_VideoCombine": VideoCombine,
     "VHS_LoadVideo": LoadVideoUpload,
@@ -391,6 +426,7 @@ NODE_CLASS_MAPPINGS = {
     "VHS_LoadImages": LoadImagesFromDirectoryUpload,
     "VHS_LoadImagesPath": LoadImagesFromDirectoryPath,
     "VHS_LoadAudio": LoadAudio,
+    "VHS_PruneOutputs": PruneOutputs,
     # Latent and Image nodes
     "VHS_SplitLatents": SplitLatents,
     "VHS_SplitImages": SplitImages,
@@ -418,6 +454,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_LoadImages": "Load Images (Upload) 🎥🅥🅗🅢",
     "VHS_LoadImagesPath": "Load Images (Path) 🎥🅥🅗🅢",
     "VHS_LoadAudio": "Load Audio (Path)🎥🅥🅗🅢",
+    "VHS_PruneOutputs": "Prune Outputs 🎥🅥🅗🅢",
     # Latent and Image nodes
     "VHS_SplitLatents": "Split Latent Batch 🎥🅥🅗🅢",
     "VHS_SplitImages": "Split Image Batch 🎥🅥🅗🅢",
