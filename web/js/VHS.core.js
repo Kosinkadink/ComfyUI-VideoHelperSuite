@@ -344,6 +344,7 @@ function addVideoPreview(nodeType) {
         const previewNode = this;
         var previewWidget = this.addDOMWidget("videopreview", "preview", element, {
             serialize: false,
+            hideOnZoom: false,
             getValue() {
                 return element.value;
             },
