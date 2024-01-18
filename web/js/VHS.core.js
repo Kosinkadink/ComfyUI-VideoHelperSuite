@@ -305,6 +305,9 @@ function addUploadWidget(nodeType, nodeData, widgetName, type="video") {
                     }
                     pathWidget.options.values.push(path);
                     pathWidget.value = path;
+                    if (pathWidget.callback) {
+                        pathWidget.callback(path)
+                    }
                 },
             });
         } else if (type == "video") {
@@ -321,6 +324,9 @@ function addUploadWidget(nodeType, nodeData, widgetName, type="video") {
                         const filename = fileInput.files[0].name;
                         pathWidget.options.values.push(filename);
                         pathWidget.value = filename;
+                        if (pathWidget.callback) {
+                            pathWidget.callback(filename)
+                        }
                     }
                 },
             });
