@@ -195,6 +195,9 @@ class VideoCombine:
 
         format_type, format_ext = format.split("/")
         if format_type == "image":
+            image_kwargs = {}
+            if format_ext == "gif":
+                image_kwargs['disposal'] = 2
             file = f"{filename}_{counter:05}.{format_ext}"
             file_path = os.path.join(full_output_folder, file)
             images = tensor_to_bytes(images)
@@ -210,6 +213,7 @@ class VideoCombine:
                 duration=round(1000 / frame_rate),
                 loop=loop_count,
                 compress_level=4,
+                **image_kwargs
             )
             output_files.append(file_path)
         else:
