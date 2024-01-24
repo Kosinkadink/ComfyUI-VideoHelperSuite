@@ -963,6 +963,12 @@ app.registerExtension({
         } else if (nodeData?.name == "VHS_VideoCombine") {
             addDateFormatting(nodeType, "filename_prefix");
             chainCallback(nodeType.prototype, "onExecuted", function(message) {
+                if (message?.unfinished_batch) {
+                    let bm = app.graph._nodes.find((n) => n.type == "VHS_BatchManager");
+                    let cw = bm.widgets.find((w) => w.name == "count");
+                    cw.value++;
+                    app.queuePrompt(0);
+                }
                 if (message?.gifs) {
                     this.updateParameters(message.gifs[0], true);
                 }
@@ -995,6 +1001,11 @@ app.registerExtension({
             //Disabled for safety as VHS_SaveImageSequence is not currently merged
             //addDateFormating(nodeType, "directory_name", timestamp_widget=true);
             //addTimestampWidget(nodeType, nodeData, "directory_name")
+        } else if (nodeData?.name == "VHS_BatchManager") {
+            chainCallback(nodeType.prototype, "onNodeCreated", function() {
+                this.widgets.push({name: "count", type: "dummy", value: 0,
+                                   computeSize: () => {return [0,-4]}})
+            });
         }
     },
     async getCustomWidgets() {

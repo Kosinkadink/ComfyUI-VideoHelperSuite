@@ -1,4 +1,5 @@
 import os
+import itertools
 import numpy as np
 import torch
 from PIL import Image, ImageOps
@@ -31,7 +32,6 @@ def target_size(width, height, force_size, custom_width, custom_height) -> tuple
         if force_size[0] == "?":
             width = (width*int(force_size[1]))//height
             #Limit to a multple of 8 for latent conversion
-            #TODO: Consider instead cropping and centering to main aspect ratio
             width = int(width)+4 & ~7
             height = int(force_size[1])
         elif force_size[1] == "?":
@@ -43,21 +43,21 @@ def target_size(width, height, force_size, custom_width, custom_height) -> tuple
             height = int(force_size[1])
     return (width, height)
 
-def load_video_cv(video: str, force_rate: int, force_size: str,
-                  custom_width: int,custom_height: int, frame_load_cap: int,
-                  skip_first_frames: int, select_every_nth: int):
+def cv_frame_generator(video, force_rate, frame_load_cap,
+                       skip_first_frames, select_every_nth, batch_manager=None):
     try:
         video_cap = cv2.VideoCapture(video)
         if not video_cap.isOpened():
             raise ValueError(f"{video} could not be loaded with cv.")
         # set video_cap to look at start_index frame
-        images = []
         total_frame_count = 0
         total_frames_evaluated = -1
         frames_added = 0
         base_frame_time = 1/video_cap.get(cv2.CAP_PROP_FPS)
         width = video_cap.get(cv2.CAP_PROP_FRAME_WIDTH)
         height = video_cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        prev_frame = None
+        yield (width, height)
         if force_rate == 0:
             target_frame_time = base_frame_time
         else:
@@ -65,7 +65,7 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
         time_offset=target_frame_time - base_frame_time
         while video_cap.isOpened():
             if time_offset < target_frame_time:
-                is_returned, frame = video_cap.read()
+                is_returned = video_cap.grab()
                 # if didn't return frame, video has ended
                 if not is_returned:
                     break
@@ -86,34 +86,62 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
 
             # opencv loads images in BGR format (yuck), so need to convert to RGB for ComfyUI use
             # follow up: can videos ever have an alpha channel?
+            # To my testing: No. opencv has no support for alpha
+            unused, frame = video_cap.retrieve()
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            # convert frame to comfyui's expected format (taken from comfy's load image code)
-            image = Image.fromarray(frame)
-            image = ImageOps.exif_transpose(image)
-            image = np.array(image, dtype=np.float32) / 255.0
-            image = torch.from_numpy(image)[None,]
-            images.append(image)
+            # convert frame to comfyui's expected format
+            # TODO: frame contains no exif information. Check if opencv2 has already applied
+            frame = np.array(frame, dtype=np.float32) / 255.0
+            if prev_frame is not None:
+                inp  = yield prev_frame
+                if inp is not None:
+                    #ensure the finally block is called
+                    return
+            prev_frame = frame
             frames_added += 1
             # if cap exists and we've reached it, stop processing frames
             if frame_load_cap > 0 and frames_added >= frame_load_cap:
                 break
+        if batch_manager is not None:
+            batch_manager.frame_gen = None
+        if prev_frame is not None:
+            yield prev_frame
     finally:
         video_cap.release()
+
+def load_video_cv(video: str, force_rate: int, force_size: str,
+                  custom_width: int,custom_height: int, frame_load_cap: int,
+                  skip_first_frames: int, select_every_nth: int, batch_manager=None):
+    if batch_manager is None or batch_manager.frame_gen is None:
+        gen = cv_frame_generator(video, force_rate, frame_load_cap,
+                                 skip_first_frames, select_every_nth, batch_manager)
+        (width, height) = next(gen)
+        width = int(width)
+        height = int(height)
+        if batch_manager is not None:
+            batch_manager.frame_gen = gen
+            batch_manager.input_size = (width, height)
+    else:
+        gen = batch_manager.frame_gen
+        (width, height) = batch_manager.input_size
+    if batch_manager is not None:
+        gen = itertools.islice(gen, batch_manager.frames_per_batch)
+
+    #Some minor wizardry to eliminate a copy and reduce max memory by a factor of ~2
+    images = torch.from_numpy(np.fromiter(gen, np.dtype((np.float32, (height, width, 3)))))
     if len(images) == 0:
         raise RuntimeError("No frames generated")
-    images = torch.cat(images, dim=0)
     if force_size != "Disabled":
         new_size = target_size(width, height, force_size, custom_width, custom_height)
         if new_size[0] != width or new_size[1] != height:
             s = images.movedim(-1,1)
             s = common_upscale(s, new_size[0], new_size[1], "lanczos", "center")
             images = s.movedim(1,-1)
-    # TODO: raise an error maybe if no frames were loaded?
 
     #Setup lambda for lazy audio capture
     audio = lambda : get_audio(video, skip_first_frames * target_frame_time,
                                frame_load_cap*target_frame_time)
-    return (images, frames_added, lazy_eval(audio))
+    return (images, len(images), lazy_eval(audio))
 
 
 class LoadVideoUpload:
@@ -173,6 +201,9 @@ class LoadVideoPath:
                 "skip_first_frames": ("INT", {"default": 0, "min": 0, "step": 1}),
                 "select_every_nth": ("INT", {"default": 1, "min": 1, "step": 1}),
             },
+            "optional": {
+                "batch_manager": ("VHS_BatchManager",)
+                }
         }
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
