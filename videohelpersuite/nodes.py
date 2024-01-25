@@ -224,8 +224,8 @@ class VideoCombine:
                 metadata.add_text(x, json.dumps(extra_pnginfo[x]))
                 video_metadata[x] = extra_pnginfo[x]
 
-        if batch_manager is not None and batch_manager.output_counter > 0:
-            counter = batch_manager.output_counter
+        if batch_manager is not None and unique_id in batch_manager.outputs:
+            (counter, output_process) = batch_manager.outputs[unique_id]
         else:
             # comfy counter workaround
             max_counter = 0
@@ -244,8 +244,7 @@ class VideoCombine:
 
             # Increment the counter by 1 to get the next available value
             counter = max_counter + 1
-            if batch_manager is not None:
-                batch_manager.output_counter = counter
+            output_process = None
 
         # save first frame as png to keep metadata
         file = f"{filename}_{counter:05}.png"
@@ -327,24 +326,24 @@ class VideoCombine:
                     "-s", dimensions, "-r", str(frame_rate), "-i", "-"] \
                     + loop_args + video_format['main_pass'] + bitrate_arg
 
-            if batch_manager is None or batch_manager.output_process is None:
+            if output_process is None:
                 output_process = ffmpeg_process(args, video_format, video_metadata, file_path)
                 #Proceed to first yield
                 output_process.send(None)
                 if batch_manager is not None:
-                    batch_manager.output_process = output_process
-            else:
-                output_process = batch_manager.output_process
+                    batch_manager.outputs[unique_id] = (counter, output_process)
 
             output_process.send(images.tobytes())
-            if batch_manager is None or batch_manager.frame_gen is None:
+            if batch_manager is None or not batch_manager.has_open_inputs():
                 #Close pipe and wait for termination.
                 try:
                     output_process.send(None)
                 except StopIteration:
                     pass
                 if batch_manager is not None:
-                    batch_manager.reset()
+                    batch_manager.outputs.pop(unique_id)
+                    if len(batch_manager.outputs) == 0:
+                        batch_manager.reset()
             else:
                 #batch is unfinished
                 #TODO: Check if empty output breaks other custom nodes
@@ -464,27 +463,31 @@ class PruneOutputs:
                 os.remove(file)
         return ()
 
-batch_manager = None
 class BatchManager:
     def __init__(self, frames_per_batch=-1):
         self.frames_per_batch = frames_per_batch
-        self.frame_gen = None
-        self.output_process = None
-        self.output_counter = -1
+        self.inputs = {}
+        self.outputs = {}
     def reset(self):
-        if self.frame_gen is not None and self.frame_gen.gi_suspended:
-            try:
-                self.frame_gen.send(1)
-            except StopIteration:
-                pass
-        self.frame_gen = None
-        if self.output_process is not None and self.output_process.gi_suspended:
-            try:
-                self.output_process.send(None)
-            except StopIteration:
-                pass
-        self.output_process = None
-        self.output_counter = -1
+        self.close_inputs()
+        for key in self.outputs:
+            if getattr(self.outputs[key][-1], "gi_suspended", False):
+                try:
+                    self.outputs[key][-1].send(None)
+                except StopIteration:
+                    pass
+        self.outputs = {}
+    def has_open_inputs(self):
+        return len(self.inputs) > 0
+    def close_inputs(self):
+        for key in self.inputs:
+            if getattr(self.inputs[key][-1], "gi_suspended", False):
+                try:
+                    self.inputs[key][-1].send(1)
+                except StopIteration:
+                    pass
+        self.inputs = {}
+
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -498,12 +501,11 @@ class BatchManager:
     FUNCTION = "update_batch"
 
     def update_batch(self, frames_per_batch):
-        self = batch_manager
         if frames_per_batch != self.frames_per_batch:
             self.frames_per_batch = frames_per_batch
             self.reset()
-        return (self,)
-batch_manager = BatchManager()
+        #onExecuted seems to not be called unless some message is sent
+        return {"ui": {"dummy": [False]}, "result": (self,)}
 
 
 NODE_CLASS_MAPPINGS = {

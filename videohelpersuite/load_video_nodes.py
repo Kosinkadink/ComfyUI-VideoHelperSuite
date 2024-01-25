@@ -43,8 +43,8 @@ def target_size(width, height, force_size, custom_width, custom_height) -> tuple
             height = int(force_size[1])
     return (width, height)
 
-def cv_frame_generator(video, force_rate, frame_load_cap,
-                       skip_first_frames, select_every_nth, batch_manager=None):
+def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
+                       select_every_nth, batch_manager=None, unique_id=None):
     try:
         video_cap = cv2.VideoCapture(video)
         if not video_cap.isOpened():
@@ -103,7 +103,7 @@ def cv_frame_generator(video, force_rate, frame_load_cap,
             if frame_load_cap > 0 and frames_added >= frame_load_cap:
                 break
         if batch_manager is not None:
-            batch_manager.frame_gen = None
+            batch_manager.inputs.pop(unique_id)
         if prev_frame is not None:
             yield prev_frame
     finally:
@@ -111,19 +111,18 @@ def cv_frame_generator(video, force_rate, frame_load_cap,
 
 def load_video_cv(video: str, force_rate: int, force_size: str,
                   custom_width: int,custom_height: int, frame_load_cap: int,
-                  skip_first_frames: int, select_every_nth: int, batch_manager=None):
-    if batch_manager is None or batch_manager.frame_gen is None:
-        gen = cv_frame_generator(video, force_rate, frame_load_cap,
-                                 skip_first_frames, select_every_nth, batch_manager)
+                  skip_first_frames: int, select_every_nth: int,
+                  batch_manager=None, unique_id=None):
+    if batch_manager is None or unique_id not in batch_manager.inputs:
+        gen = cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
+                                 select_every_nth, batch_manager, unique_id)
         (width, height) = next(gen)
         width = int(width)
         height = int(height)
         if batch_manager is not None:
-            batch_manager.frame_gen = gen
-            batch_manager.input_size = (width, height)
+            batch_manager.inputs[unique_id] = (gen, width, height)
     else:
-        gen = batch_manager.frame_gen
-        (width, height) = batch_manager.input_size
+        (gen, width, height) = batch_manager.inputs[unique_id]
     if batch_manager is not None:
         gen = itertools.islice(gen, batch_manager.frames_per_batch)
 
@@ -163,7 +162,14 @@ class LoadVideoUpload:
                      "frame_load_cap": ("INT", {"default": 0, "min": 0, "step": 1}),
                      "skip_first_frames": ("INT", {"default": 0, "min": 0, "step": 1}),
                      "select_every_nth": ("INT", {"default": 1, "min": 1, "step": 1}),
-                     },}
+                     },
+                "optional": {
+                    "batch_manager": ("VHS_BatchManager",)
+                },
+                "hidden": {
+                    "unique_id": "UNIQUE_ID"
+                },
+                }
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
 
@@ -203,7 +209,10 @@ class LoadVideoPath:
             },
             "optional": {
                 "batch_manager": ("VHS_BatchManager",)
-                }
+            },
+            "hidden": {
+                "unique_id": "UNIQUE_ID"
+            },
         }
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"

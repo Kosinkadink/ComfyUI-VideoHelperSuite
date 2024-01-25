@@ -2,6 +2,8 @@ import { app } from '../../../scripts/app.js'
 import { api } from '../../../scripts/api.js'
 import { applyTextReplacements } from "../../../scripts/utils.js";
 
+var queue_batch_generation = false;
+
 function chainCallback(object, property, callback) {
     if (object == undefined) {
         //This should not happen.
@@ -964,10 +966,7 @@ app.registerExtension({
             addDateFormatting(nodeType, "filename_prefix");
             chainCallback(nodeType.prototype, "onExecuted", function(message) {
                 if (message?.unfinished_batch) {
-                    let bm = app.graph._nodes.find((n) => n.type == "VHS_BatchManager");
-                    let cw = bm.widgets.find((w) => w.name == "count");
-                    cw.value++;
-                    app.queuePrompt(0);
+                    queue_batch_generation = true;
                 }
                 if (message?.gifs) {
                     this.updateParameters(message.gifs[0], true);
@@ -1005,6 +1004,10 @@ app.registerExtension({
             chainCallback(nodeType.prototype, "onNodeCreated", function() {
                 this.widgets.push({name: "count", type: "dummy", value: 0,
                                    computeSize: () => {return [0,-4]}})
+            });
+            chainCallback(nodeType.prototype, "onExecuted", function() {
+                //Always mark node as stale.
+                this.widgets.find((w) => w.name == "count").value++;
             });
         }
     },
@@ -1090,6 +1093,15 @@ app.registerExtension({
                 node.widgets.push(w);
                 return w;
             }
+        }
+    }
+});
+api.addEventListener("executing", ({ detail }) => {
+    if (detail == null) {
+        //execution has finished
+        if (queue_batch_generation) {
+            app.queuePrompt(0);
+            queue_batch_generation = false;
         }
     }
 });
