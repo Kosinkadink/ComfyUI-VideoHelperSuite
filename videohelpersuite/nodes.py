@@ -258,6 +258,8 @@ class VideoCombine:
 
         format_type, format_ext = format.split("/")
         if format_type == "image":
+            if batch_manager is not None:
+                raise Exception("Pillow('image/') formats are not compatible with batched output")
             file = f"{filename}_{counter:05}.{format_ext}"
             file_path = os.path.join(full_output_folder, file)
             images = tensor_to_bytes(images)
@@ -313,6 +315,8 @@ class VideoCombine:
                 else:
                     i_pix_fmt = 'rgb24'
             if pingpong:
+                if batch_manager is not None:
+                    logger.error("pingpong is incompatible with batched output")
                 images = np.concatenate((images, images[-2:0:-1]))
             file = f"{filename}_{counter:05}.{video_format['extension']}"
             file_path = os.path.join(full_output_folder, file)
