@@ -57,11 +57,11 @@ def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
         width = video_cap.get(cv2.CAP_PROP_FRAME_WIDTH)
         height = video_cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
         prev_frame = None
-        yield (width, height)
         if force_rate == 0:
             target_frame_time = base_frame_time
         else:
             target_frame_time = 1/force_rate
+        yield (width, height, target_frame_time)
         time_offset=target_frame_time - base_frame_time
         while video_cap.isOpened():
             if time_offset < target_frame_time:
@@ -116,13 +116,13 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
     if batch_manager is None or unique_id not in batch_manager.inputs:
         gen = cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
                                  select_every_nth, batch_manager, unique_id)
-        (width, height) = next(gen)
+        (width, height, target_frame_time) = next(gen)
         width = int(width)
         height = int(height)
         if batch_manager is not None:
-            batch_manager.inputs[unique_id] = (gen, width, height)
+            batch_manager.inputs[unique_id] = (gen, width, height, target_frame_time)
     else:
-        (gen, width, height) = batch_manager.inputs[unique_id]
+        (gen, width, height, target_frame_time) = batch_manager.inputs[unique_id]
     if batch_manager is not None:
         gen = itertools.islice(gen, batch_manager.frames_per_batch)
 
@@ -136,14 +136,6 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
             s = images.movedim(-1,1)
             s = common_upscale(s, new_size[0], new_size[1], "lanczos", "center")
             images = s.movedim(1,-1)
-    video_cap = cv2.VideoCapture(video)
-    if not video_cap.isOpened():
-        raise ValueError(f"{video} could not be loaded with cv.")
-    base_frame_time = 1/video_cap.get(cv2.CAP_PROP_FPS)
-    if force_rate == 0:
-        target_frame_time = base_frame_time
-    else:
-        target_frame_time = 1/force_rate
 
     #Setup lambda for lazy audio capture
     audio = lambda : get_audio(video, skip_first_frames * target_frame_time,

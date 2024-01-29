@@ -88,11 +88,8 @@ def tensor_to_shorts(tensor):
 def tensor_to_bytes(tensor):
     return tensor_to_int(tensor, 8).astype(np.uint8)
 
-def ffmpeg_process(args, video_format, video_metadata, file_path):
+def ffmpeg_process(args, video_format, video_metadata, file_path, env):
 
-    env=os.environ.copy()
-    if  "environment" in video_format:
-        env.update(video_format["environment"])
     res = None
     frame_data = yield
     if video_format.get('save_metadata', 'False') != 'False':
@@ -330,8 +327,12 @@ class VideoCombine:
                     "-s", dimensions, "-r", str(frame_rate), "-i", "-"] \
                     + loop_args + video_format['main_pass'] + bitrate_arg
 
+            env=os.environ.copy()
+            if  "environment" in video_format:
+                env.update(video_format["environment"])
+
             if output_process is None:
-                output_process = ffmpeg_process(args, video_format, video_metadata, file_path)
+                output_process = ffmpeg_process(args, video_format, video_metadata, file_path, env)
                 #Proceed to first yield
                 output_process.send(None)
                 if batch_manager is not None:
@@ -376,7 +377,6 @@ class VideoCombine:
                             + ["-af", "apad", "-shortest", output_file_with_audio_path]
 
                 try:
-                    env=os.environ.copy()
                     res = subprocess.run(mux_args, input=audio(), env=env,
                                          capture_output=True, check=True)
                 except subprocess.CalledProcessError as e:
