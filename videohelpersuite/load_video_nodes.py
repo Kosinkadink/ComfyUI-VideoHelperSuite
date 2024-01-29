@@ -136,6 +136,14 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
             s = images.movedim(-1,1)
             s = common_upscale(s, new_size[0], new_size[1], "lanczos", "center")
             images = s.movedim(1,-1)
+    video_cap = cv2.VideoCapture(video)
+    if not video_cap.isOpened():
+        raise ValueError(f"{video} could not be loaded with cv.")
+    base_frame_time = 1/video_cap.get(cv2.CAP_PROP_FPS)
+    if force_rate == 0:
+        target_frame_time = base_frame_time
+    else:
+        target_frame_time = 1/force_rate
 
     #Setup lambda for lazy audio capture
     audio = lambda : get_audio(video, skip_first_frames * target_frame_time,
