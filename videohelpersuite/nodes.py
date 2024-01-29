@@ -15,7 +15,7 @@ from .image_latent_nodes import *
 from .load_video_nodes import LoadVideoUpload, LoadVideoPath
 from .load_images_nodes import LoadImagesFromDirectoryUpload, LoadImagesFromDirectoryPath
 from .batched_nodes import VAEEncodeBatched, VAEDecodeBatched
-from .utils import ffmpeg_path, get_audio, hash_path, validate_path
+from .utils import ffmpeg_path, get_audio, hash_path, validate_path, requeue_workflow
 
 folder_paths.folder_names_and_paths["VHS_video_formats"] = (
     [
@@ -339,7 +339,9 @@ class VideoCombine:
                     batch_manager.outputs[unique_id] = (counter, output_process)
 
             output_process.send(images.tobytes())
-            if batch_manager is None or not batch_manager.has_open_inputs():
+            if batch_manager is not None:
+                requeue_workflow((batch_manager.unique_id, not batch_manager.has_closed_inputs))
+            if batch_manager is None or batch_manager.has_closed_inputs:
                 #Close pipe and wait for termination.
                 try:
                     output_process.send(None)
@@ -473,6 +475,8 @@ class BatchManager:
         self.frames_per_batch = frames_per_batch
         self.inputs = {}
         self.outputs = {}
+        self.unique_id = None
+        self.has_closed_inputs = False
     def reset(self):
         self.close_inputs()
         for key in self.outputs:
@@ -481,7 +485,7 @@ class BatchManager:
                     self.outputs[key][-1].send(None)
                 except StopIteration:
                     pass
-        self.outputs = {}
+        self.__init__(self.frames_per_batch)
     def has_open_inputs(self):
         return len(self.inputs) > 0
     def close_inputs(self):
@@ -498,19 +502,28 @@ class BatchManager:
         return {
                 "required": {
                     "frames_per_batch": ("INT", {"default": 16, "min": 1, "max": 128, "step": 1})
-                    }
+                    },
+                "hidden": {
+                    "prompt": "PROMPT",
+                    "unique_id": "UNIQUE_ID"
+                },
                 }
 
     RETURN_TYPES = ("VHS_BatchManager",)
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
     FUNCTION = "update_batch"
 
-    def update_batch(self, frames_per_batch):
-        if frames_per_batch != self.frames_per_batch:
+    def update_batch(self, frames_per_batch, prompt=None, unique_id=None):
+        if unique_id is not None and prompt is not None:
+            requeue = prompt[unique_id]['inputs'].get('requeue', 0)
+        else:
+            requeue = 0
+        if requeue == 0:
             self.frames_per_batch = frames_per_batch
+            self.unique_id = unique_id
             self.reset()
         #onExecuted seems to not be called unless some message is sent
-        return {"ui": {"dummy": [False]}, "result": (self,)}
+        return (self,)
 
 
 NODE_CLASS_MAPPINGS = {

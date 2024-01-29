@@ -104,6 +104,7 @@ def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
                 break
         if batch_manager is not None:
             batch_manager.inputs.pop(unique_id)
+            batch_manager.has_closed_inputs = True
         if prev_frame is not None:
             yield prev_frame
     finally:

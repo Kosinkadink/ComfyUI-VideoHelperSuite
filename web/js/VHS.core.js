@@ -2,8 +2,6 @@ import { app } from '../../../scripts/app.js'
 import { api } from '../../../scripts/api.js'
 import { applyTextReplacements } from "../../../scripts/utils.js";
 
-var queue_batch_generation = false;
-
 function chainCallback(object, property, callback) {
     if (object == undefined) {
         //This should not happen.
@@ -965,9 +963,6 @@ app.registerExtension({
         } else if (nodeData?.name == "VHS_VideoCombine") {
             addDateFormatting(nodeType, "filename_prefix");
             chainCallback(nodeType.prototype, "onExecuted", function(message) {
-                if (message?.unfinished_batch) {
-                    queue_batch_generation = true;
-                }
                 if (message?.gifs) {
                     this.updateParameters(message.gifs[0], true);
                 }
@@ -1000,15 +995,6 @@ app.registerExtension({
             //Disabled for safety as VHS_SaveImageSequence is not currently merged
             //addDateFormating(nodeType, "directory_name", timestamp_widget=true);
             //addTimestampWidget(nodeType, nodeData, "directory_name")
-        } else if (nodeData?.name == "VHS_BatchManager") {
-            chainCallback(nodeType.prototype, "onNodeCreated", function() {
-                this.widgets.push({name: "count", type: "dummy", value: 0,
-                                   computeSize: () => {return [0,-4]}})
-            });
-            chainCallback(nodeType.prototype, "onExecuted", function() {
-                //Always mark node as stale.
-                this.widgets.find((w) => w.name == "count").value++;
-            });
         }
     },
     async getCustomWidgets() {
@@ -1093,15 +1079,6 @@ app.registerExtension({
                 node.widgets.push(w);
                 return w;
             }
-        }
-    }
-});
-api.addEventListener("executing", ({ detail }) => {
-    if (detail == null) {
-        //execution has finished
-        if (queue_batch_generation) {
-            app.queuePrompt(0);
-            queue_batch_generation = false;
         }
     }
 });
