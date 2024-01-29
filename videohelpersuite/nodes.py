@@ -372,6 +372,7 @@ class VideoCombine:
                             + ["-af", "apad", "-shortest", output_file_with_audio_path]
 
                 try:
+                    env=os.environ.copy()
                     res = subprocess.run(mux_args, input=audio(), env=env,
                                          capture_output=True, check=True)
                 except subprocess.CalledProcessError as e:
