@@ -112,19 +112,21 @@ def ffmpeg_process(args, video_format, video_metadata, file_path, env):
             try:
                 while frame_data is not None:
                     proc.stdin.write(frame_data)
-                    #Potentially flush here for safety > speed
+                    #TODO: skip flush for increased speed
+                    proc.stdin.flush()
                     frame_data = yield
                 proc.stdin.close()
                 res = proc.stderr.read()
             except BrokenPipeError as e:
+                err = proc.stderr.read()
                 #Check if output file exists. If it does, the re-execution
                 #will also fail. This obscures the cause of the error
                 #and seems to never occur concurrent to the metadata issue
                 if os.path.exists(file_path):
                     raise Exception("An error occured in the ffmpeg subprocess:\n" \
-                            + res.decode("utf-8"))
+                            + err.decode("utf-8"))
                 #Res was not set
-                print(res.decode("utf-8"), end="", file=sys.stderr)
+                print(err.decode("utf-8"), end="", file=sys.stderr)
                 logger.warn("An error occurred when saving with metadata")
     if res != b'':
         with subprocess.Popen(args + [file_path], stderr=subprocess.PIPE,
@@ -137,6 +139,7 @@ def ffmpeg_process(args, video_format, video_metadata, file_path, env):
                 proc.stdin.close()
                 res = proc.stderr.read()
             except BrokenPipeError as e:
+                res = proc.stderr.read()
                 raise Exception("An error occured in the ffmpeg subprocess:\n" \
                         + res.decode("utf-8"))
     if len(res) > 0:
@@ -519,9 +522,9 @@ class BatchManager:
         else:
             requeue = 0
         if requeue == 0:
+            self.reset()
             self.frames_per_batch = frames_per_batch
             self.unique_id = unique_id
-            self.reset()
         #onExecuted seems to not be called unless some message is sent
         return (self,)
 
