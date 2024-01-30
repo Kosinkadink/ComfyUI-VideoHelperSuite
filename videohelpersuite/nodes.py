@@ -15,7 +15,7 @@ from .image_latent_nodes import *
 from .load_video_nodes import LoadVideoUpload, LoadVideoPath
 from .load_images_nodes import LoadImagesFromDirectoryUpload, LoadImagesFromDirectoryPath
 from .batched_nodes import VAEEncodeBatched, VAEDecodeBatched
-from .utils import ffmpeg_path, get_audio, hash_path, validate_path
+from .utils import ffmpeg_path, get_audio, hash_path, validate_path, requeue_workflow
 
 folder_paths.folder_names_and_paths["VHS_video_formats"] = (
     [
@@ -88,6 +88,63 @@ def tensor_to_shorts(tensor):
 def tensor_to_bytes(tensor):
     return tensor_to_int(tensor, 8).astype(np.uint8)
 
+def ffmpeg_process(args, video_format, video_metadata, file_path, env):
+
+    res = None
+    frame_data = yield
+    if video_format.get('save_metadata', 'False') != 'False':
+        os.makedirs(folder_paths.get_temp_directory(), exist_ok=True)
+        metadata = json.dumps(video_metadata)
+        metadata_path = os.path.join(folder_paths.get_temp_directory(), "metadata.txt")
+        #metadata from file should  escape = ; # \ and newline
+        metadata = metadata.replace("\\","\\\\")
+        metadata = metadata.replace(";","\\;")
+        metadata = metadata.replace("#","\\#")
+        metadata = metadata.replace("=","\\=")
+        metadata = metadata.replace("\n","\\\n")
+        metadata = "comment=" + metadata
+        with open(metadata_path, "w") as f:
+            f.write(";FFMETADATA1\n")
+            f.write(metadata)
+        m_args = args[:1] + ["-i", metadata_path] + args[1:]
+        with subprocess.Popen(m_args + [file_path], stderr=subprocess.PIPE,
+                              stdin=subprocess.PIPE, env=env) as proc:
+            try:
+                while frame_data is not None:
+                    proc.stdin.write(frame_data)
+                    #TODO: skip flush for increased speed
+                    proc.stdin.flush()
+                    frame_data = yield
+                proc.stdin.close()
+                res = proc.stderr.read()
+            except BrokenPipeError as e:
+                err = proc.stderr.read()
+                #Check if output file exists. If it does, the re-execution
+                #will also fail. This obscures the cause of the error
+                #and seems to never occur concurrent to the metadata issue
+                if os.path.exists(file_path):
+                    raise Exception("An error occured in the ffmpeg subprocess:\n" \
+                            + err.decode("utf-8"))
+                #Res was not set
+                print(err.decode("utf-8"), end="", file=sys.stderr)
+                logger.warn("An error occurred when saving with metadata")
+    if res != b'':
+        with subprocess.Popen(args + [file_path], stderr=subprocess.PIPE,
+                              stdin=subprocess.PIPE, env=env) as proc:
+            try:
+                while frame_data is not None:
+                    proc.stdin.write(frame_data)
+                    proc.stdin.flush()
+                    frame_data = yield
+                proc.stdin.close()
+                res = proc.stderr.read()
+            except BrokenPipeError as e:
+                res = proc.stderr.read()
+                raise Exception("An error occured in the ffmpeg subprocess:\n" \
+                        + res.decode("utf-8"))
+    if len(res) > 0:
+        print(res.decode("utf-8"), end="", file=sys.stderr)
+
 class VideoCombine:
     @classmethod
     def INPUT_TYPES(s):
@@ -111,6 +168,7 @@ class VideoCombine:
             },
             "optional": {
                 "audio": ("VHS_AUDIO",),
+                "batch_manager": ("VHS_BatchManager",)
             },
             "hidden": {
                 "prompt": "PROMPT",
@@ -138,7 +196,8 @@ class VideoCombine:
         extra_pnginfo=None,
         audio=None,
         unique_id=None,
-        manual_format_widgets=None
+        manual_format_widgets=None,
+        batch_manager=None
     ):
         # get output information
         output_dir = (
@@ -165,23 +224,27 @@ class VideoCombine:
                 metadata.add_text(x, json.dumps(extra_pnginfo[x]))
                 video_metadata[x] = extra_pnginfo[x]
 
-        # comfy counter workaround
-        max_counter = 0
+        if batch_manager is not None and unique_id in batch_manager.outputs:
+            (counter, output_process) = batch_manager.outputs[unique_id]
+        else:
+            # comfy counter workaround
+            max_counter = 0
 
-        # Loop through the existing files
-        matcher = re.compile(f"{re.escape(filename)}_(\d+)\D*\.[a-zA-Z0-9]+")
-        for existing_file in os.listdir(full_output_folder):
-            # Check if the file matches the expected format
-            match = matcher.fullmatch(existing_file)
-            if match:
-                # Extract the numeric portion of the filename
-                file_counter = int(match.group(1))
-                # Update the maximum counter value if necessary
-                if file_counter > max_counter:
-                    max_counter = file_counter
+            # Loop through the existing files
+            matcher = re.compile(f"{re.escape(filename)}_(\d+)\D*\.[a-zA-Z0-9]+")
+            for existing_file in os.listdir(full_output_folder):
+                # Check if the file matches the expected format
+                match = matcher.fullmatch(existing_file)
+                if match:
+                    # Extract the numeric portion of the filename
+                    file_counter = int(match.group(1))
+                    # Update the maximum counter value if necessary
+                    if file_counter > max_counter:
+                        max_counter = file_counter
 
-        # Increment the counter by 1 to get the next available value
-        counter = max_counter + 1
+            # Increment the counter by 1 to get the next available value
+            counter = max_counter + 1
+            output_process = None
 
         # save first frame as png to keep metadata
         file = f"{filename}_{counter:05}.png"
@@ -195,6 +258,8 @@ class VideoCombine:
 
         format_type, format_ext = format.split("/")
         if format_type == "image":
+            if batch_manager is not None:
+                raise Exception("Pillow('image/') formats are not compatible with batched output")
             image_kwargs = {}
             if format_ext == "gif":
                 image_kwargs['disposal'] = 2
@@ -254,6 +319,8 @@ class VideoCombine:
                 else:
                     i_pix_fmt = 'rgb24'
             if pingpong:
+                if batch_manager is not None:
+                    logger.error("pingpong is incompatible with batched output")
                 images = np.concatenate((images, images[-2:0:-1]))
             file = f"{filename}_{counter:05}.{video_format['extension']}"
             file_path = os.path.join(full_output_folder, file)
@@ -270,45 +337,32 @@ class VideoCombine:
             env=os.environ.copy()
             if  "environment" in video_format:
                 env.update(video_format["environment"])
-            res = None
-            if video_format.get('save_metadata', 'False') != 'False':
-                os.makedirs(folder_paths.get_temp_directory(), exist_ok=True)
-                metadata = json.dumps(video_metadata)
-                metadata_path = os.path.join(folder_paths.get_temp_directory(), "metadata.txt")
-                #metadata from file should  escape = ; # \ and newline
-                metadata = metadata.replace("\\","\\\\")
-                metadata = metadata.replace(";","\\;")
-                metadata = metadata.replace("#","\\#")
-                metadata = metadata.replace("=","\\=")
-                metadata = metadata.replace("\n","\\\n")
-                metadata = "comment=" + metadata
-                with open(metadata_path, "w") as f:
-                    f.write(";FFMETADATA1\n")
-                    f.write(metadata)
-                m_args = args[:1] + ["-i", metadata_path] + args[1:]
-                try:
-                    res = subprocess.run(m_args + [file_path], input=images.tobytes(),
-                                         capture_output=True, check=True, env=env)
-                except subprocess.CalledProcessError as e:
-                    #Check if output file exists. If it does, the re-execution
-                    #will also fail. This obscures the cause of the error
-                    #and seems to never occur concurrent to the metadata issue
-                    if os.path.exists(file_path):
-                        raise Exception("An error occured in the ffmpeg subprocess:\n" \
-                                + e.stderr.decode("utf-8"))
-                    #Res was not set
-                    print(e.stderr.decode("utf-8"), end="", file=sys.stderr)
-                    logger.warn("An error occurred when saving with metadata")
 
-            if not res:
+            if output_process is None:
+                output_process = ffmpeg_process(args, video_format, video_metadata, file_path, env)
+                #Proceed to first yield
+                output_process.send(None)
+                if batch_manager is not None:
+                    batch_manager.outputs[unique_id] = (counter, output_process)
+
+            output_process.send(images.tobytes())
+            if batch_manager is not None:
+                requeue_workflow((batch_manager.unique_id, not batch_manager.has_closed_inputs))
+            if batch_manager is None or batch_manager.has_closed_inputs:
+                #Close pipe and wait for termination.
                 try:
-                    res = subprocess.run(args + [file_path], input=images.tobytes(),
-                                         capture_output=True, check=True, env=env)
-                except subprocess.CalledProcessError as e:
-                    raise Exception("An error occured in the ffmpeg subprocess:\n" \
-                            + e.stderr.decode("utf-8"))
-            if res.stderr:
-                print(res.stderr.decode("utf-8"), end="", file=sys.stderr)
+                    output_process.send(None)
+                except StopIteration:
+                    pass
+                if batch_manager is not None:
+                    batch_manager.outputs.pop(unique_id)
+                    if len(batch_manager.outputs) == 0:
+                        batch_manager.reset()
+            else:
+                #batch is unfinished
+                #TODO: Check if empty output breaks other custom nodes
+                return {"ui": {"unfinished_batch": [True]}, "result": ((save_output, []),)}
+
             output_files.append(file_path)
 
 
@@ -423,6 +477,62 @@ class PruneOutputs:
                 os.remove(file)
         return ()
 
+class BatchManager:
+    def __init__(self, frames_per_batch=-1):
+        self.frames_per_batch = frames_per_batch
+        self.inputs = {}
+        self.outputs = {}
+        self.unique_id = None
+        self.has_closed_inputs = False
+    def reset(self):
+        self.close_inputs()
+        for key in self.outputs:
+            if getattr(self.outputs[key][-1], "gi_suspended", False):
+                try:
+                    self.outputs[key][-1].send(None)
+                except StopIteration:
+                    pass
+        self.__init__(self.frames_per_batch)
+    def has_open_inputs(self):
+        return len(self.inputs) > 0
+    def close_inputs(self):
+        for key in self.inputs:
+            if getattr(self.inputs[key][-1], "gi_suspended", False):
+                try:
+                    self.inputs[key][-1].send(1)
+                except StopIteration:
+                    pass
+        self.inputs = {}
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+                "required": {
+                    "frames_per_batch": ("INT", {"default": 16, "min": 1, "max": 128, "step": 1})
+                    },
+                "hidden": {
+                    "prompt": "PROMPT",
+                    "unique_id": "UNIQUE_ID"
+                },
+                }
+
+    RETURN_TYPES = ("VHS_BatchManager",)
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
+    FUNCTION = "update_batch"
+
+    def update_batch(self, frames_per_batch, prompt=None, unique_id=None):
+        if unique_id is not None and prompt is not None:
+            requeue = prompt[unique_id]['inputs'].get('requeue', 0)
+        else:
+            requeue = 0
+        if requeue == 0:
+            self.reset()
+            self.frames_per_batch = frames_per_batch
+            self.unique_id = unique_id
+        #onExecuted seems to not be called unless some message is sent
+        return (self,)
+
+
 NODE_CLASS_MAPPINGS = {
     "VHS_VideoCombine": VideoCombine,
     "VHS_LoadVideo": LoadVideoUpload,
@@ -431,6 +541,7 @@ NODE_CLASS_MAPPINGS = {
     "VHS_LoadImagesPath": LoadImagesFromDirectoryPath,
     "VHS_LoadAudio": LoadAudio,
     "VHS_PruneOutputs": PruneOutputs,
+    "VHS_BatchManager": BatchManager,
     # Latent and Image nodes
     "VHS_SplitLatents": SplitLatents,
     "VHS_SplitImages": SplitImages,
@@ -459,6 +570,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_LoadImagesPath": "Load Images (Path) 🎥🅥🅗🅢",
     "VHS_LoadAudio": "Load Audio (Path)🎥🅥🅗🅢",
     "VHS_PruneOutputs": "Prune Outputs 🎥🅥🅗🅢",
+    "VHS_BatchManager": "Batch Manager 🎥🅥🅗🅢",
     # Latent and Image nodes
     "VHS_SplitLatents": "Split Latent Batch 🎥🅥🅗🅢",
     "VHS_SplitImages": "Split Image Batch 🎥🅥🅗🅢",

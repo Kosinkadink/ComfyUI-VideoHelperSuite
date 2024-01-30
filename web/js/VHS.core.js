@@ -995,6 +995,12 @@ app.registerExtension({
             //Disabled for safety as VHS_SaveImageSequence is not currently merged
             //addDateFormating(nodeType, "directory_name", timestamp_widget=true);
             //addTimestampWidget(nodeType, nodeData, "directory_name")
+        } else if (nodeData?.name == "VHS_BatchManager") {
+            chainCallback(nodeType.prototype, "onNodeCreated", function() {
+                this.widgets.push({name: "count", type: "dummy", value: 0,
+                    computeSize: () => {return [0,-4]},
+                    afterQueued: function() {this.value++;}});
+            });
         }
     },
     async getCustomWidgets() {
