@@ -458,6 +458,8 @@ class PruneOutputs:
     FUNCTION = "prune_outputs"
 
     def prune_outputs(self, filenames, options):
+        if len(filenames[1]) == 0:
+            return ()
         assert(len(filenames[1]) <= 3 and len(filenames[1]) >= 2)
         delete_list = []
         if options in ["Intermediate", "Intermediate and Utility", "All"]:
