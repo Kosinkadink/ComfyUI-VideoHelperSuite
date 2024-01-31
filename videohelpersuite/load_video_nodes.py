@@ -140,7 +140,7 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
 
     #Setup lambda for lazy audio capture
     audio = lambda : get_audio(video, skip_first_frames * target_frame_time,
-                               frame_load_cap*target_frame_time)
+                               frame_load_cap*target_frame_time*select_every_nth)
     return (images, len(images), lazy_eval(audio))
 
 
