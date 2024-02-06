@@ -31,7 +31,7 @@ def ffmpeg_suitability(path):
 
 
 if "VHS_FORCE_FFMPEG_PATH" in os.environ:
-    ffmpeg_path = os.env["VHS_FORCE_FFMPEG_PATH"]
+    ffmpeg_path = os.environ.get("VHS_FORCE_FFMPEG_PATH")
 else:
     ffmpeg_paths = []
     try:
