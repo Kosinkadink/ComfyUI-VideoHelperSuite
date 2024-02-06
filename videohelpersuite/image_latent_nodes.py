@@ -3,6 +3,8 @@ import torch
 
 import comfy.utils
 
+from .utils import BIGMIN, BIGMAX
+
 
 class MergeStrategies:
     MATCH_A = "match A"
@@ -36,7 +38,7 @@ class SplitLatents:
         return {
                 "required": {
                     "latents": ("LATENT",),
-                    "split_index": ("INT", {"default": 0, "step": 1, "min": -99999999999}),
+                    "split_index": ("INT", {"default": 0, "step": 1, "min": BIGMIN, "max": BIGMAX}),
                 },
             }
     
@@ -61,7 +63,7 @@ class SplitImages:
         return {
                 "required": {
                     "images": ("IMAGE",),
-                    "split_index": ("INT", {"default": 0, "step": 1, "min": -99999999999}),
+                    "split_index": ("INT", {"default": 0, "step": 1, "min": BIGMIN, "max": BIGMAX}),
                 },
             }
     
@@ -83,7 +85,7 @@ class SplitMasks:
         return {
                 "required": {
                     "mask": ("MASK",),
-                    "split_index": ("INT", {"default": 0, "step": 1, "min": -99999999999}),
+                    "split_index": ("INT", {"default": 0, "step": 1, "min": BIGMIN, "max": BIGMAX}),
                 },
             }
     
@@ -258,7 +260,7 @@ class SelectEveryNthLatent:
         return {
                 "required": {
                     "latents": ("LATENT",),
-                    "select_every_nth": ("INT", {"default": 1, "min": 1, "step": 1}),
+                    "select_every_nth": ("INT", {"default": 1, "min": 1, "max": BIGMAX, "step": 1}),
                 },
             }
     
@@ -279,7 +281,7 @@ class SelectEveryNthImage:
         return {
                 "required": {
                     "images": ("IMAGE",),
-                    "select_every_nth": ("INT", {"default": 1, "min": 1, "step": 1}),
+                    "select_every_nth": ("INT", {"default": 1, "min": 1, "max": BIGMAX, "step": 1}),
                 },
             }
     
@@ -300,7 +302,7 @@ class SelectEveryNthMask:
         return {
                 "required": {
                     "mask": ("MASK",),
-                    "select_every_nth": ("INT", {"default": 1, "min": 1, "step": 1}),
+                    "select_every_nth": ("INT", {"default": 1, "min": 1, "max": BIGMAX, "step": 1}),
                 },
             }
     
@@ -378,7 +380,7 @@ class DuplicateLatents:
         return {
             "required": {
                 "latents": ("LATENT",),
-                "multiply_by": ("INT", {"default": 1, "min": 1, "step": 1})
+                "multiply_by": ("INT", {"default": 1, "min": 1, "max": BIGMAX, "step": 1})
             }
         }
     
@@ -403,7 +405,7 @@ class DuplicateImages:
         return {
             "required": {
                 "images": ("IMAGE",),
-                "multiply_by": ("INT", {"default": 1, "min": 1, "step": 1})
+                "multiply_by": ("INT", {"default": 1, "min": 1, "max": BIGMAX, "step": 1})
             }
         }
     
@@ -427,7 +429,7 @@ class DuplicateMasks:
         return {
             "required": {
                 "mask": ("MASK",),
-                "multiply_by": ("INT", {"default": 1, "min": 1, "step": 1})
+                "multiply_by": ("INT", {"default": 1, "min": 1, "max": BIGMAX, "step": 1})
             }
         }
     

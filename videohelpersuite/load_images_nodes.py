@@ -7,7 +7,7 @@ from PIL import Image, ImageOps
 import folder_paths
 from comfy.k_diffusion.utils import FolderOfImages
 from .logger import logger
-from .utils import calculate_file_hash, get_sorted_dir_files_from_directory, validate_path
+from .utils import BIGMAX, calculate_file_hash, get_sorted_dir_files_from_directory, validate_path
 
 
 def is_changed_load_images(directory: str, image_load_cap: int = 0, skip_first_images: int = 0, select_every_nth: int = 1):
@@ -93,9 +93,9 @@ class LoadImagesFromDirectoryUpload:
                 "directory": (directories,),
             },
             "optional": {
-                "image_load_cap": ("INT", {"default": 0, "min": 0, "step": 1}),
-                "skip_first_images": ("INT", {"default": 0, "min": 0, "step": 1}),
-                "select_every_nth": ("INT", {"default": 1, "min": 1, "step": 1}),
+                "image_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
+                "skip_first_images": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
+                "select_every_nth": ("INT", {"default": 1, "min": 1, "max": BIGMAX, "step": 1}),
             }
         }
     
@@ -127,9 +127,9 @@ class LoadImagesFromDirectoryPath:
                 "directory": ("STRING", {"default": "X://path/to/images", "vhs_path_extensions": []}),
             },
             "optional": {
-                "image_load_cap": ("INT", {"default": 0, "min": 0, "step": 1}),
-                "skip_first_images": ("INT", {"default": 0, "min": 0, "step": 1}),
-                "select_every_nth": ("INT", {"default": 1, "min": 1, "step": 1}),
+                "image_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
+                "skip_first_images": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
+                "select_every_nth": ("INT", {"default": 1, "min": 1, "max": BIGMAX, "step": 1}),
             }
         }
     
