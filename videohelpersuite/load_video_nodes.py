@@ -8,7 +8,7 @@ import cv2
 import folder_paths
 from comfy.utils import common_upscale
 from .logger import logger
-from .utils import calculate_file_hash, get_sorted_dir_files_from_directory, get_audio, lazy_eval, hash_path, validate_path
+from .utils import BIGMAX, DIMMAX, calculate_file_hash, get_sorted_dir_files_from_directory, get_audio, lazy_eval, hash_path, validate_path
 
 
 video_extensions = ['webm', 'mp4', 'mkv', 'gif']
@@ -156,13 +156,13 @@ class LoadVideoUpload:
                     files.append(f)
         return {"required": {
                     "video": (sorted(files),),
-                     "force_rate": ("INT", {"default": 0, "min": 0, "max": 24, "step": 1}),
+                     "force_rate": ("INT", {"default": 0, "min": 0, "max": 60, "step": 1}),
                      "force_size": (["Disabled", "Custom Height", "Custom Width", "Custom", "256x?", "?x256", "256x256", "512x?", "?x512", "512x512"],),
-                     "custom_width": ("INT", {"default": 512, "min": 0, "step": 8}),
-                     "custom_height": ("INT", {"default": 512, "min": 0, "step": 8}),
-                     "frame_load_cap": ("INT", {"default": 0, "min": 0, "step": 1}),
-                     "skip_first_frames": ("INT", {"default": 0, "min": 0, "step": 1}),
-                     "select_every_nth": ("INT", {"default": 1, "min": 1, "step": 1}),
+                     "custom_width": ("INT", {"default": 512, "min": 0, "max": DIMMAX, "step": 8}),
+                     "custom_height": ("INT", {"default": 512, "min": 0, "max": DIMMAX, "step": 8}),
+                     "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
+                     "skip_first_frames": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
+                     "select_every_nth": ("INT", {"default": 1, "min": 1, "max": BIGMAX, "step": 1}),
                      },
                 "optional": {
                     "batch_manager": ("VHS_BatchManager",)
@@ -200,13 +200,13 @@ class LoadVideoPath:
         return {
             "required": {
                 "video": ("STRING", {"default": "X://insert/path/here.mp4", "vhs_path_extensions": video_extensions}),
-                "force_rate": ("INT", {"default": 0, "min": 0, "max": 24, "step": 1}),
+                "force_rate": ("INT", {"default": 0, "min": 0, "max": 60, "step": 1}),
                  "force_size": (["Disabled", "Custom Height", "Custom Width", "Custom", "256x?", "?x256", "256x256", "512x?", "?x512", "512x512"],),
-                 "custom_width": ("INT", {"default": 512, "min": 0, "step": 8}),
-                 "custom_height": ("INT", {"default": 512, "min": 0, "step": 8}),
-                "frame_load_cap": ("INT", {"default": 0, "min": 0, "step": 1}),
-                "skip_first_frames": ("INT", {"default": 0, "min": 0, "step": 1}),
-                "select_every_nth": ("INT", {"default": 1, "min": 1, "step": 1}),
+                 "custom_width": ("INT", {"default": 512, "min": 0, "max": DIMMAX, "step": 8}),
+                 "custom_height": ("INT", {"default": 512, "min": 0, "max": DIMMAX, "step": 8}),
+                "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
+                "skip_first_frames": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
+                "select_every_nth": ("INT", {"default": 1, "min": 1, "max": BIGMAX, "step": 1}),
             },
             "optional": {
                 "batch_manager": ("VHS_BatchManager",)

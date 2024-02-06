@@ -8,6 +8,11 @@ import re
 import server
 from .logger import logger
 
+BIGMIN = -(2**63-1)
+BIGMAX = (2**63-1)
+
+DIMMAX = 8192
+
 def ffmpeg_suitability(path):
     try:
         version = subprocess.run([path, "-version"], check=True,
