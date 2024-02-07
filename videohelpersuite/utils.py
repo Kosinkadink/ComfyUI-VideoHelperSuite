@@ -8,8 +8,8 @@ import re
 import server
 from .logger import logger
 
-BIGMIN = -(2**63-1)
-BIGMAX = (2**63-1)
+BIGMIN = -(2**53-1)
+BIGMAX = (2**53-1)
 
 DIMMAX = 8192
 
