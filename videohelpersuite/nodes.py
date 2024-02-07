@@ -15,7 +15,7 @@ from .image_latent_nodes import *
 from .load_video_nodes import LoadVideoUpload, LoadVideoPath
 from .load_images_nodes import LoadImagesFromDirectoryUpload, LoadImagesFromDirectoryPath
 from .batched_nodes import VAEEncodeBatched, VAEDecodeBatched
-from .utils import ffmpeg_path, get_audio, hash_path, validate_path, requeue_workflow
+from .utils import ffmpeg_path, get_audio, hash_path, validate_path, requeue_workflow, gifski_path
 
 folder_paths.folder_names_and_paths["VHS_video_formats"] = (
     [
@@ -45,6 +45,9 @@ def get_video_formats():
         video_format_path = folder_paths.get_full_path("VHS_video_formats", format_name + ".json")
         with open(video_format_path, 'r') as stream:
             video_format = json.load(stream)
+        if "gifski_pass" in video_format and gifski_path is None:
+            #Skip format
+            continue
         widgets = [w[0] for w in gen_format_widgets(video_format)]
         if (len(widgets) > 0):
             formats.append(["video/" + format_name, widgets])
@@ -365,6 +368,20 @@ class VideoCombine:
 
             output_files.append(file_path)
 
+            if "gifski_pass" in video_format:
+                gif_output = f"{filename}_{counter:05}.gif"
+                gif_output_path = os.path.join( full_output_folder, gif_output)
+                gifski_args = [gifski_path] + video_format["gifski_pass"] \
+                        + ["-o", gif_output_path, file_path]
+                try:
+                    res = subprocess.run(gifski_args, env=env, check=True, capture_output=True)
+                except subprocess.CalledProcessError as e:
+                    raise Exception("An error occured in the gifski subprocess:\n" \
+                            + e.stderr.decode("utf-8"))
+                if res.stderr:
+                    print(res.stderr.decode("utf-8"), end="", file=sys.stderr)
+                output_files.append(gif_output_path)
+                file = gif_output
 
             # Audio Injection after video is created, saves additional video with -audio.mp4
 

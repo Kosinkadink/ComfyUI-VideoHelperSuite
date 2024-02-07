@@ -58,7 +58,11 @@ else:
             ffmpeg_path = None
         else:
             ffmpeg_path = max(ffmpeg_paths, key=ffmpeg_suitability)
-
+gifski_path = os.environ.get("VHS_GIFSKI", None)
+if gifski_path is None:
+    gifski_path = os.environ.get("JOV_GIFSKI", None)
+    if gifski_path is None:
+        gifski_path = shutil.which("gifski")
 
 def get_sorted_dir_files_from_directory(directory: str, skip_first_images: int=0, select_every_nth: int=1, extensions: Iterable=None):
     directory = directory.strip()
