@@ -380,13 +380,14 @@ class VideoCombine:
                             + e.stderr.decode("utf-8"))
                 if res.stderr:
                     print(res.stderr.decode("utf-8"), end="", file=sys.stderr)
+                #output format is actually an image and should be correctly marked
+                #TODO: Evaluate a more consistent solution for this
+                format = "image/gif"
                 output_files.append(gif_output_path)
                 file = gif_output
 
-            # Audio Injection after video is created, saves additional video with -audio.mp4
-
-            # Create audio file if input was provided
-            if audio:
+            elif audio:
+                # Create audio file if input was provided
                 output_file_with_audio = f"{filename}_{counter:05}-audio.{video_format['extension']}"
                 output_file_with_audio_path = os.path.join(full_output_folder, output_file_with_audio)
                 if "audio_pass" not in video_format:
