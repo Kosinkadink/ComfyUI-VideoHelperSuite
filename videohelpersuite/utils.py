@@ -56,6 +56,10 @@ else:
         if len(ffmpeg_paths) == 0:
             logger.error("No valid ffmpeg found.")
             ffmpeg_path = None
+        elif len(ffmpeg_paths) == 1:
+            #Evaluation of suitability isn't required, can take sole option
+            #to reduce startup time
+            ffmpeg_path = ffmpeg_paths[0]
         else:
             ffmpeg_path = max(ffmpeg_paths, key=ffmpeg_suitability)
 gifski_path = os.environ.get("VHS_GIFSKI", None)
