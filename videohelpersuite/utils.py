@@ -144,8 +144,13 @@ def get_audio(file, start_time=0, duration=0):
         args += ["-ss", str(start_time)]
     if duration > 0:
         args += ["-t", str(duration)]
-    return subprocess.run(args + ["-f", "wav", "-"],
-                          stdout=subprocess.PIPE, check=True).stdout
+    try:
+        res =  subprocess.run(args + ["-f", "wav", "-"],
+                              stdout=subprocess.PIPE, check=True).stdout
+    except subprocess.CalledProcessError as e:
+        logger.warning(f"Failed to extract audio from: {file}")
+        return False
+    return res
 
 
 def lazy_eval(func):
