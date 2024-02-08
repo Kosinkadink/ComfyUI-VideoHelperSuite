@@ -8,8 +8,8 @@ import re
 import server
 from .logger import logger
 
-BIGMIN = -(2**63-1)
-BIGMAX = (2**63-1)
+BIGMIN = -(2**53-1)
+BIGMAX = (2**53-1)
 
 DIMMAX = 8192
 
@@ -56,9 +56,17 @@ else:
         if len(ffmpeg_paths) == 0:
             logger.error("No valid ffmpeg found.")
             ffmpeg_path = None
+        elif len(ffmpeg_paths) == 1:
+            #Evaluation of suitability isn't required, can take sole option
+            #to reduce startup time
+            ffmpeg_path = ffmpeg_paths[0]
         else:
             ffmpeg_path = max(ffmpeg_paths, key=ffmpeg_suitability)
-
+gifski_path = os.environ.get("VHS_GIFSKI", None)
+if gifski_path is None:
+    gifski_path = os.environ.get("JOV_GIFSKI", None)
+    if gifski_path is None:
+        gifski_path = shutil.which("gifski")
 
 def get_sorted_dir_files_from_directory(directory: str, skip_first_images: int=0, select_every_nth: int=1, extensions: Iterable=None):
     directory = directory.strip()
@@ -136,8 +144,13 @@ def get_audio(file, start_time=0, duration=0):
         args += ["-ss", str(start_time)]
     if duration > 0:
         args += ["-t", str(duration)]
-    return subprocess.run(args + ["-f", "wav", "-"],
-                          stdout=subprocess.PIPE, check=True).stdout
+    try:
+        res =  subprocess.run(args + ["-f", "wav", "-"],
+                              stdout=subprocess.PIPE, check=True).stdout
+    except subprocess.CalledProcessError as e:
+        logger.warning(f"Failed to extract audio from: {file}")
+        return False
+    return res
 
 
 def lazy_eval(func):
