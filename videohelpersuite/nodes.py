@@ -4,8 +4,9 @@ import json
 import subprocess
 import numpy as np
 import re
+import datetime
 from typing import List
-from PIL import Image
+from PIL import Image, ExifTags
 from PIL.PngImagePlugin import PngInfo
 from pathlib import Path
 
@@ -109,7 +110,7 @@ def ffmpeg_process(args, video_format, video_metadata, file_path, env):
         with open(metadata_path, "w") as f:
             f.write(";FFMETADATA1\n")
             f.write(metadata)
-        m_args = args[:1] + ["-i", metadata_path] + args[1:]
+        m_args = args[:1] + ["-i", metadata_path] + args[1:] + ["-metadata", "creation_time=now"]
         with subprocess.Popen(m_args + [file_path], stderr=subprocess.PIPE,
                               stdin=subprocess.PIPE, env=env) as proc:
             try:
@@ -226,6 +227,7 @@ class VideoCombine:
             for x in extra_pnginfo:
                 metadata.add_text(x, json.dumps(extra_pnginfo[x]))
                 video_metadata[x] = extra_pnginfo[x]
+        metadata.add_text("CreationTime", datetime.datetime.now().isoformat(" ")[:19])
 
         if batch_manager is not None and unique_id in batch_manager.outputs:
             (counter, output_process) = batch_manager.outputs[unique_id]
@@ -266,6 +268,11 @@ class VideoCombine:
             image_kwargs = {}
             if format_ext == "gif":
                 image_kwargs['disposal'] = 2
+            if format_ext == "webp":
+                #Save timestamp information
+                exif = Image.Exif()
+                exif[ExifTags.IFD.Exif] = {36867: datetime.datetime.now().isoformat(" ")[:19]}
+                image_kwargs['exif'] = exif
             file = f"{filename}_{counter:05}.{format_ext}"
             file_path = os.path.join(full_output_folder, file)
             images = tensor_to_bytes(images)
