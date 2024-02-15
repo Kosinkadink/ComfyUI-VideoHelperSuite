@@ -141,8 +141,10 @@ def requeue_workflow(requeue_required=(-1,True)):
 def output_used(prompt, unique_id, slot=None):
     for node_id in prompt:
         for inp in prompt[node_id]['inputs'].values():
-            if inp[0] == unique_id:
-                return slot is None or slot == inp[1]
+            if isinstance(inp, list) and len(inp) == 2 and inp[0] == unique_id:
+                if slot is None or slot == inp[1]:
+                    return True
+    return False
 
 def get_audio(file, start_time=0, duration=0):
     args = [ffmpeg_path, "-v", "error", "-i", file]

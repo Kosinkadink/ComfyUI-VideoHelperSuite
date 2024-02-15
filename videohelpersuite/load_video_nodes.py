@@ -2,13 +2,13 @@ import os
 import itertools
 import numpy as np
 import torch
-from PIL import Image, ImageOps
-import cv2
+import subprocess
+import re
 
 import folder_paths
 from comfy.utils import common_upscale
 from .logger import logger
-from .utils import BIGMAX, DIMMAX, calculate_file_hash, get_sorted_dir_files_from_directory, get_audio, lazy_eval, hash_path, validate_path
+from .utils import BIGMAX, DIMMAX, calculate_file_hash, get_sorted_dir_files_from_directory, get_audio, lazy_eval, hash_path, validate_path, ffmpeg_path, output_used
 
 
 video_extensions = ['webm', 'mp4', 'mkv', 'gif']
@@ -43,104 +43,45 @@ def target_size(width, height, force_size, custom_width, custom_height) -> tuple
             height = int(force_size[1])
     return (width, height)
 
-def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
-                       select_every_nth, batch_manager=None, unique_id=None):
-    try:
-        video_cap = cv2.VideoCapture(video)
-        if not video_cap.isOpened():
-            raise ValueError(f"{video} could not be loaded with cv.")
-        # set video_cap to look at start_index frame
-        total_frame_count = 0
-        total_frames_evaluated = -1
-        frames_added = 0
-        base_frame_time = 1/video_cap.get(cv2.CAP_PROP_FPS)
-        width = video_cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-        height = video_cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-        prev_frame = None
-        if force_rate == 0:
-            target_frame_time = base_frame_time
-        else:
-            target_frame_time = 1/force_rate
-        yield (width, height, target_frame_time)
-        time_offset=target_frame_time - base_frame_time
-        while video_cap.isOpened():
-            if time_offset < target_frame_time:
-                is_returned = video_cap.grab()
-                # if didn't return frame, video has ended
-                if not is_returned:
-                    break
-                time_offset += base_frame_time
-            if time_offset < target_frame_time:
-                continue
-            time_offset -= target_frame_time
-            # if not at start_index, skip doing anything with frame
-            total_frame_count += 1
-            if total_frame_count <= skip_first_frames:
-                continue
-            else:
-                total_frames_evaluated += 1
-
-            # if should not be selected, skip doing anything with frame
-            if total_frames_evaluated%select_every_nth != 0:
-                continue
-
-            # opencv loads images in BGR format (yuck), so need to convert to RGB for ComfyUI use
-            # follow up: can videos ever have an alpha channel?
-            # To my testing: No. opencv has no support for alpha
-            unused, frame = video_cap.retrieve()
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            # convert frame to comfyui's expected format
-            # TODO: frame contains no exif information. Check if opencv2 has already applied
-            frame = np.array(frame, dtype=np.float32) / 255.0
-            if prev_frame is not None:
-                inp  = yield prev_frame
-                if inp is not None:
-                    #ensure the finally block is called
-                    return
-            prev_frame = frame
-            frames_added += 1
-            # if cap exists and we've reached it, stop processing frames
-            if frame_load_cap > 0 and frames_added >= frame_load_cap:
-                break
-        if batch_manager is not None:
-            batch_manager.inputs.pop(unique_id)
-            batch_manager.has_closed_inputs = True
-        if prev_frame is not None:
-            yield prev_frame
-    finally:
-        video_cap.release()
-
-def ffmpeg_frame_generator():
+def ffmpeg_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
+                           select_every_nth, force_size, custom_width, custom_height,
+                           alpha=False, batch_manager=None, unique_id=None):
     args_dummy = [ffmpeg_path, "-i", video, "-f", "null", "-"]
     size_base = None
     fps_base = None
     try:
-        with subprocess.run(args_dummy, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE) as proc:
-            for line in proc.stderr.readlines():
-                line = line.decode('utf-8')
-                match = re.search(", ([1-9]|\\d{2,})x(\\d+).*, ([\\d\\.]+) fps",line)
-                if match is not None:
-                    size_base = [int(match.group(1)), int(match.group(2))]
-                    fps_base = float(match.group(3))
-
+        dummy_res =  subprocess.run(args_dummy, stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.PIPE,check=True)
     except subprocess.CalledProcessError as e:
         raise Exception("An error occurred in the ffmepg subprocess:\n" \
                 + e.stderr.decode("utf-8"))
-    if size_base is None or fbs_base is None:
+    match = re.search(", ([1-9]|\\d{2,})x(\\d+).*, ([\\d\\.]+) fps", dummy_res.stderr.decode("utf-8"))
+    if match is not None:
+        size_base = [int(match.group(1)), int(match.group(2))]
+        fps_base = float(match.group(3))
+    else:
         raise Exception("Failed to parse video dimensions")
-    yield fps_base
 
-    args_all_frames = [ffmpeg_path, "-an", "-i", video_path, "-v", "error",
+    args_all_frames = [ffmpeg_path, "-v", "error", "-an", "-i", video,
                          "-pix_fmt", "rgba" if alpha else "rgb24", "-fps_mode", "vfr"]
 
+    if select_every_nth != 1:
+        if force_rate == 0:
+            force_rate = fps_base
+        force_rate /= select_every_nth
     vfilters = []
     if force_rate != 0:
-        vfilters.append("fps=fps="+str(force_rate) + ":round=up")
+        vfilters.append("fps=fps="+str(force_rate) + ":round=up:start_time=0.001")
     if skip_first_frames > 0:
         vfilters.append(f"select=gt(n\\,{skip_first_frames-1})")
+        vfilters.append("setpts=PTS-STARTPTS")
     if force_size != "Disabled":
-        size = self.target_size(size[0], size[1], force_size)
-        vfilters.append(f"scale={size[0]}:{size[1]}")
+        #TODO: let ffmpeg handle aspect ratio by setting unknown dimensions to -8?
+        size = target_size(size_base[0], size_base[1], force_size, custom_width, custom_height)
+        vfilters.append(f"scale={new_size[0]}:{new_size[1]}")
+    else:
+        size = size_base
+    yield (size[0], size[1], fps_base)
     if len(vfilters) > 0:
         args_all_frames += ["-vf", ",".join(vfilters)]
     if frame_load_cap > 0:
@@ -177,40 +118,6 @@ def ffmpeg_frame_generator():
     if prev_frame is not None:
         yield prev_frame
 
-@warnings.deprecated()
-def load_video_cv(video: str, force_rate: int, force_size: str,
-                  custom_width: int,custom_height: int, frame_load_cap: int,
-                  skip_first_frames: int, select_every_nth: int,
-                  batch_manager=None, unique_id=None):
-    if batch_manager is None or unique_id not in batch_manager.inputs:
-        gen = cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
-                                 select_every_nth, batch_manager, unique_id)
-        (width, height, target_frame_time) = next(gen)
-        width = int(width)
-        height = int(height)
-        if batch_manager is not None:
-            batch_manager.inputs[unique_id] = (gen, width, height, target_frame_time)
-    else:
-        (gen, width, height, target_frame_time) = batch_manager.inputs[unique_id]
-    if batch_manager is not None:
-        gen = itertools.islice(gen, batch_manager.frames_per_batch)
-
-    #Some minor wizardry to eliminate a copy and reduce max memory by a factor of ~2
-    images = torch.from_numpy(np.fromiter(gen, np.dtype((np.float32, (height, width, 3)))))
-    if len(images) == 0:
-        raise RuntimeError("No frames generated")
-    if force_size != "Disabled":
-        new_size = target_size(width, height, force_size, custom_width, custom_height)
-        if new_size[0] != width or new_size[1] != height:
-            s = images.movedim(-1,1)
-            s = common_upscale(s, new_size[0], new_size[1], "lanczos", "center")
-            images = s.movedim(1,-1)
-
-    #Setup lambda for lazy audio capture
-    audio = lambda : get_audio(video, skip_first_frames * target_frame_time,
-                               frame_load_cap*target_frame_time*select_every_nth)
-    return (images, len(images), lazy_eval(audio))
-
 def load_video_ffmpeg(video: str, force_rate: int, force_size: str,
                   custom_width: int,custom_height: int, frame_load_cap: int,
                   skip_first_frames: int, select_every_nth: int,
@@ -223,20 +130,24 @@ def load_video_ffmpeg(video: str, force_rate: int, force_size: str,
 
     if batch_manager is None or unique_id not in batch_manager.inputs:
         gen = ffmpeg_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
-                                 select_every_nth, batch_manager, unique_id)
-        fps_base = next(gen)
+                                 select_every_nth, force_size, custom_width, custom_height,
+                                     has_alpha_output, batch_manager, unique_id)
+        (width, height, fps_base) = next(gen)
         if batch_manager is not None:
-            batch_manager.inputs[unique_id] = (gen, fps_base)
+            batch_manager.inputs[unique_id] = (gen, width, height, fps_base)
     else:
-        (gen, fps_base) = batch_manager.inputs[unique_id]
+        (gen, width, height, fps_base) = batch_manager.inputs[unique_id]
     if batch_manager is not None:
         gen = itertools.islice(gen, batch_manager.frames_per_batch)
 
     #Some minor wizardry to eliminate a copy and reduce max memory by a factor of ~2
     if has_alpha_output:
         images = torch.from_numpy(np.fromiter(gen, np.dtype((np.float32, (height, width, 4)))))
+        mask = 1 - images[:,:,:,3]
+        images = images[:,:,:,:3]
     else:
         images = torch.from_numpy(np.fromiter(gen, np.dtype((np.float32, (height, width, 3)))))
+        mask = None
 
 
     if len(images) == 0:
@@ -245,7 +156,7 @@ def load_video_ffmpeg(video: str, force_rate: int, force_size: str,
     #Setup lambda for lazy audio capture
     audio = lambda : get_audio(video, skip_first_frames / fps_base,
                                frame_load_cap / fps_base * select_every_nth)
-    return (images, len(images), lazy_eval(audio))
+    return (images, len(images), lazy_eval(audio), mask)
 
 
 class LoadVideoUpload:
@@ -272,19 +183,20 @@ class LoadVideoUpload:
                     "batch_manager": ("VHS_BatchManager",)
                 },
                 "hidden": {
+                    "prompt": "PROMPT",
                     "unique_id": "UNIQUE_ID"
                 },
                 }
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
 
-    RETURN_TYPES = ("IMAGE", "INT", "VHS_AUDIO", )
-    RETURN_NAMES = ("IMAGE", "frame_count", "audio",)
+    RETURN_TYPES = ("IMAGE", "INT", "VHS_AUDIO", "MASK")
+    RETURN_NAMES = ("IMAGE", "frame_count", "audio", "MASK")
     FUNCTION = "load_video"
 
     def load_video(self, **kwargs):
         kwargs['video'] = folder_paths.get_annotated_filepath(kwargs['video'].strip("\""))
-        return load_video_cv(**kwargs)
+        return load_video_ffmpeg(**kwargs)
 
     @classmethod
     def IS_CHANGED(s, video, **kwargs):
@@ -316,20 +228,21 @@ class LoadVideoPath:
                 "batch_manager": ("VHS_BatchManager",)
             },
             "hidden": {
+                "prompt": "PROMPT",
                 "unique_id": "UNIQUE_ID"
             },
         }
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
 
-    RETURN_TYPES = ("IMAGE", "INT", "VHS_AUDIO", )
-    RETURN_NAMES = ("IMAGE", "frame_count", "audio",)
+    RETURN_TYPES = ("IMAGE", "INT", "VHS_AUDIO", "MASK")
+    RETURN_NAMES = ("IMAGE", "frame_count", "audio", "MASK")
     FUNCTION = "load_video"
 
     def load_video(self, **kwargs):
         if kwargs['video'] is None or validate_path(kwargs['video']) != True:
             raise Exception("video is not a valid path: " + kwargs['video'])
-        return load_video_cv(**kwargs)
+        return load_video_ffmpeg(**kwargs)
 
     @classmethod
     def IS_CHANGED(s, video, **kwargs):
