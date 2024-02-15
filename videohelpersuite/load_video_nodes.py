@@ -8,7 +8,7 @@ import re
 import folder_paths
 from comfy.utils import common_upscale
 from .logger import logger
-from .utils import BIGMAX, DIMMAX, calculate_file_hash, get_sorted_dir_files_from_directory, get_audio, lazy_eval, hash_path, validate_path, ffmpeg_path, output_used
+from .utils import BIGMAX, DIMMAX, calculate_file_hash, get_sorted_dir_files_from_directory, get_audio, lazy_eval, hash_path, validate_path, ffmpeg_path
 
 
 video_extensions = ['webm', 'mp4', 'mkv', 'gif']
@@ -45,7 +45,7 @@ def target_size(width, height, force_size, custom_width, custom_height) -> tuple
 
 def ffmpeg_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
                            select_every_nth, force_size, custom_width, custom_height,
-                           alpha=False, batch_manager=None, unique_id=None):
+                           batch_manager=None, unique_id=None):
     args_dummy = [ffmpeg_path, "-i", video, "-f", "null", "-"]
     size_base = None
     fps_base = None
@@ -55,10 +55,13 @@ def ffmpeg_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
     except subprocess.CalledProcessError as e:
         raise Exception("An error occurred in the ffmepg subprocess:\n" \
                 + e.stderr.decode("utf-8"))
-    match = re.search(", ([1-9]|\\d{2,})x(\\d+).*, ([\\d\\.]+) fps", dummy_res.stderr.decode("utf-8"))
-    if match is not None:
-        size_base = [int(match.group(1)), int(match.group(2))]
-        fps_base = float(match.group(3))
+    for line in dummy_res.stderr.decode("utf-8").split("\n"):
+        match = re.search(", ([1-9]|\\d{2,})x(\\d+).*, ([\\d\\.]+) fps", line)
+        if match is not None:
+            size_base = [int(match.group(1)), int(match.group(2))]
+            fps_base = float(match.group(3))
+            alpha = re.search("(yuva|rgba)", line) is not None
+            break
     else:
         raise Exception("Failed to parse video dimensions")
 
@@ -81,7 +84,7 @@ def ffmpeg_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
         vfilters.append(f"scale={new_size[0]}:{new_size[1]}")
     else:
         size = size_base
-    yield (size[0], size[1], fps_base)
+    yield (size[0], size[1], fps_base, alpha)
     if len(vfilters) > 0:
         args_all_frames += ["-vf", ",".join(vfilters)]
     if frame_load_cap > 0:
@@ -123,31 +126,25 @@ def load_video_ffmpeg(video: str, force_rate: int, force_size: str,
                   skip_first_frames: int, select_every_nth: int,
                   batch_manager=None, unique_id=None, prompt=None):
 
-    if prompt is not None and unique_id is not None:
-        has_alpha_output = output_used(prompt, unique_id, 3)
-    else:
-        has_alpha_output = False
-
     if batch_manager is None or unique_id not in batch_manager.inputs:
         gen = ffmpeg_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
                                  select_every_nth, force_size, custom_width, custom_height,
-                                     has_alpha_output, batch_manager, unique_id)
-        (width, height, fps_base) = next(gen)
+                                    batch_manager, unique_id)
+        (width, height, fps_base, has_alpha) = next(gen)
         if batch_manager is not None:
-            batch_manager.inputs[unique_id] = (gen, width, height, fps_base)
+            batch_manager.inputs[unique_id] = (gen, width, height, fps_base, has_alpha)
     else:
-        (gen, width, height, fps_base) = batch_manager.inputs[unique_id]
+        (gen, width, height, fps_base, has_alpha) = batch_manager.inputs[unique_id]
     if batch_manager is not None:
         gen = itertools.islice(gen, batch_manager.frames_per_batch)
 
-    #Some minor wizardry to eliminate a copy and reduce max memory by a factor of ~2
-    if has_alpha_output:
+    if has_alpha:
         images = torch.from_numpy(np.fromiter(gen, np.dtype((np.float32, (height, width, 4)))))
         mask = 1 - images[:,:,:,3]
         images = images[:,:,:,:3]
     else:
         images = torch.from_numpy(np.fromiter(gen, np.dtype((np.float32, (height, width, 3)))))
-        mask = None
+        mask = torch.zeros((images.shape[0],1,1), dtype=torch.float32, device="cpu")
 
 
     if len(images) == 0:
