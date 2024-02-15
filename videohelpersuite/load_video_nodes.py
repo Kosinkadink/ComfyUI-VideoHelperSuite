@@ -110,6 +110,74 @@ def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
     finally:
         video_cap.release()
 
+def ffmpeg_frame_generator():
+    args_dummy = [ffmpeg_path, "-i", video, "-f", "null", "-"]
+    size_base = None
+    fps_base = None
+    try:
+        with subprocess.run(args_dummy, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE) as proc:
+            for line in proc.stderr.readlines():
+                line = line.decode('utf-8')
+                match = re.search(", ([1-9]|\\d{2,})x(\\d+).*, ([\\d\\.]+) fps",line)
+                if match is not None:
+                    size_base = [int(match.group(1)), int(match.group(2))]
+                    fps_base = float(match.group(3))
+
+    except subprocess.CalledProcessError as e:
+        raise Exception("An error occurred in the ffmepg subprocess:\n" \
+                + e.stderr.decode("utf-8"))
+    if size_base is None or fbs_base is None:
+        raise Exception("Failed to parse video dimensions")
+    yield fps_base
+
+    args_all_frames = [ffmpeg_path, "-an", "-i", video_path, "-v", "error",
+                         "-pix_fmt", "rgba" if alpha else "rgb24", "-fps_mode", "vfr"]
+
+    vfilters = []
+    if force_rate != 0:
+        vfilters.append("fps=fps="+str(force_rate) + ":round=up")
+    if skip_first_frames > 0:
+        vfilters.append(f"select=gt(n\\,{skip_first_frames-1})")
+    if force_size != "Disabled":
+        size = self.target_size(size[0], size[1], force_size)
+        vfilters.append(f"scale={size[0]}:{size[1]}")
+    if len(vfilters) > 0:
+        args_all_frames += ["-vf", ",".join(vfilters)]
+    if frame_load_cap > 0:
+        args_all_frames += ["-frames:v", str(frame_load_cap)]
+
+    args_all_frames += ["-f", "rawvideo", "-"]
+    try:
+        with subprocess.Popen(args_all_frames, stdout=subprocess.PIPE) as proc:
+            #Manually buffer enough bytes for an image
+            bpi = size[0] * size[1] * (4 if alpha else 3)
+            current_bytes = bytearray(bpi)
+            current_offset=0
+            prev_frame = None
+            while True:
+                bytes_read = proc.stdout.read(bpi - current_offset)
+                if bytes_read is None:#sleep to wait for more data
+                    time.sleep(.1)
+                    continue
+                if len(bytes_read) == 0:#EOF
+                    break
+                current_bytes[current_offset:len(bytes_read)] = bytes_read
+                current_offset+=len(bytes_read)
+                if current_offset == bpi:
+                    if prev_frame is not None:
+                        yield prev_frame
+                    prev_frame = np.array(current_bytes, dtype=np.float32).reshape(size[1], size[0], 4 if alpha else 3) / 255.0
+                    current_offset = 0
+    except BrokenPipeError as e:
+        raise Exception("An error occured in the ffmpeg subprocess:\n" \
+                + proc.stderr.read().decode("utf-8"))
+    if batch_manager is not None:
+        batch_manager.inputs.pop(unique_id)
+        batch_manager.has_closed_inputs = True
+    if prev_frame is not None:
+        yield prev_frame
+
+@warnings.deprecated()
 def load_video_cv(video: str, force_rate: int, force_size: str,
                   custom_width: int,custom_height: int, frame_load_cap: int,
                   skip_first_frames: int, select_every_nth: int,
@@ -141,6 +209,42 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
     #Setup lambda for lazy audio capture
     audio = lambda : get_audio(video, skip_first_frames * target_frame_time,
                                frame_load_cap*target_frame_time*select_every_nth)
+    return (images, len(images), lazy_eval(audio))
+
+def load_video_ffmpeg(video: str, force_rate: int, force_size: str,
+                  custom_width: int,custom_height: int, frame_load_cap: int,
+                  skip_first_frames: int, select_every_nth: int,
+                  batch_manager=None, unique_id=None, prompt=None):
+
+    if prompt is not None and unique_id is not None:
+        has_alpha_output = output_used(prompt, unique_id, 3)
+    else:
+        has_alpha_output = False
+
+    if batch_manager is None or unique_id not in batch_manager.inputs:
+        gen = ffmpeg_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
+                                 select_every_nth, batch_manager, unique_id)
+        fps_base = next(gen)
+        if batch_manager is not None:
+            batch_manager.inputs[unique_id] = (gen, fps_base)
+    else:
+        (gen, fps_base) = batch_manager.inputs[unique_id]
+    if batch_manager is not None:
+        gen = itertools.islice(gen, batch_manager.frames_per_batch)
+
+    #Some minor wizardry to eliminate a copy and reduce max memory by a factor of ~2
+    if has_alpha_output:
+        images = torch.from_numpy(np.fromiter(gen, np.dtype((np.float32, (height, width, 4)))))
+    else:
+        images = torch.from_numpy(np.fromiter(gen, np.dtype((np.float32, (height, width, 3)))))
+
+
+    if len(images) == 0:
+        raise RuntimeError("No frames generated")
+
+    #Setup lambda for lazy audio capture
+    audio = lambda : get_audio(video, skip_first_frames / fps_base,
+                               frame_load_cap / fps_base * select_every_nth)
     return (images, len(images), lazy_eval(audio))
 
 

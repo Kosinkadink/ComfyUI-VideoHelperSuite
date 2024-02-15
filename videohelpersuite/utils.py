@@ -138,6 +138,12 @@ def requeue_workflow(requeue_required=(-1,True)):
     if requeue_guard[1] == requeue_guard[2] and max(requeue_guard[3].values()):
         requeue_workflow_unchecked()
 
+def output_used(prompt, unique_id, slot=None):
+    for node_id in prompt:
+        for inp in prompt[node_id]['inputs'].values():
+            if inp[0] == unique_id:
+                return slot is None or slot == inp[1]
+
 def get_audio(file, start_time=0, duration=0):
     args = [ffmpeg_path, "-v", "error", "-i", file]
     if start_time > 0:
