@@ -43,6 +43,9 @@ class VAEEncodeBatched:
     def encode(self, vae, pixels, per_batch):
         t = []
         for start_idx in range(0, pixels.shape[0], per_batch):
-            sub_pixels = VAEEncode.vae_encode_crop_pixels(pixels[start_idx:start_idx+per_batch])
+            try:
+                sub_pixels = vae.vae_encode_crop_pixels(pixels[start_idx:start_idx+per_batch])
+            except:
+                sub_pixels = VAEEncode.vae_encode_crop_pixels(pixels[start_idx:start_idx+per_batch])
             t.append(vae.encode(sub_pixels[:,:,:,:3]))
         return ({"samples": torch.cat(t, dim=0)}, )
