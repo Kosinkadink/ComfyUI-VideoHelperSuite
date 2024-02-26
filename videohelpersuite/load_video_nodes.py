@@ -46,7 +46,7 @@ def target_size(width, height, force_size, custom_width, custom_height) -> tuple
 def ffmpeg_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
                            select_every_nth, force_size, custom_width, custom_height,
                            batch_manager=None, unique_id=None):
-    args_dummy = [ffmpeg_path, "-i", video, "-f", "null", "-"]
+    args_dummy = [ffmpeg_path, "-i", video, '-c', 'copy', '-frames:v', '1', "-f", "null", "-"]
     size_base = None
     fps_base = None
     try:
