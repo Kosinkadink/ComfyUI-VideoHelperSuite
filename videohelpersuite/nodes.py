@@ -9,6 +9,7 @@ from typing import List
 from PIL import Image, ExifTags
 from PIL.PngImagePlugin import PngInfo
 from pathlib import Path
+import itertools
 
 import folder_paths
 from .logger import logger
@@ -220,12 +221,12 @@ def combine_video_common(frame_rate: int, loop_count: int, first_frame,
         frames = iter([])
         while True:
             batch = yield
-            if not batch:
+            if batch is None:
                 break
             frames = itertools.chain(frames, batch)
         #NOTE: first frame has already been consumed
         #convert to pillow
-        frames = map(lambda f: Image.fromarray(tensor_to_bytes(frames)))
+        frames = map(lambda frame: Image.fromarray(tensor_to_bytes(frame)), frames)
         # Use pillow directly to save an animated image
         first_frame_pil.save(
             file_path,
@@ -290,7 +291,7 @@ def combine_video_common(frame_rate: int, loop_count: int, first_frame,
         env=os.environ.copy()
         if  "environment" in video_format:
             env.update(video_format["environment"])
-        frame_data = yield
+        frame_set = yield
         if video_format.get('save_metadata', 'False') != 'False':
             metadata = json.dumps(video_metadata)
             metadata_path = os.path.join(folder_paths.get_temp_directory(), "metadata.txt")
@@ -309,9 +310,12 @@ def combine_video_common(frame_rate: int, loop_count: int, first_frame,
                                   stdin=subprocess.PIPE, env=env) as proc:
                 try:
                     proc.stdin.write(pixel_conv_func(first_frame))
-                    while frame_data is not None:
-                        proc.stdin.write(pixel_conv_func(frame_data))
-                        frame_data = yield
+                    proc.stdin.flush()
+                    while frame_set is not None:
+                        for frame in map(pixel_conv_func, frame_set):
+                            proc.stdin.write(frame)
+                        proc.stdin.flush()
+                        frame_set = yield
                     proc.stdin.close()
                     res = proc.stderr.read()
                 except BrokenPipeError as e:
@@ -330,10 +334,12 @@ def combine_video_common(frame_rate: int, loop_count: int, first_frame,
                                   stdin=subprocess.PIPE, env=env) as proc:
                 try:
                     proc.stdin.write(pixel_conv_func(first_frame))
-                    while frame_data is not None:
-                        for data in map(pixel_conv_func, frame_data):
-                            proc.stdin.write(frame_data)
-                        frame_data = yield
+                    proc.stdin.flush()
+                    while frame_set is not None:
+                        for frame in map(pixel_conv_func, frame_set):
+                            proc.stdin.write(frame)
+                        proc.stdin.flush()
+                        frame_set = yield
                     proc.stdin.close()
                     res = proc.stderr.read()
                 except BrokenPipeError as e:
@@ -729,29 +735,35 @@ class VideoCombineLatent:
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
     FUNCTION = "combine_video"
 
-    def combine_video(self, vae, latents, **kwargs):
+    def combine_video(self, vae, latents, batch_manager=None, unique_id=None, **kwargs):
         downscale_ratio = getattr(vae, "downscale_ratio", 8)
         width = latents['samples'].shape[3] * downscale_ratio
         height = latents['samples'].shape[2] * downscale_ratio
         frames_per_batch = (1920 * 1080 * 16) // (width * height) or 1
-        def batched_bytes(latents, frames_per_batch, vae):
-            yield vae.decode(latents['samples'][0:1])[0]
-            for i in range(1, latents['samples'].shape[0], frames_per_batch):
-                batch = vae.decode(latents['samples'][i:i+frames_per_batch])
-                yield batch
-        images = batched_bytes(latents, frames_per_batch, vae)
-        first_frame = next(images)
-        kwargs['first_frame'] = first_frame
-        combine_consumer = combine_video_common(**kwargs)
-        next(combine_consumer)
-        for batch in batched_bytes(latents, frames_per_batch, vae):
-            combine_consumer.send(batch)
-        try:
-            combine_consumer.send(None)
-        except StopIteration as e:
-            return e.value
-        #Should be unreachable
-        raise Exception("Combine consumer failed to close.")
+        batches = map(vae.decode, latents['samples'].split(frames_per_batch))
+        frames = itertools.chain.from_iterable(batches)
+        first_frame = next(frames)
+
+        if batch_manager is not None and unique_id in batch_manager.outputs:
+            frame_consumer = batch_manager.outputs[unique_id]
+        else:
+            frame_consumer = combine_video_common(first_frame=first_frame, unique_id=unique_id, **kwargs)
+            next(frame_consumer)
+            if batch_manager is not None:
+                batch_manager.outputs[unique_id] = frame_consumer
+        frame_consumer.send(frames)
+        if batch_manager is not None:
+            requeue_workflow((batch_manager.unique_id, not batch_manager.has_closed_inputs))
+        if batch_manager is None or batch_manager.has_closed_inputs:
+            try:
+                frame_consumer.send(None)
+            except StopIteration as e:
+                return e.value
+            #Should be unreachable
+            raise Exception("Combine consumer failed to close.")
+        else:
+            #batch is unfinished
+            return {"ui": {"unfinished_batch": [True]}, "result": ((save_output, []),)}
     @classmethod
     def VALIDATE_INPUTS(self, format, **kwargs):
         return True
