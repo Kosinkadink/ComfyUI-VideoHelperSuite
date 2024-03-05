@@ -13,7 +13,7 @@ from pathlib import Path
 import folder_paths
 from .logger import logger
 from .image_latent_nodes import *
-from .load_video_nodes import LoadVideoUpload, LoadVideoPath
+from .load_video_nodes import LoadVideoUpload, LoadVideoPath, LoadVideoLatent
 from .load_images_nodes import LoadImagesFromDirectoryUpload, LoadImagesFromDirectoryPath
 from .batched_nodes import VAEEncodeBatched, VAEDecodeBatched
 from .utils import ffmpeg_path, get_audio, hash_path, validate_path, requeue_workflow, gifski_path
@@ -148,6 +148,260 @@ def ffmpeg_process(args, video_format, video_metadata, file_path, env):
                         + res.decode("utf-8"))
     if len(res) > 0:
         print(res.decode("utf-8"), end="", file=sys.stderr)
+
+def combine_video_common(frame_rate: int, loop_count: int, first_frame,
+                         filename_prefix="AnimateDiff", format="image/gif",
+                         pingpong=False, save_output=True, prompt=None,
+                         extra_pnginfo=None, audio=None, unique_id=None,
+                         manual_format_widgets=None):
+    #Get path information
+    if save_output:
+        output_dir = folder_paths.get_output_directory()
+    else:
+        output_dir = folder_paths.get_temp_directory()
+    subfolder = ""
+    assert(filename_prefix[0] != '/' and filename_prefix.find('..') == -1)
+    (full_output_folder, filename) = os.path.split(os.path.join(output_dir, filename_prefix))
+
+    # comfy counter workaround
+    max_counter = 0
+    # Loop through the existing files
+    matcher = re.compile(f"{re.escape(filename)}_(\d+)\D*\..+")
+    os.makedirs(folder_paths.get_temp_directory(), exist_ok=True)
+    for existing_file in os.listdir(full_output_folder):
+        # Check if the file matches the expected format
+        match = matcher.fullmatch(existing_file)
+        if match:
+            # Extract the numeric portion of the filename
+            file_counter = int(match.group(1))
+            # Update the maximum counter value if necessary
+            if file_counter > max_counter:
+                max_counter = file_counter
+    output_files = []
+
+    # Increment the counter by 1 to get the next available value
+    counter = max_counter + 1
+    #Calculate metadata
+    metadata = PngInfo()
+    video_metadata = {}
+    if prompt is not None:
+        metadata.add_text("prompt", json.dumps(prompt))
+        video_metadata["prompt"] = prompt
+    if extra_pnginfo is not None:
+        for x in extra_pnginfo:
+            metadata.add_text(x, json.dumps(extra_pnginfo[x]))
+            video_metadata[x] = extra_pnginfo[x]
+    metadata.add_text("CreationTime", datetime.datetime.now().isoformat(" ")[:19])
+    #Output first frame
+    file = f"{filename}_{counter:05}.png"
+    file_path = os.path.join(full_output_folder, file)
+    first_frame_pil = Image.fromarray(tensor_to_bytes(first_frame))
+    first_frame_pil.save(
+        file_path,
+        pnginfo=metadata,
+        compress_level=4,
+    )
+    output_files.append(file_path)
+
+    format_type, format_ext = format.split("/")
+    if format_type == "image":
+        image_kwargs = {}
+        if format_ext == "gif":
+            image_kwargs['disposal'] = 2
+        if format_ext == "webp":
+            #Save timestamp information
+            exif = Image.Exif()
+            exif[ExifTags.IFD.Exif] = {36867: datetime.datetime.now().isoformat(" ")[:19]}
+            image_kwargs['exif'] = exif
+        file = f"{filename}_{counter:05}.{format_ext}"
+        file_path = os.path.join(full_output_folder, file)
+        #Take any number of iterators as input.
+        #As all iterators must collect before execution, care must be taken to keep data in smallest form (latent space)
+        frames = iter([])
+        while True:
+            batch = yield
+            if not batch:
+                break
+            frames = itertools.chain(frames, batch)
+        #NOTE: first frame has already been consumed
+        #convert to pillow
+        frames = map(lambda f: Image.fromarray(tensor_to_bytes(frames)))
+        # Use pillow directly to save an animated image
+        first_frame_pil.save(
+            file_path,
+            format=format_ext.upper(),
+            save_all=True,
+            #All formats appear to take iterators for append_frames, but some collect immediately
+            append_images=frames,
+            duration=round(1000 / frame_rate),
+            loop=loop_count,
+            compress_level=4,
+            **image_kwargs
+        )
+        output_files.append(file_path)
+    else:
+        # Use ffmpeg to save a video
+        if ffmpeg_path is None:
+            #Should never be reachable
+            raise ProcessLookupError("Could not find ffmpeg")
+
+        #Acquire additional format_widget values
+        kwargs = None
+        if manual_format_widgets is None:
+            if prompt is not None:
+                kwargs = prompt[unique_id]['inputs']
+            else:
+                manual_format_widgets = {}
+        if kwargs is None:
+            kwargs = get_format_widget_defaults(format_ext)
+            missing = {}
+            for k in kwargs.keys():
+                if k in manual_format_widgets:
+                    kwargs[k] = manual_format_widgets[k]
+                else:
+                    missing[k] = kwargs[k]
+            if len(missing) > 0:
+                logger.warn("Extra format values were not provided, the following defaults will be used: " + str(kwargs) + "\nThis is likely due to usage of ComfyUI-to-python. These values can be manually set by supplying a manual_format_widgets argument")
+
+        video_format = apply_format_widgets(format_ext, kwargs)
+        if video_format.get('input_color_depth', '8bit') == '16bit':
+            pixel_conv_func = lambda x: tensor_to_shorts(x).tobytes()
+            if first_frame.shape[-1] == 4:
+                i_pix_fmt = 'rgba64'
+            else:
+                i_pix_fmt = 'rgb48'
+        else:
+            pixel_conv_func = lambda x: tensor_to_bytes(x).tobytes()
+            if first_frame.shape[-1] == 4:
+                i_pix_fmt = 'rgba'
+            else:
+                i_pix_fmt = 'rgb24'
+        file = f"{filename}_{counter:05}.{video_format['extension']}"
+        file_path = os.path.join(full_output_folder, file)
+        dimensions = f"{first_frame.shape[1]}x{first_frame.shape[0]}"
+        bitrate_arg = []
+        bitrate = video_format.get('bitrate')
+        if bitrate is not None:
+            bitrate_arg = ["-b:v", str(bitrate) + "M" if video_format.get('megabit') == 'True' else str(bitrate) + "K"]
+        args = [ffmpeg_path, "-v", "error", "-f", "rawvideo", "-pix_fmt", i_pix_fmt,
+                "-s", dimensions, "-r", str(frame_rate), "-i", "-"] \
+                + video_format['main_pass'] + bitrate_arg
+
+        env=os.environ.copy()
+        if  "environment" in video_format:
+            env.update(video_format["environment"])
+        frame_data = yield
+        if video_format.get('save_metadata', 'False') != 'False':
+            metadata = json.dumps(video_metadata)
+            metadata_path = os.path.join(folder_paths.get_temp_directory(), "metadata.txt")
+            #metadata from file should  escape = ; # \ and newline
+            metadata = metadata.replace("\\","\\\\")
+            metadata = metadata.replace(";","\\;")
+            metadata = metadata.replace("#","\\#")
+            metadata = metadata.replace("=","\\=")
+            metadata = metadata.replace("\n","\\\n")
+            metadata = "comment=" + metadata
+            with open(metadata_path, "w") as f:
+                f.write(";FFMETADATA1\n")
+                f.write(metadata)
+            m_args = args[:1] + ["-i", metadata_path] + args[1:] + ["-metadata", "creation_time=now"]
+            with subprocess.Popen(m_args + [file_path], stderr=subprocess.PIPE,
+                                  stdin=subprocess.PIPE, env=env) as proc:
+                try:
+                    proc.stdin.write(pixel_conv_func(first_frame))
+                    while frame_data is not None:
+                        proc.stdin.write(pixel_conv_func(frame_data))
+                        frame_data = yield
+                    proc.stdin.close()
+                    res = proc.stderr.read()
+                except BrokenPipeError as e:
+                    err = proc.stderr.read()
+                    #Check if output file exists. If it does, the re-execution
+                    #will also fail. This obscures the cause of the error
+                    #and seems to never occur concurrent to the metadata issue
+                    if os.path.exists(file_path):
+                        raise Exception("An error occured in the ffmpeg subprocess:\n" \
+                                + err.decode("utf-8"))
+                    #Res was not set
+                    print(err.decode("utf-8"), end="", file=sys.stderr)
+                    logger.warn("An error occurred when saving with metadata")
+        if res != b'':
+            with subprocess.Popen(args + [file_path], stderr=subprocess.PIPE,
+                                  stdin=subprocess.PIPE, env=env) as proc:
+                try:
+                    proc.stdin.write(pixel_conv_func(first_frame))
+                    while frame_data is not None:
+                        for data in map(pixel_conv_func, frame_data):
+                            proc.stdin.write(frame_data)
+                        frame_data = yield
+                    proc.stdin.close()
+                    res = proc.stderr.read()
+                except BrokenPipeError as e:
+                    res = proc.stderr.read()
+                    raise Exception("An error occured in the ffmpeg subprocess:\n" \
+                            + res.decode("utf-8"))
+        if len(res) > 0:
+            print(res.decode("utf-8"), end="", file=sys.stderr)
+
+        output_files.append(file_path)
+
+        if "gifski_pass" in video_format:
+            gif_output = f"{filename}_{counter:05}.gif"
+            gif_output_path = os.path.join( full_output_folder, gif_output)
+            gifski_args = [gifski_path] + video_format["gifski_pass"] \
+                    + ["-o", gif_output_path, file_path]
+            try:
+                res = subprocess.run(gifski_args, env=env, check=True, capture_output=True)
+            except subprocess.CalledProcessError as e:
+                raise Exception("An error occured in the gifski subprocess:\n" \
+                        + e.stderr.decode("utf-8"))
+            if res.stderr:
+                print(res.stderr.decode("utf-8"), end="", file=sys.stderr)
+            #output format is actually an image and should be correctly marked
+            #TODO: Evaluate a more consistent solution for this
+            format = "image/gif"
+            output_files.append(gif_output_path)
+            file = gif_output
+
+        elif audio is not None and audio() is not False:
+            # Create audio file if input was provided
+            output_file_with_audio = f"{filename}_{counter:05}-audio.{video_format['extension']}"
+            output_file_with_audio_path = os.path.join(full_output_folder, output_file_with_audio)
+            if "audio_pass" not in video_format:
+                logger.warn("Selected video format does not have explicit audio support")
+                video_format["audio_pass"] = ["-c:a", "libopus"]
+
+
+            # FFmpeg command with audio re-encoding
+            #TODO: expose audio quality options if format widgets makes it in
+            #Reconsider forcing apad/shortest
+            mux_args = [ffmpeg_path, "-v", "error", "-n", "-i", file_path,
+                        "-i", "-", "-c:v", "copy"] \
+                        + video_format["audio_pass"] \
+                        + ["-af", "apad", "-shortest", output_file_with_audio_path]
+
+            try:
+                res = subprocess.run(mux_args, input=audio(), env=env,
+                                     capture_output=True, check=True)
+            except subprocess.CalledProcessError as e:
+                raise Exception("An error occured in the ffmpeg subprocess:\n" \
+                        + e.stderr.decode("utf-8"))
+            if res.stderr:
+                print(res.stderr.decode("utf-8"), end="", file=sys.stderr)
+            output_files.append(output_file_with_audio_path)
+            #Return this file with audio to the webui.
+            #It will be muted unless opened or saved with right click
+            file = output_file_with_audio
+
+    previews = [
+        {
+            "filename": file,
+            "subfolder": subfolder,
+            "type": "output" if save_output else "temp",
+            "format": format,
+        }
+    ]
+    return {"ui": {"gifs": previews}, "result": ((save_output, output_files),)}
 
 class VideoCombine:
     @classmethod
@@ -436,6 +690,72 @@ class VideoCombine:
     def VALIDATE_INPUTS(self, format, **kwargs):
         return True
 
+class VideoCombineLatent:
+    @classmethod
+    def INPUT_TYPES(s):
+        #Hide ffmpeg formats if ffmpeg isn't available
+        if ffmpeg_path is not None:
+            ffmpeg_formats = get_video_formats()
+        else:
+            ffmpeg_formats = []
+        return {
+            "required": {
+                "latents": ("LATENT",),
+                "vae": ("VAE",),
+                "frame_rate": (
+                    "INT",
+                    {"default": 8, "min": 1, "step": 1},
+                ),
+                "loop_count": ("INT", {"default": 0, "min": 0, "max": 100, "step": 1}),
+                "filename_prefix": ("STRING", {"default": "AnimateDiff"}),
+                "format": (["image/gif", "image/webp"] + ffmpeg_formats,),
+                "pingpong": ("BOOLEAN", {"default": False}),
+                "save_output": ("BOOLEAN", {"default": True}),
+            },
+            "optional": {
+                "audio": ("VHS_AUDIO",),
+                "batch_manager": ("VHS_BatchManager",)
+            },
+            "hidden": {
+                "prompt": "PROMPT",
+                "extra_pnginfo": "EXTRA_PNGINFO",
+                "unique_id": "UNIQUE_ID"
+            },
+        }
+
+    RETURN_TYPES = ("VHS_FILENAMES",)
+    RETURN_NAMES = ("Filenames",)
+    OUTPUT_NODE = True
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
+    FUNCTION = "combine_video"
+
+    def combine_video(self, vae, latents, **kwargs):
+        downscale_ratio = getattr(vae, "downscale_ratio", 8)
+        width = latents['samples'].shape[3] * downscale_ratio
+        height = latents['samples'].shape[2] * downscale_ratio
+        frames_per_batch = (1920 * 1080 * 16) // (width * height) or 1
+        def batched_bytes(latents, frames_per_batch, vae):
+            yield vae.decode(latents['samples'][0:1])[0]
+            for i in range(1, latents['samples'].shape[0], frames_per_batch):
+                batch = vae.decode(latents['samples'][i:i+frames_per_batch])
+                yield batch
+        images = batched_bytes(latents, frames_per_batch, vae)
+        first_frame = next(images)
+        kwargs['first_frame'] = first_frame
+        combine_consumer = combine_video_common(**kwargs)
+        next(combine_consumer)
+        for batch in batched_bytes(latents, frames_per_batch, vae):
+            combine_consumer.send(batch)
+        try:
+            combine_consumer.send(None)
+        except StopIteration as e:
+            return e.value
+        #Should be unreachable
+        raise Exception("Combine consumer failed to close.")
+    @classmethod
+    def VALIDATE_INPUTS(self, format, **kwargs):
+        return True
+
 class LoadAudio:
     @classmethod
     def INPUT_TYPES(s):
@@ -569,6 +889,8 @@ NODE_CLASS_MAPPINGS = {
     "VHS_LoadAudio": LoadAudio,
     "VHS_PruneOutputs": PruneOutputs,
     "VHS_BatchManager": BatchManager,
+    "VHS_LoadVideoLatent": LoadVideoLatent,
+    "VHS_VideoCombineLatent": VideoCombineLatent,
     # Latent and Image nodes
     "VHS_SplitLatents": SplitLatents,
     "VHS_SplitImages": SplitImages,
@@ -598,6 +920,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_LoadAudio": "Load Audio (Path)🎥🅥🅗🅢",
     "VHS_PruneOutputs": "Prune Outputs 🎥🅥🅗🅢",
     "VHS_BatchManager": "Batch Manager 🎥🅥🅗🅢",
+    "VHS_LoadVideoLatent": "Load Video (Latent) 🎥🅥🅗🅢",
+    "VHS_VideoCombineLatent": "Video Combine Latent 🎥🅥🅗🅢",
     # Latent and Image nodes
     "VHS_SplitLatents": "Split Latent Batch 🎥🅥🅗🅢",
     "VHS_SplitImages": "Split Image Batch 🎥🅥🅗🅢",

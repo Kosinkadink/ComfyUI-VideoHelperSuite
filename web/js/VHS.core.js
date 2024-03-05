@@ -944,7 +944,7 @@ app.registerExtension({
                 });
             });
             addLoadVideoCommon(nodeType, nodeData);
-        } else if (nodeData?.name =="VHS_LoadVideoPath") {
+        } else if (nodeData?.name =="VHS_LoadVideoPath" || nodeData?.name =="VHS_LoadVideoLatent") {
             chainCallback(nodeType.prototype, "onNodeCreated", function() {
                 const pathWidget = this.widgets.find((w) => w.name === "video");
                 chainCallback(pathWidget, "callback", (value) => {
@@ -960,7 +960,7 @@ app.registerExtension({
                 });
             });
             addLoadVideoCommon(nodeType, nodeData);
-        } else if (nodeData?.name == "VHS_VideoCombine") {
+        } else if (nodeData?.name == "VHS_VideoCombine" || nodeData?.name == "VHS_VideoCombineLatent") {
             addDateFormatting(nodeType, "filename_prefix");
             chainCallback(nodeType.prototype, "onExecuted", function(message) {
                 if (message?.gifs) {

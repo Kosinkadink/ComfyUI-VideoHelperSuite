@@ -18,29 +18,18 @@ def is_gif(filename) -> bool:
     file_parts = filename.split('.')
     return len(file_parts) > 1 and file_parts[-1] == "gif"
 
-
-def target_size(width, height, force_size, custom_width, custom_height) -> tuple[int, int]:
+def target_size(width, height, force_size, custom_width, custom_height, downscale_ratio) -> tuple[int, int]:
+    """From input dimensions and desired dimensions, calculate valid dimensions."""
     if force_size == "Custom":
-        return (custom_width, custom_height)
-    elif force_size == "Custom Height":
-        force_size = "?x"+str(custom_height)
-    elif force_size == "Custom Width":
-        force_size = str(custom_width)+"x?"
+        width = custom_width
+        height = custom_height
+    elif force_size == "Custom width":
+        height *= custom_width/width
+    elif force_size == "Custom height":
+        width *= custom_height/height
 
-    if force_size != "Disabled":
-        force_size = force_size.split("x")
-        if force_size[0] == "?":
-            width = (width*int(force_size[1]))//height
-            #Limit to a multple of 8 for latent conversion
-            width = int(width)+4 & ~7
-            height = int(force_size[1])
-        elif force_size[1] == "?":
-            height = (height*int(force_size[0]))//width
-            height = int(height)+4 & ~7
-            width = int(force_size[0])
-        else:
-            width = int(force_size[0])
-            height = int(force_size[1])
+    width = int(width/downscale_ratio + 0.5) * downscale_ratio
+    height = int(height/downscale_ratio + 0.5) * downscale_ratio
     return (width, height)
 
 def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
@@ -143,6 +132,51 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
                                frame_load_cap*target_frame_time*select_every_nth)
     return (images, len(images), lazy_eval(audio))
 
+def load_video_latent_cv(video: str, force_rate: int, force_size: str,
+                  custom_width: int,custom_height: int, frame_load_cap: int,
+                  skip_first_frames: int, select_every_nth: int, vae,
+                  batch_manager=None, unique_id=None):
+    if batch_manager is None or unique_id not in batch_manager.inputs:
+        gen = cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
+                                 select_every_nth, batch_manager, unique_id)
+        (width, height, target_frame_time) = next(gen)
+        width = int(width)
+        height = int(height)
+        if batch_manager is not None:
+            batch_manager.inputs[unique_id] = (gen, width, height, target_frame_time)
+    else:
+        (gen, width, height, target_frame_time) = batch_manager.inputs[unique_id]
+    if batch_manager is not None:
+        gen = itertools.islice(gen, batch_manager.frames_per_batch)
+    downscale_ratio = getattr(vae, "downscale_ratio", 8)
+    new_size = target_size(width, height, force_size, custom_width, custom_height, downscale_ratio=downscale_ratio)
+
+    #Python 3.12 adds an itertools.batched, but it's easily replicated for legacy support
+    def batched(it, n):
+        while batch := tuple(itertools.islice(it, n)):
+            yield batch
+    #Perform finer batching for vae conversion/rescaling
+    frames_per_batch = (1920 * 1080 * 16) // (width * height) or 1
+    processed_batches = []
+    for batch in batched(gen, frames_per_batch):
+        #naive batch implementation has already collected
+        images = torch.from_numpy(np.array(batch))
+        if new_size and (new_size[0] != width or new_size[1] != height):
+            images = images.movedim(-1,1)
+            images = common_upscale(images, new_size[0], new_size[1], "lanczos", "center")
+            images = images.movedim(1,-1)
+        #Cropping is not required as shape is already aligned to multiples of downscale_ratio
+        #images.shape[-1] is always 3
+        processed_batches.append(vae.encode(images))
+    #TODO: Set the ComfyUI latent batch information to batch size calculated here?
+    #      Would this information actually be useful for AnimateDiff workflows?
+    latents = {"samples": torch.cat(processed_batches, dim=0)}
+
+    #Setup lambda for lazy audio capture
+    audio = lambda : get_audio(video, skip_first_frames * target_frame_time,
+                               frame_load_cap*target_frame_time*select_every_nth)
+    return (latents, len(latents), lazy_eval(audio))
+
 
 class LoadVideoUpload:
     @classmethod
@@ -226,6 +260,48 @@ class LoadVideoPath:
         if kwargs['video'] is None or validate_path(kwargs['video']) != True:
             raise Exception("video is not a valid path: " + kwargs['video'])
         return load_video_cv(**kwargs)
+
+    @classmethod
+    def IS_CHANGED(s, video, **kwargs):
+        return hash_path(video)
+
+    @classmethod
+    def VALIDATE_INPUTS(s, video, **kwargs):
+        return validate_path(video, allow_none=True)
+
+class LoadVideoLatent:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "video": ("STRING", {"default": "X://insert/path/here.mp4", "vhs_path_extensions": video_extensions}),
+                "force_rate": ("INT", {"default": 0, "min": 0, "max": 60, "step": 1}),
+                 "force_size": (["Disabled", "Custom Height", "Custom Width", "Custom", "256x?", "?x256", "256x256", "512x?", "?x512", "512x512"],),
+                 "custom_width": ("INT", {"default": 512, "min": 0, "max": DIMMAX, "step": 8}),
+                 "custom_height": ("INT", {"default": 512, "min": 0, "max": DIMMAX, "step": 8}),
+                "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
+                "skip_first_frames": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
+                "select_every_nth": ("INT", {"default": 1, "min": 1, "max": BIGMAX, "step": 1}),
+                "vae": ("VAE",),
+            },
+            "optional": {
+                "batch_manager": ("VHS_BatchManager",)
+            },
+            "hidden": {
+                "unique_id": "UNIQUE_ID"
+            },
+        }
+
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
+
+    RETURN_TYPES = ("LATENT", "INT", "VHS_AUDIO", )
+    RETURN_NAMES = ("LATENT", "frame_count", "audio",)
+    FUNCTION = "load_video"
+
+    def load_video(self, **kwargs):
+        if kwargs['video'] is None or validate_path(kwargs['video']) != True:
+            raise Exception("video is not a valid path: " + kwargs['video'])
+        return load_video_latent_cv(**kwargs)
 
     @classmethod
     def IS_CHANGED(s, video, **kwargs):
