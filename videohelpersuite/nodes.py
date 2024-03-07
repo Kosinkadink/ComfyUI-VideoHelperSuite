@@ -737,8 +737,8 @@ class VideoCombineLatent:
 
     def combine_video(self, vae, latents, batch_manager=None, unique_id=None, **kwargs):
         downscale_ratio = getattr(vae, "downscale_ratio", 8)
-        width = latents['samples'].shape[3] * downscale_ratio
-        height = latents['samples'].shape[2] * downscale_ratio
+        width = latents['samples'].shape[2] * downscale_ratio
+        height = latents['samples'].shape[1] * downscale_ratio
         frames_per_batch = (1920 * 1080 * 16) // (width * height) or 1
         batches = map(vae.decode, latents['samples'].split(frames_per_batch))
         frames = itertools.chain.from_iterable(batches)
