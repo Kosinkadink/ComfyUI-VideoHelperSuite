@@ -49,19 +49,28 @@ def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
         video_cap = cv2.VideoCapture(video)
         if not video_cap.isOpened():
             raise ValueError(f"{video} could not be loaded with cv.")
+
+        # extract video metadata
+        fps = video_cap.get(cv2.CAP_PROP_FPS)
+        width = int(video_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(video_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        total_frames = int(video_cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        duration = total_frames / fps
+
         # set video_cap to look at start_index frame
         total_frame_count = 0
         total_frames_evaluated = -1
         frames_added = 0
-        base_frame_time = 1/video_cap.get(cv2.CAP_PROP_FPS)
-        width = video_cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-        height = video_cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        base_frame_time = 1 / fps
         prev_frame = None
+
         if force_rate == 0:
             target_frame_time = base_frame_time
         else:
             target_frame_time = 1/force_rate
-        yield (width, height, target_frame_time)
+
+        yield (width, height, fps, duration, target_frame_time)
+
         time_offset=target_frame_time - base_frame_time
         while video_cap.isOpened():
             if time_offset < target_frame_time:
@@ -117,13 +126,14 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
     if batch_manager is None or unique_id not in batch_manager.inputs:
         gen = cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
                                  select_every_nth, batch_manager, unique_id)
-        (width, height, target_frame_time) = next(gen)
-        width = int(width)
-        height = int(height)
+        (width, height, fps, duration, target_frame_time) = next(gen)
+
         if batch_manager is not None:
-            batch_manager.inputs[unique_id] = (gen, width, height, target_frame_time)
+            batch_manager.inputs[unique_id] = (gen, width, height, fps, duration, target_frame_time)
+
     else:
-        (gen, width, height, target_frame_time) = batch_manager.inputs[unique_id]
+        (gen, width, height, fps, duration, target_frame_time) = batch_manager.inputs[unique_id]
+
     if batch_manager is not None:
         gen = itertools.islice(gen, batch_manager.frames_per_batch)
 
@@ -141,7 +151,15 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
     #Setup lambda for lazy audio capture
     audio = lambda : get_audio(video, skip_first_frames * target_frame_time,
                                frame_load_cap*target_frame_time*select_every_nth)
-    return (images, len(images), lazy_eval(audio))
+    video_info = {
+        "width": width,
+        "height": height,
+        "frame_count": len(images),
+        "fps": fps,
+        "duration": duration,
+    }
+
+    return (images, len(images), lazy_eval(audio), video_info)
 
 
 class LoadVideoUpload:
@@ -174,8 +192,9 @@ class LoadVideoUpload:
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
 
-    RETURN_TYPES = ("IMAGE", "INT", "VHS_AUDIO", )
-    RETURN_NAMES = ("IMAGE", "frame_count", "audio",)
+    RETURN_TYPES = ("IMAGE", "INT", "VHS_AUDIO", "VHS_VIDEOINFO",)
+    RETURN_NAMES = ("IMAGE", "frame_count", "audio", "video_info",)
+
     FUNCTION = "load_video"
 
     def load_video(self, **kwargs):
@@ -218,8 +237,9 @@ class LoadVideoPath:
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
 
-    RETURN_TYPES = ("IMAGE", "INT", "VHS_AUDIO", )
-    RETURN_NAMES = ("IMAGE", "frame_count", "audio",)
+    RETURN_TYPES = ("IMAGE", "INT", "VHS_AUDIO", "VHS_VIDEOINFO",)
+    RETURN_NAMES = ("IMAGE", "frame_count", "audio", "video_info",)
+
     FUNCTION = "load_video"
 
     def load_video(self, **kwargs):

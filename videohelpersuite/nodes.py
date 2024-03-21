@@ -560,6 +560,31 @@ class BatchManager:
         return (self,)
 
 
+class VideoInfo:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+                "required": {
+                    "video_info": ("VHS_VIDEOINFO",),
+                    }
+                }
+
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
+
+    RETURN_TYPES = ("INT", "INT", "INT", "FLOAT", "FLOAT",)
+    RETURN_NAMES = ("width", "height", "frame_count", "fps", "duration",)
+    FUNCTION = "get_video_info"
+
+    def get_video_info(self, video_info):
+        width = video_info["width"]
+        height = video_info["height"]
+        frame_count = video_info["frame_count"]
+        fps = video_info["fps"]
+        duration = video_info["duration"]
+
+        return (width, height, frame_count, fps, duration)
+
+
 NODE_CLASS_MAPPINGS = {
     "VHS_VideoCombine": VideoCombine,
     "VHS_LoadVideo": LoadVideoUpload,
@@ -569,6 +594,7 @@ NODE_CLASS_MAPPINGS = {
     "VHS_LoadAudio": LoadAudio,
     "VHS_PruneOutputs": PruneOutputs,
     "VHS_BatchManager": BatchManager,
+    "VHS_VideoInfo": VideoInfo,
     # Latent and Image nodes
     "VHS_SplitLatents": SplitLatents,
     "VHS_SplitImages": SplitImages,
@@ -598,6 +624,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_LoadAudio": "Load Audio (Path)🎥🅥🅗🅢",
     "VHS_PruneOutputs": "Prune Outputs 🎥🅥🅗🅢",
     "VHS_BatchManager": "Batch Manager 🎥🅥🅗🅢",
+    "VHS_VideoInfo": "Video Info 🎥🅥🅗🅢",
     # Latent and Image nodes
     "VHS_SplitLatents": "Split Latent Batch 🎥🅥🅗🅢",
     "VHS_SplitImages": "Split Image Batch 🎥🅥🅗🅢",
