@@ -69,7 +69,7 @@ def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
         else:
             target_frame_time = 1/force_rate
 
-        yield (width, height, fps, duration, target_frame_time)
+        yield (width, height, fps, duration, total_frames, target_frame_time)
 
         time_offset=target_frame_time - base_frame_time
         while video_cap.isOpened():
@@ -126,13 +126,13 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
     if batch_manager is None or unique_id not in batch_manager.inputs:
         gen = cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
                                  select_every_nth, batch_manager, unique_id)
-        (width, height, fps, duration, target_frame_time) = next(gen)
+        (width, height, fps, duration, total_frames, target_frame_time) = next(gen)
 
         if batch_manager is not None:
             batch_manager.inputs[unique_id] = (gen, width, height, fps, duration, target_frame_time)
 
     else:
-        (gen, width, height, fps, duration, target_frame_time) = batch_manager.inputs[unique_id]
+        (gen, width, height, fps, duration, total_frames, target_frame_time) = batch_manager.inputs[unique_id]
 
     if batch_manager is not None:
         gen = itertools.islice(gen, batch_manager.frames_per_batch)
@@ -152,11 +152,16 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
     audio = lambda : get_audio(video, skip_first_frames * target_frame_time,
                                frame_load_cap*target_frame_time*select_every_nth)
     video_info = {
-        "width": width,
-        "height": height,
-        "frame_count": len(images),
-        "fps": fps,
-        "duration": duration,
+        "source_fps": fps,
+        "source_frame_count": total_frames,
+        "source_duration": duration,
+        "source_width": width,
+        "source_height": height,
+        "loaded_fps": 1/target_frame_time,
+        "loaded_frame_count": len(images),
+        "loaded_duration": len(images) * target_frame_time,
+        "loaded_width": images.shape[2],
+        "loaded_height": images.shape[1],
     }
 
     return (images, len(images), lazy_eval(audio), video_info)

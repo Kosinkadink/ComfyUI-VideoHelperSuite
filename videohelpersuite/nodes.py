@@ -571,18 +571,97 @@ class VideoInfo:
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
 
-    RETURN_TYPES = ("INT", "INT", "INT", "FLOAT", "FLOAT",)
-    RETURN_NAMES = ("width", "height", "frame_count", "fps", "duration",)
+    RETURN_TYPES = ("FLOAT","INT", "FLOAT", "INT", "INT", "FLOAT","INT", "FLOAT", "INT", "INT")
+    RETURN_NAMES = (
+        "source_fps🟨",
+        "source_frame_count🟨",
+        "source_duration🟨",
+        "source_width🟨",
+        "source_height🟨",
+        "loaded_fps🟦",
+        "loaded_frame_count🟦",
+        "loaded_duration🟦",
+        "loaded_width🟦",
+        "loaded_height🟦",
+    )
     FUNCTION = "get_video_info"
 
     def get_video_info(self, video_info):
-        width = video_info["width"]
-        height = video_info["height"]
-        frame_count = video_info["frame_count"]
-        fps = video_info["fps"]
-        duration = video_info["duration"]
+        keys = ["fps", "frame_count", "duration", "width", "height"]
+        
+        source_info = []
+        loaded_info = []
 
-        return (width, height, frame_count, fps, duration)
+        for key in keys:
+            source_info.append(video_info[f"source_{key}"])
+            loaded_info.append(video_info[f"loaded_{key}"])
+
+        return (*source_info, *loaded_info)
+
+
+class VideoInfoSource:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+                "required": {
+                    "video_info": ("VHS_VIDEOINFO",),
+                    }
+                }
+
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
+
+    RETURN_TYPES = ("FLOAT","INT", "FLOAT", "INT", "INT",)
+    RETURN_NAMES = (
+        "fps🟨",
+        "frame_count🟨",
+        "duration🟨",
+        "width🟨",
+        "height🟨",
+    )
+    FUNCTION = "get_video_info"
+
+    def get_video_info(self, video_info):
+        keys = ["fps", "frame_count", "duration", "width", "height"]
+        
+        source_info = []
+
+        for key in keys:
+            source_info.append(video_info[f"source_{key}"])
+
+        return (*source_info,)
+
+
+class VideoInfoLoaded:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+                "required": {
+                    "video_info": ("VHS_VIDEOINFO",),
+                    }
+                }
+
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
+
+    RETURN_TYPES = ("FLOAT","INT", "FLOAT", "INT", "INT",)
+    RETURN_NAMES = (
+        "fps🟦",
+        "frame_count🟦",
+        "duration🟦",
+        "width🟦",
+        "height🟦",
+    )
+    FUNCTION = "get_video_info"
+
+    def get_video_info(self, video_info):
+        keys = ["fps", "frame_count", "duration", "width", "height"]
+        
+        loaded_info = []
+
+        for key in keys:
+            loaded_info.append(video_info[f"loaded_{key}"])
+
+        return (*loaded_info,)
+
 
 
 NODE_CLASS_MAPPINGS = {
@@ -595,6 +674,8 @@ NODE_CLASS_MAPPINGS = {
     "VHS_PruneOutputs": PruneOutputs,
     "VHS_BatchManager": BatchManager,
     "VHS_VideoInfo": VideoInfo,
+    "VHS_VideoInfoSource": VideoInfoSource,
+    "VHS_VideoInfoLoaded": VideoInfoLoaded,
     # Latent and Image nodes
     "VHS_SplitLatents": SplitLatents,
     "VHS_SplitImages": SplitImages,
@@ -625,6 +706,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_PruneOutputs": "Prune Outputs 🎥🅥🅗🅢",
     "VHS_BatchManager": "Batch Manager 🎥🅥🅗🅢",
     "VHS_VideoInfo": "Video Info 🎥🅥🅗🅢",
+    "VHS_VideoInfoSource": "Video Info (Source) 🎥🅥🅗🅢",
+    "VHS_VideoInfoLoaded": "Video Info (Loaded) 🎥🅥🅗🅢",
     # Latent and Image nodes
     "VHS_SplitLatents": "Split Latent Batch 🎥🅥🅗🅢",
     "VHS_SplitImages": "Split Image Batch 🎥🅥🅗🅢",
