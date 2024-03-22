@@ -161,7 +161,7 @@ class VideoCombine:
             "required": {
                 "images": ("IMAGE",),
                 "frame_rate": (
-                    "INT",
+                    "FLOAT",
                     {"default": 8, "min": 1, "step": 1},
                 ),
                 "loop_count": ("INT", {"default": 0, "min": 0, "max": 100, "step": 1}),
