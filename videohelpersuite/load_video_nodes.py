@@ -151,6 +151,8 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
     #Setup lambda for lazy audio capture
     audio = lambda : get_audio(video, skip_first_frames * target_frame_time,
                                frame_load_cap*target_frame_time*select_every_nth)
+    #Adjust target_frame_time for select_every_nth
+    target_frame_time *= select_every_nth
     video_info = {
         "source_fps": fps,
         "source_frame_count": total_frames,
