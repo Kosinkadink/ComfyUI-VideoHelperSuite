@@ -129,7 +129,7 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
         (width, height, fps, duration, total_frames, target_frame_time) = next(gen)
 
         if batch_manager is not None:
-            batch_manager.inputs[unique_id] = (gen, width, height, fps, duration, target_frame_time)
+            batch_manager.inputs[unique_id] = (gen, width, height, fps, duration, total_frames, target_frame_time)
 
     else:
         (gen, width, height, fps, duration, total_frames, target_frame_time) = batch_manager.inputs[unique_id]
