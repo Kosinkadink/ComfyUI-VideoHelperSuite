@@ -45,79 +45,76 @@ def target_size(width, height, force_size, custom_width, custom_height) -> tuple
 
 def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
                        select_every_nth, batch_manager=None, unique_id=None):
-    try:
-        video_cap = cv2.VideoCapture(video)
-        if not video_cap.isOpened():
-            raise ValueError(f"{video} could not be loaded with cv.")
+    video_cap = cv2.VideoCapture(video)
+    if not video_cap.isOpened():
+        raise ValueError(f"{video} could not be loaded with cv.")
 
-        # extract video metadata
-        fps = video_cap.get(cv2.CAP_PROP_FPS)
-        width = int(video_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(video_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        total_frames = int(video_cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        duration = total_frames / fps
+    # extract video metadata
+    fps = video_cap.get(cv2.CAP_PROP_FPS)
+    width = int(video_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(video_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    total_frames = int(video_cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    duration = total_frames / fps
 
-        # set video_cap to look at start_index frame
-        total_frame_count = 0
-        total_frames_evaluated = -1
-        frames_added = 0
-        base_frame_time = 1 / fps
-        prev_frame = None
+    # set video_cap to look at start_index frame
+    total_frame_count = 0
+    total_frames_evaluated = -1
+    frames_added = 0
+    base_frame_time = 1 / fps
+    prev_frame = None
 
-        if force_rate == 0:
-            target_frame_time = base_frame_time
-        else:
-            target_frame_time = 1/force_rate
+    if force_rate == 0:
+        target_frame_time = base_frame_time
+    else:
+        target_frame_time = 1/force_rate
 
-        yield (width, height, fps, duration, total_frames, target_frame_time)
+    yield (width, height, fps, duration, total_frames, target_frame_time)
 
-        time_offset=target_frame_time - base_frame_time
-        while video_cap.isOpened():
-            if time_offset < target_frame_time:
-                is_returned = video_cap.grab()
-                # if didn't return frame, video has ended
-                if not is_returned:
-                    break
-                time_offset += base_frame_time
-            if time_offset < target_frame_time:
-                continue
-            time_offset -= target_frame_time
-            # if not at start_index, skip doing anything with frame
-            total_frame_count += 1
-            if total_frame_count <= skip_first_frames:
-                continue
-            else:
-                total_frames_evaluated += 1
-
-            # if should not be selected, skip doing anything with frame
-            if total_frames_evaluated%select_every_nth != 0:
-                continue
-
-            # opencv loads images in BGR format (yuck), so need to convert to RGB for ComfyUI use
-            # follow up: can videos ever have an alpha channel?
-            # To my testing: No. opencv has no support for alpha
-            unused, frame = video_cap.retrieve()
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            # convert frame to comfyui's expected format
-            # TODO: frame contains no exif information. Check if opencv2 has already applied
-            frame = np.array(frame, dtype=np.float32) / 255.0
-            if prev_frame is not None:
-                inp  = yield prev_frame
-                if inp is not None:
-                    #ensure the finally block is called
-                    return
-            prev_frame = frame
-            frames_added += 1
-            # if cap exists and we've reached it, stop processing frames
-            if frame_load_cap > 0 and frames_added >= frame_load_cap:
+    time_offset=target_frame_time - base_frame_time
+    while video_cap.isOpened():
+        if time_offset < target_frame_time:
+            is_returned = video_cap.grab()
+            # if didn't return frame, video has ended
+            if not is_returned:
                 break
-        if batch_manager is not None:
-            batch_manager.inputs.pop(unique_id)
-            batch_manager.has_closed_inputs = True
+            time_offset += base_frame_time
+        if time_offset < target_frame_time:
+            continue
+        time_offset -= target_frame_time
+        # if not at start_index, skip doing anything with frame
+        total_frame_count += 1
+        if total_frame_count <= skip_first_frames:
+            continue
+        else:
+            total_frames_evaluated += 1
+
+        # if should not be selected, skip doing anything with frame
+        if total_frames_evaluated%select_every_nth != 0:
+            continue
+
+        # opencv loads images in BGR format (yuck), so need to convert to RGB for ComfyUI use
+        # follow up: can videos ever have an alpha channel?
+        # To my testing: No. opencv has no support for alpha
+        unused, frame = video_cap.retrieve()
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        # convert frame to comfyui's expected format
+        # TODO: frame contains no exif information. Check if opencv2 has already applied
+        frame = np.array(frame, dtype=np.float32) / 255.0
         if prev_frame is not None:
-            yield prev_frame
-    finally:
-        video_cap.release()
+            inp  = yield prev_frame
+            if inp is not None:
+                #ensure the finally block is called
+                return
+        prev_frame = frame
+        frames_added += 1
+        # if cap exists and we've reached it, stop processing frames
+        if frame_load_cap > 0 and frames_added >= frame_load_cap:
+            break
+    if batch_manager is not None:
+        batch_manager.inputs.pop(unique_id)
+        batch_manager.has_closed_inputs = True
+    if prev_frame is not None:
+        yield prev_frame
 
 def load_video_cv(video: str, force_rate: int, force_size: str,
                   custom_width: int,custom_height: int, frame_load_cap: int,
