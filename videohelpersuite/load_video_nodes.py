@@ -44,7 +44,7 @@ def target_size(width, height, force_size, custom_width, custom_height) -> tuple
     return (width, height)
 
 def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
-                       select_every_nth, batch_manager=None, unique_id=None):
+                       select_every_nth, meta_batch=None, unique_id=None):
     video_cap = cv2.VideoCapture(video)
     if not video_cap.isOpened():
         raise ValueError(f"{video} could not be loaded with cv.")
@@ -110,29 +110,29 @@ def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
         # if cap exists and we've reached it, stop processing frames
         if frame_load_cap > 0 and frames_added >= frame_load_cap:
             break
-    if batch_manager is not None:
-        batch_manager.inputs.pop(unique_id)
-        batch_manager.has_closed_inputs = True
+    if meta_batch is not None:
+        meta_batch.inputs.pop(unique_id)
+        meta_batch.has_closed_inputs = True
     if prev_frame is not None:
         yield prev_frame
 
 def load_video_cv(video: str, force_rate: int, force_size: str,
                   custom_width: int,custom_height: int, frame_load_cap: int,
                   skip_first_frames: int, select_every_nth: int,
-                  batch_manager=None, unique_id=None):
-    if batch_manager is None or unique_id not in batch_manager.inputs:
+                  meta_batch=None, unique_id=None):
+    if meta_batch is None or unique_id not in meta_batch.inputs:
         gen = cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
-                                 select_every_nth, batch_manager, unique_id)
+                                 select_every_nth, meta_batch, unique_id)
         (width, height, fps, duration, total_frames, target_frame_time) = next(gen)
 
-        if batch_manager is not None:
-            batch_manager.inputs[unique_id] = (gen, width, height, fps, duration, total_frames, target_frame_time)
+        if meta_batch is not None:
+            meta_batch.inputs[unique_id] = (gen, width, height, fps, duration, total_frames, target_frame_time)
 
     else:
-        (gen, width, height, fps, duration, total_frames, target_frame_time) = batch_manager.inputs[unique_id]
+        (gen, width, height, fps, duration, total_frames, target_frame_time) = meta_batch.inputs[unique_id]
 
-    if batch_manager is not None:
-        gen = itertools.islice(gen, batch_manager.frames_per_batch)
+    if meta_batch is not None:
+        gen = itertools.islice(gen, meta_batch.frames_per_batch)
 
     #Some minor wizardry to eliminate a copy and reduce max memory by a factor of ~2
     images = torch.from_numpy(np.fromiter(gen, np.dtype((np.float32, (height, width, 3)))))
@@ -187,7 +187,7 @@ class LoadVideoUpload:
                      "select_every_nth": ("INT", {"default": 1, "min": 1, "max": BIGMAX, "step": 1}),
                      },
                 "optional": {
-                    "batch_manager": ("VHS_BatchManager",)
+                    "meta_batch": ("VHS_BatchManager",)
                 },
                 "hidden": {
                     "unique_id": "UNIQUE_ID"
@@ -232,7 +232,7 @@ class LoadVideoPath:
                 "select_every_nth": ("INT", {"default": 1, "min": 1, "max": BIGMAX, "step": 1}),
             },
             "optional": {
-                "batch_manager": ("VHS_BatchManager",)
+                "meta_batch": ("VHS_BatchManager",)
             },
             "hidden": {
                 "unique_id": "UNIQUE_ID"

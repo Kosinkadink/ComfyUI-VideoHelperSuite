@@ -179,7 +179,7 @@ class VideoCombine:
             },
             "optional": {
                 "audio": ("VHS_AUDIO",),
-                "batch_manager": ("VHS_BatchManager",)
+                "meta_batch": ("VHS_BatchManager",)
             },
             "hidden": {
                 "prompt": "PROMPT",
@@ -208,7 +208,7 @@ class VideoCombine:
         audio=None,
         unique_id=None,
         manual_format_widgets=None,
-        batch_manager=None
+        meta_batch=None
     ):
         # get output information
         output_dir = (
@@ -236,8 +236,8 @@ class VideoCombine:
                 video_metadata[x] = extra_pnginfo[x]
         metadata.add_text("CreationTime", datetime.datetime.now().isoformat(" ")[:19])
 
-        if batch_manager is not None and unique_id in batch_manager.outputs:
-            (counter, output_process) = batch_manager.outputs[unique_id]
+        if meta_batch is not None and unique_id in meta_batch.outputs:
+            (counter, output_process) = meta_batch.outputs[unique_id]
         else:
             # comfy counter workaround
             max_counter = 0
@@ -270,7 +270,7 @@ class VideoCombine:
 
         format_type, format_ext = format.split("/")
         if format_type == "image":
-            if batch_manager is not None:
+            if meta_batch is not None:
                 raise Exception("Pillow('image/') formats are not compatible with batched output")
             image_kwargs = {}
             if format_ext == "gif":
@@ -329,7 +329,7 @@ class VideoCombine:
             else:
                 loop_args = []
             if pingpong:
-                if batch_manager is not None:
+                if meta_batch is not None:
                     logger.error("pingpong is incompatible with batched output")
                 images = to_pingpong(images)
             if video_format.get('input_color_depth', '8bit') == '16bit':
@@ -362,23 +362,23 @@ class VideoCombine:
                 output_process = ffmpeg_process(args, video_format, video_metadata, file_path, env)
                 #Proceed to first yield
                 output_process.send(None)
-                if batch_manager is not None:
-                    batch_manager.outputs[unique_id] = (counter, output_process)
+                if meta_batch is not None:
+                    meta_batch.outputs[unique_id] = (counter, output_process)
 
             for image in images:
                 output_process.send(image.tobytes())
-            if batch_manager is not None:
-                requeue_workflow((batch_manager.unique_id, not batch_manager.has_closed_inputs))
-            if batch_manager is None or batch_manager.has_closed_inputs:
+            if meta_batch is not None:
+                requeue_workflow((meta_batch.unique_id, not meta_batch.has_closed_inputs))
+            if meta_batch is None or meta_batch.has_closed_inputs:
                 #Close pipe and wait for termination.
                 try:
                     output_process.send(None)
                 except StopIteration:
                     pass
-                if batch_manager is not None:
-                    batch_manager.outputs.pop(unique_id)
-                    if len(batch_manager.outputs) == 0:
-                        batch_manager.reset()
+                if meta_batch is not None:
+                    meta_batch.outputs.pop(unique_id)
+                    if len(meta_batch.outputs) == 0:
+                        meta_batch.reset()
             else:
                 #batch is unfinished
                 #TODO: Check if empty output breaks other custom nodes
@@ -555,6 +555,7 @@ class BatchManager:
                 }
 
     RETURN_TYPES = ("VHS_BatchManager",)
+    RETURN_NAMES = ("meta_batch",)
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
     FUNCTION = "update_batch"
 
@@ -715,7 +716,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_LoadImagesPath": "Load Images (Path) 🎥🅥🅗🅢",
     "VHS_LoadAudio": "Load Audio (Path)🎥🅥🅗🅢",
     "VHS_PruneOutputs": "Prune Outputs 🎥🅥🅗🅢",
-    "VHS_BatchManager": "Batch Manager 🎥🅥🅗🅢",
+    "VHS_BatchManager": "Meta Batch Manager 🎥🅥🅗🅢",
     "VHS_VideoInfo": "Video Info 🎥🅥🅗🅢",
     "VHS_VideoInfoSource": "Video Info (Source) 🎥🅥🅗🅢",
     "VHS_VideoInfoLoaded": "Video Info (Loaded) 🎥🅥🅗🅢",
