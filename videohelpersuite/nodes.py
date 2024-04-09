@@ -159,11 +159,7 @@ def to_pingpong(inp):
 class VideoCombine:
     @classmethod
     def INPUT_TYPES(s):
-        #Hide ffmpeg formats if ffmpeg isn't available
-        if ffmpeg_path is not None:
-            ffmpeg_formats = get_video_formats()
-        else:
-            ffmpeg_formats = []
+        ffmpeg_formats = get_video_formats()
         return {
             "required": {
                 "images": ("IMAGE",),
@@ -300,8 +296,7 @@ class VideoCombine:
         else:
             # Use ffmpeg to save a video
             if ffmpeg_path is None:
-                #Should never be reachable
-                raise ProcessLookupError("Could not find ffmpeg")
+                raise ProcessLookupError(f"ffmpeg is required for video outputs and could not be found.\nIn order to use video outputs, you must either:\n- Install imageoio-ffmpeg with pip,\n- Place a ffmpeg executable in {os.path.abspath('')}, or\n- Install ffmpeg and add it to the system path.")
 
             #Acquire additional format_widget values
             kwargs = None

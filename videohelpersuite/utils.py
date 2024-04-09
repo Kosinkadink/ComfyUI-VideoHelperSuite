@@ -53,6 +53,10 @@ else:
         system_ffmpeg = shutil.which("ffmpeg")
         if system_ffmpeg is not None:
             ffmpeg_paths.append(system_ffmpeg)
+        if os.path.isfile("ffmpeg"):
+            ffmpeg_paths.append(os.path.abspath("ffmpeg"))
+        if os.path.isfile("ffmpeg.exe"):
+            ffmpeg_paths.append(os.path.abspath("ffmpeg.exe"))
         if len(ffmpeg_paths) == 0:
             logger.error("No valid ffmpeg found.")
             ffmpeg_path = None
