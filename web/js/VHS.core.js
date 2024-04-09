@@ -1086,5 +1086,14 @@ app.registerExtension({
                 return w;
             }
         }
+    },
+    async loadedGraphNode(node) {
+        //Check and migrate inputs named batch_manager from old workflows
+        if (node.type?.startsWith("VHS_") && node.inputs) {
+            const batchInput = node.inputs.find((i) => i.name == "batch_manager")
+            if (batchInput) {
+                batchInput.name = "meta_batch"
+            }
+        }
     }
 });
