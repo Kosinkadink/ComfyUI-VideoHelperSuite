@@ -239,7 +239,7 @@ class VideoCombine:
             max_counter = 0
 
             # Loop through the existing files
-            matcher = re.compile(f"{re.escape(filename)}_(\d+)\D*\..+")
+            matcher = re.compile(f"{re.escape(filename)}_(\d+)\D*\..+", re.IGNORECASE)
             for existing_file in os.listdir(full_output_folder):
                 # Check if the file matches the expected format
                 match = matcher.fullmatch(existing_file)
