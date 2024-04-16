@@ -46,7 +46,8 @@ const convDict = {
     VHS_LoadImagesPath : ["directory", "image_load_cap", "skip_first_images", "select_every_nth"],
     VHS_VideoCombine : ["frame_rate", "loop_count", "filename_prefix", "format", "pingpong", "save_image"],
     VHS_LoadVideo : ["video", "force_rate", "force_size", "frame_load_cap", "skip_first_frames", "select_every_nth"],
-    VHS_LoadVideoPath : ["video", "force_rate", "force_size", "frame_load_cap", "skip_first_frames", "select_every_nth"]
+    VHS_LoadVideoPath : ["video", "force_rate", "force_size", "frame_load_cap", "skip_first_frames", "select_every_nth"],
+    VHS_LoadAudioUpload : ["audio", "duration", "start_time"],
 };
 const renameDict  = {VHS_VideoCombine : {save_output : "save_image"}}
 function useKVState(nodeType) {
@@ -330,7 +331,27 @@ function addUploadWidget(nodeType, nodeData, widgetName, type="video") {
                     }
                 },
             });
-        } else {
+        } else if (type == "audio") {
+            Object.assign(fileInput, {
+                type: "file",
+                accept: "audio/mpeg,audio/wav,audio/x-wav,audio/ogg",
+                style: "display: none",
+                onchange: async () => {
+                    if (fileInput.files.length) {
+                        if (await uploadFile(fileInput.files[0]) != 200) {
+                            //upload failed and file can not be added to options
+                            return;
+                        }
+                        const filename = fileInput.files[0].name;
+                        pathWidget.options.values.push(filename);
+                        pathWidget.value = filename;
+                        if (pathWidget.callback) {
+                            pathWidget.callback(filename)
+                        }
+                    }
+                },
+            });
+        }else {
             throw "Unknown upload type"
         }
         document.body.append(fileInput);
@@ -944,6 +965,12 @@ app.registerExtension({
                 });
             });
             addLoadVideoCommon(nodeType, nodeData);
+        } else if (nodeData?.name == "VHS_LoadAudioUpload") {
+            addUploadWidget(nodeType, nodeData, "audio", "audio");
+            chainCallback(nodeType.prototype, "onNodeCreated", function() {
+                const pathWidget = this.widgets.find((w) => w.name === "audio");
+            });
+  
         } else if (nodeData?.name =="VHS_LoadVideoPath") {
             chainCallback(nodeType.prototype, "onNodeCreated", function() {
                 const pathWidget = this.widgets.find((w) => w.name === "video");
