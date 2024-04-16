@@ -528,7 +528,7 @@ class LoadAudioUpload:
         return calculate_file_hash(image_path)
 
     @classmethod
-    def VALIDATE_INPUTS(s, audio, force_size, **kwargs):
+    def VALIDATE_INPUTS(s, audio, **kwargs):
         if not folder_paths.exists_annotated_filepath(audio):
             return "Invalid audio file: {}".format(audio)
         return True
