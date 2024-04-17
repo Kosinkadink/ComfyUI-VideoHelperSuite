@@ -47,7 +47,6 @@ const convDict = {
     VHS_VideoCombine : ["frame_rate", "loop_count", "filename_prefix", "format", "pingpong", "save_image"],
     VHS_LoadVideo : ["video", "force_rate", "force_size", "frame_load_cap", "skip_first_frames", "select_every_nth"],
     VHS_LoadVideoPath : ["video", "force_rate", "force_size", "frame_load_cap", "skip_first_frames", "select_every_nth"],
-    VHS_LoadAudioUpload : ["audio", "duration", "start_time"],
 };
 const renameDict  = {VHS_VideoCombine : {save_output : "save_image"}}
 function useKVState(nodeType) {
@@ -967,9 +966,6 @@ app.registerExtension({
             addLoadVideoCommon(nodeType, nodeData);
         } else if (nodeData?.name == "VHS_LoadAudioUpload") {
             addUploadWidget(nodeType, nodeData, "audio", "audio");
-            chainCallback(nodeType.prototype, "onNodeCreated", function() {
-                const pathWidget = this.widgets.find((w) => w.name === "audio");
-            });
   
         } else if (nodeData?.name =="VHS_LoadVideoPath") {
             chainCallback(nodeType.prototype, "onNodeCreated", function() {

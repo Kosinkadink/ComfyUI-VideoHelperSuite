@@ -486,8 +486,8 @@ class LoadAudioUpload:
                     files.append(f)
         return {"required": {
                     "audio": (sorted(files),),
-                    "duration": ("FLOAT" , {"default": 0, "min": 0, "max": 10000000, "step": 0.01}),
                     "start_time": ("FLOAT" , {"default": 0, "min": 0, "max": 10000000, "step": 0.01}),
+                    "duration": ("FLOAT" , {"default": 0, "min": 0, "max": 10000000, "step": 0.01}),
                      },
                 "hidden": {
                     "unique_id": "UNIQUE_ID"
@@ -500,38 +500,22 @@ class LoadAudioUpload:
     RETURN_NAMES = ("audio",)
     FUNCTION = "load_audio"
 
-    def load_audio(self, duration, start_time, **kwargs):
-        audio_path = folder_paths.get_annotated_filepath(kwargs['audio'].strip("\""))
-        if audio_path is None or validate_path(audio_path) != True:
-            raise Exception("audio_file is not a valid path: " + audio_path)
-        try:
-            from imageio_ffmpeg import get_ffmpeg_exe
-            imageio_ffmpeg_path = get_ffmpeg_exe()
-        except:
-            print("Failed to import imageio_ffmpeg")
-        args = [imageio_ffmpeg_path, "-v", "error", "-i", audio_path]
-        if start_time > 0:
-            args += ["-ss", str(start_time)]
-        if duration > 0:
-            args += ["-t", str(duration)]
-        try:
-            import subprocess
-            audio =  subprocess.run(args + ["-f", "wav", "-"], stdout=subprocess.PIPE, check=True).stdout
-        except:
-            print("Failed to run ffmpeg")
+    def load_audio(self, start_time, duration, **kwargs):
+        audio_file = folder_paths.get_annotated_filepath(kwargs['audio'].strip("\""))
+        if audio_file is None or validate_path(audio_file) != True:
+            raise Exception("audio_file is not a valid path: " + audio_file)
+        
+        audio = get_audio(audio_file, start_time, duration)
 
         return (lambda : audio,)
 
     @classmethod
-    def IS_CHANGED(s, audio, **kwargs):
-        image_path = folder_paths.get_annotated_filepath(audio)
-        return calculate_file_hash(image_path)
+    def IS_CHANGED(s, audio_file, start_time, duration):
+        return hash_path(audio_file)
 
     @classmethod
-    def VALIDATE_INPUTS(s, audio, **kwargs):
-        if not folder_paths.exists_annotated_filepath(audio):
-            return "Invalid audio file: {}".format(audio)
-        return True
+    def VALIDATE_INPUTS(s, audio_file, **kwargs):
+        return validate_path(audio_file, allow_none=True)
 
 class PruneOutputs:
     @classmethod
