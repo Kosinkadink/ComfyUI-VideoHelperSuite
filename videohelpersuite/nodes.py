@@ -489,9 +489,6 @@ class LoadAudioUpload:
                     "start_time": ("FLOAT" , {"default": 0, "min": 0, "max": 10000000, "step": 0.01}),
                     "duration": ("FLOAT" , {"default": 0, "min": 0, "max": 10000000, "step": 0.01}),
                      },
-                "hidden": {
-                    "unique_id": "UNIQUE_ID"
-                },
                 }
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
@@ -510,11 +507,13 @@ class LoadAudioUpload:
         return (lambda : audio,)
 
     @classmethod
-    def IS_CHANGED(s, audio_file, start_time, duration):
+    def IS_CHANGED(s, audio, start_time, duration):
+        audio_file = folder_paths.get_annotated_filepath(audio.strip("\""))
         return hash_path(audio_file)
 
     @classmethod
-    def VALIDATE_INPUTS(s, audio_file, **kwargs):
+    def VALIDATE_INPUTS(s, audio, **kwargs):
+        audio_file = folder_paths.get_annotated_filepath(audio.strip("\""))
         return validate_path(audio_file, allow_none=True)
 
 class PruneOutputs:
