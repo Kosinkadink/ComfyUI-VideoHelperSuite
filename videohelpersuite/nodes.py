@@ -207,6 +207,10 @@ class VideoCombine:
         manual_format_widgets=None,
         meta_batch=None
     ):
+
+        if images.size(0) == 0:
+            return ("",)
+
         # get output information
         output_dir = (
             folder_paths.get_output_directory()
