@@ -10,6 +10,6 @@ Repository = "https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite"
 
 #  Used by Comfy Registry https://comfyregistry.org
 [tool.comfy]
-PublisherId = ""
+PublisherId = "kosinkadink"
 DisplayName = "ComfyUI-VideoHelperSuite"
 Icon = ""
