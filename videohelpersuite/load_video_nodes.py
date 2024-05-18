@@ -4,6 +4,7 @@ import numpy as np
 import torch
 from PIL import Image, ImageOps
 import cv2
+import psutil
 
 import folder_paths
 from comfy.utils import common_upscale
@@ -12,6 +13,7 @@ from .utils import BIGMAX, DIMMAX, calculate_file_hash, get_sorted_dir_files_fro
 
 
 video_extensions = ['webm', 'mp4', 'mkv', 'gif']
+rough_memory_limit_mb = int(max((psutil.virtual_memory().available + psutil.swap_memory().free - 2 ** 33) / (2.02),0) // 2**20)
 
 
 def is_gif(filename) -> bool:
@@ -119,7 +121,7 @@ def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
 def load_video_cv(video: str, force_rate: int, force_size: str,
                   custom_width: int,custom_height: int, frame_load_cap: int,
                   skip_first_frames: int, select_every_nth: int,
-                  meta_batch=None, unique_id=None):
+                  meta_batch=None, unique_id=None, memory_limit=None):
     if meta_batch is None or unique_id not in meta_batch.inputs:
         gen = cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
                                  select_every_nth, meta_batch, unique_id)
@@ -131,11 +133,24 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
     else:
         (gen, width, height, fps, duration, total_frames, target_frame_time) = meta_batch.inputs[unique_id]
 
+    memory_limit *= 2 ** 20
+    max_loadable_frames = int(memory_limit//(width*height*4*3))
     if meta_batch is not None:
+        if meta_batch.frames_per_batch > max_loadable_frames:
+            raise RuntimeError(f"Meta Batch set to {meta_batch.frames_per_batch} frames but only {max_loadable_frames} can fit in memory")
         gen = itertools.islice(gen, meta_batch.frames_per_batch)
+    else:
+        original_gen = gen
+        gen = itertools.islice(gen, max_loadable_frames)
 
     #Some minor wizardry to eliminate a copy and reduce max memory by a factor of ~2
     images = torch.from_numpy(np.fromiter(gen, np.dtype((np.float32, (height, width, 3)))))
+    if meta_batch is None:
+        try:
+            next(original_gen)
+            raise RuntimeError("Not all frames could be loaded within set memory limit. Stopping execution.")
+        except StopIteration:
+            pass
     if len(images) == 0:
         raise RuntimeError("No frames generated")
     if force_size != "Disabled":
@@ -185,9 +200,11 @@ class LoadVideoUpload:
                      "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
                      "skip_first_frames": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
                      "select_every_nth": ("INT", {"default": 1, "min": 1, "max": BIGMAX, "step": 1}),
+                     "select_every_nth": ("INT", {"default": 1, "min": 1, "max": BIGMAX, "step": 1}),
                      },
                 "optional": {
-                    "meta_batch": ("VHS_BatchManager",)
+                    "meta_batch": ("VHS_BatchManager",),
+                    "memory_limit (MB)": ("INT", {"default": rough_memory_limit_mb, "min": 1, "max": BIGMAX, "step": 1}),
                 },
                 "hidden": {
                     "unique_id": "UNIQUE_ID"
@@ -232,7 +249,8 @@ class LoadVideoPath:
                 "select_every_nth": ("INT", {"default": 1, "min": 1, "max": BIGMAX, "step": 1}),
             },
             "optional": {
-                "meta_batch": ("VHS_BatchManager",)
+                "meta_batch": ("VHS_BatchManager",),
+                "memory_limit (MB)": ("INT", {"default": rough_memory_limit_mb, "min": 1, "max": BIGMAX, "step": 1}),
             },
             "hidden": {
                 "unique_id": "UNIQUE_ID"
