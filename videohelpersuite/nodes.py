@@ -129,7 +129,7 @@ def ffmpeg_process(args, video_format, video_metadata, file_path, env):
                 #will also fail. This obscures the cause of the error
                 #and seems to never occur concurrent to the metadata issue
                 if os.path.exists(file_path):
-                    raise Exception("An error occured in the ffmpeg subprocess:\n" \
+                    raise Exception("An error occurred in the ffmpeg subprocess:\n" \
                             + err.decode("utf-8"))
                 #Res was not set
                 print(err.decode("utf-8"), end="", file=sys.stderr)
@@ -146,10 +146,41 @@ def ffmpeg_process(args, video_format, video_metadata, file_path, env):
                 res = proc.stderr.read()
             except BrokenPipeError as e:
                 res = proc.stderr.read()
-                raise Exception("An error occured in the ffmpeg subprocess:\n" \
+                raise Exception("An error occurred in the ffmpeg subprocess:\n" \
                         + res.decode("utf-8"))
     if len(res) > 0:
         print(res.decode("utf-8"), end="", file=sys.stderr)
+
+def gifski_process(args, video_format, file_path, env):
+    frame_data = yield
+    with subprocess.Popen(args + video_format['main_pass'] + ['-f', 'yuv4mpegpipe', '-'],
+                          stderr=subprocess.PIPE, stdin=subprocess.PIPE,
+                          stdout=subprocess.PIPE, env=env) as procff:
+        with subprocess.Popen([gifski_path] + video_format['gifski_pass']
+                              + ['-q', '-o', file_path, '-'], stderr=subprocess.PIPE,
+                              stdin=procff.stdout, stdout=subprocess.PIPE,
+                              env=env) as procgs:
+            try:
+                while frame_data is not None:
+                    procff.stdin.write(frame_data)
+                    frame_data = yield
+                procff.stdin.flush()
+                procff.stdin.close()
+                resff = procff.stderr.read()
+                resgs = procgs.stderr.read()
+                outgs = procgs.stdout.read()
+            except BrokenPipeError as e:
+                resff = procff.stderr.read()
+                resgs = procgs.stderr.read()
+                raise Exception("An error occurred while creating gifski output\nffmpeg: " \
+                        + resff.decode("utf-8") + '\ngifski: ' + resgs.decode("utf-8"))
+    if len(resff) > 0:
+        print(resff.decode("utf-8"), end="", file=sys.stderr)
+    if len(resgs) > 0:
+        print(resgs.decode("utf-8"), end="", file=sys.stderr)
+    #should always be empty as the quiet flag is passed
+    if len(outgs) > 0:
+        print(outgs.decode("utf-8"))
 
 def to_pingpong(inp):
     if not hasattr(inp, "__getitem__"):
@@ -353,14 +384,18 @@ class VideoCombine:
                 bitrate_arg = ["-b:v", str(bitrate) + "M" if video_format.get('megabit') == 'True' else str(bitrate) + "K"]
             args = [ffmpeg_path, "-v", "error", "-f", "rawvideo", "-pix_fmt", i_pix_fmt,
                     "-s", dimensions, "-r", str(frame_rate), "-i", "-"] \
-                    + loop_args + video_format['main_pass'] + bitrate_arg
+                    + loop_args
 
             env=os.environ.copy()
             if  "environment" in video_format:
                 env.update(video_format["environment"])
 
             if output_process is None:
-                output_process = ffmpeg_process(args, video_format, video_metadata, file_path, env)
+                if 'gifski_pass' in video_format:
+                    output_process = gifski_process(args, video_format, file_path, env)
+                else:
+                    args += video_format['main_pass'] + bitrate_arg
+                    output_process = ffmpeg_process(args, video_format, video_metadata, file_path, env)
                 #Proceed to first yield
                 output_process.send(None)
                 if meta_batch is not None:
@@ -387,25 +422,7 @@ class VideoCombine:
 
             output_files.append(file_path)
 
-            if "gifski_pass" in video_format:
-                gif_output = f"{filename}_{counter:05}.gif"
-                gif_output_path = os.path.join( full_output_folder, gif_output)
-                gifski_args = [gifski_path] + video_format["gifski_pass"] \
-                        + ["-o", gif_output_path, file_path]
-                try:
-                    res = subprocess.run(gifski_args, env=env, check=True, capture_output=True)
-                except subprocess.CalledProcessError as e:
-                    raise Exception("An error occured in the gifski subprocess:\n" \
-                            + e.stderr.decode("utf-8"))
-                if res.stderr:
-                    print(res.stderr.decode("utf-8"), end="", file=sys.stderr)
-                #output format is actually an image and should be correctly marked
-                #TODO: Evaluate a more consistent solution for this
-                format = "image/gif"
-                output_files.append(gif_output_path)
-                file = gif_output
-
-            elif audio is not None and audio() is not False:
+            if audio is not None and audio() is not False:
                 # Create audio file if input was provided
                 output_file_with_audio = f"{filename}_{counter:05}-audio.{video_format['extension']}"
                 output_file_with_audio_path = os.path.join(full_output_folder, output_file_with_audio)
