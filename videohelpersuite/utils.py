@@ -178,7 +178,7 @@ def validate_sequence(path):
     (path, file) = os.path.split(path)
     if not os.path.isdir(path):
         return False
-    match = re.search('%0?\d+d', file)
+    match = re.search('%0?\\d+d', file)
     if not match:
         return False
     seq = match.group()
@@ -186,7 +186,7 @@ def validate_sequence(path):
         seq = '\\\\d+'
     else:
         seq = '\\\\d{%s}' % seq[1:-1]
-    file_matcher = re.compile(re.sub('%0?\d+d', seq, file))
+    file_matcher = re.compile(re.sub('%0?\\d+d', seq, file))
     for file in os.listdir(path):
         if file_matcher.fullmatch(file):
             return True
