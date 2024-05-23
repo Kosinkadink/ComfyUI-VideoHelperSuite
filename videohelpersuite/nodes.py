@@ -98,6 +98,7 @@ def ffmpeg_process(args, video_format, video_metadata, file_path, env):
 
     res = None
     frame_data = yield
+    total_frames_output = 0
     if video_format.get('save_metadata', 'False') != 'False':
         os.makedirs(folder_paths.get_temp_directory(), exist_ok=True)
         metadata = json.dumps(video_metadata)
@@ -120,6 +121,7 @@ def ffmpeg_process(args, video_format, video_metadata, file_path, env):
                     proc.stdin.write(frame_data)
                     #TODO: skip flush for increased speed
                     frame_data = yield
+                    total_frames_output+=1
                 proc.stdin.flush()
                 proc.stdin.close()
                 res = proc.stderr.read()
@@ -141,6 +143,7 @@ def ffmpeg_process(args, video_format, video_metadata, file_path, env):
                 while frame_data is not None:
                     proc.stdin.write(frame_data)
                     frame_data = yield
+                    total_frames_output+=1
                 proc.stdin.flush()
                 proc.stdin.close()
                 res = proc.stderr.read()
@@ -148,6 +151,7 @@ def ffmpeg_process(args, video_format, video_metadata, file_path, env):
                 res = proc.stderr.read()
                 raise Exception("An error occured in the ffmpeg subprocess:\n" \
                         + res.decode("utf-8"))
+    yield total_frames_output
     if len(res) > 0:
         print(res.decode("utf-8"), end="", file=sys.stderr)
 
@@ -373,6 +377,7 @@ class VideoCombine:
             if meta_batch is None or meta_batch.has_closed_inputs:
                 #Close pipe and wait for termination.
                 try:
+                    total_frames_output = output_process.send(None)
                     output_process.send(None)
                 except StopIteration:
                     pass
@@ -417,10 +422,12 @@ class VideoCombine:
                 # FFmpeg command with audio re-encoding
                 #TODO: expose audio quality options if format widgets makes it in
                 #Reconsider forcing apad/shortest
+                min_audio_dur = total_frames_output / frame_rate + 1
                 mux_args = [ffmpeg_path, "-v", "error", "-n", "-i", file_path,
                             "-i", "-", "-c:v", "copy"] \
                             + video_format["audio_pass"] \
-                            + ["-af", "apad", "-shortest", output_file_with_audio_path]
+                            + ["-af", "apad=whole_dur="+str(min_audio_dur),
+                               "-shortest", output_file_with_audio_path]
 
                 try:
                     res = subprocess.run(mux_args, input=audio(), env=env,
