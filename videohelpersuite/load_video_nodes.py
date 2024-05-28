@@ -121,7 +121,7 @@ def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
 def load_video_cv(video: str, force_rate: int, force_size: str,
                   custom_width: int,custom_height: int, frame_load_cap: int,
                   skip_first_frames: int, select_every_nth: int,
-                  meta_batch=None, unique_id=None, memory_limit=None):
+                  meta_batch=None, unique_id=None, memory_limit_mb=None):
     if meta_batch is None or unique_id not in meta_batch.inputs:
         gen = cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
                                  select_every_nth, meta_batch, unique_id)
@@ -133,8 +133,8 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
     else:
         (gen, width, height, fps, duration, total_frames, target_frame_time) = meta_batch.inputs[unique_id]
 
-    memory_limit *= 2 ** 20
-    max_loadable_frames = int(memory_limit//(width*height*4*3))
+    memory_limit_mb *= 2 ** 20
+    max_loadable_frames = int(memory_limit_mb//(width*height*4*3))
     if meta_batch is not None:
         if meta_batch.frames_per_batch > max_loadable_frames:
             raise RuntimeError(f"Meta Batch set to {meta_batch.frames_per_batch} frames but only {max_loadable_frames} can fit in memory")
@@ -200,11 +200,10 @@ class LoadVideoUpload:
                      "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
                      "skip_first_frames": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
                      "select_every_nth": ("INT", {"default": 1, "min": 1, "max": BIGMAX, "step": 1}),
-                     "select_every_nth": ("INT", {"default": 1, "min": 1, "max": BIGMAX, "step": 1}),
                      },
                 "optional": {
                     "meta_batch": ("VHS_BatchManager",),
-                    "memory_limit (MB)": ("INT", {"default": rough_memory_limit_mb, "min": 1, "max": BIGMAX, "step": 1}),
+                    "memory_limit_mb": ("INT", {"default": rough_memory_limit_mb, "min": 1, "max": BIGMAX, "step": 1}),
                 },
                 "hidden": {
                     "unique_id": "UNIQUE_ID"
@@ -250,7 +249,7 @@ class LoadVideoPath:
             },
             "optional": {
                 "meta_batch": ("VHS_BatchManager",),
-                "memory_limit (MB)": ("INT", {"default": rough_memory_limit_mb, "min": 1, "max": BIGMAX, "step": 1}),
+                "memory_limit_mb": ("INT", {"default": rough_memory_limit_mb, "min": 1, "max": BIGMAX, "step": 1}),
             },
             "hidden": {
                 "unique_id": "UNIQUE_ID"
