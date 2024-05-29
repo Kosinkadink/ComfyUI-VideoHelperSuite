@@ -10,6 +10,7 @@ import torch
 from PIL import Image, ExifTags
 from PIL.PngImagePlugin import PngInfo
 from pathlib import Path
+from string import Template
 
 import folder_paths
 from .logger import logger
@@ -82,7 +83,10 @@ def apply_format_widgets(format_name, kwargs):
         video_format = json.load(stream)
     for w in gen_format_widgets(video_format):
         assert(w[0][0] in kwargs)
-        w[0] = str(kwargs[w[0][0]])
+        if len(w[0]) > 3:
+            w[0] = Template(w[0][3]).substitute(val=kwargs[w[0][0]])
+        else:
+            w[0] = str(kwargs[w[0][0]])
     return video_format
 
 def tensor_to_int(tensor, bits):
@@ -378,6 +382,10 @@ class VideoCombine:
                     i_pix_fmt = 'rgb24'
             file = f"{filename}_{counter:05}.{video_format['extension']}"
             file_path = os.path.join(full_output_folder, file)
+            if loop_count > 0:
+                loop_args = ["-vf", "loop=loop=" + str(loop_count)+":size=" + str(len(images))]
+            else:
+                loop_args = []
             bitrate_arg = []
             bitrate = video_format.get('bitrate')
             if bitrate is not None:
@@ -386,9 +394,29 @@ class VideoCombine:
                     "-s", dimensions, "-r", str(frame_rate), "-i", "-"] \
                     + loop_args
 
+            images = map(lambda x: x.tobytes(), images)
             env=os.environ.copy()
             if  "environment" in video_format:
                 env.update(video_format["environment"])
+
+            if "pre_pass" in video_format:
+                if meta_batch is not None:
+                    #Performing a prepass requires keeping access to all frames.
+                    #Potential solutions include keeping just output frames in
+                    #memory or using 3 passes with intermediate file, but
+                    #very long gifs probably shouldn't be encouraged
+                    raise Exception("Formats which require a pre_pass are incompatible with Batch Manager.")
+                images = [b''.join(images)]
+                os.makedirs(folder_paths.get_temp_directory(), exist_ok=True)
+                pre_pass_args = args[:13] + video_format['pre_pass']
+                try:
+                    subprocess.run(pre_pass_args, input=images[0], env=env,
+                                   capture_output=True, check=True)
+                except subprocess.CalledProcessError as e:
+                    raise Exception("An error occurred in the ffmpeg prepass:\n" \
+                            + e.stderr.decode("utf-8"))
+            if "inputs_main_pass" in video_format:
+                args = args[:13] + video_format['inputs_main_pass'] + args[13:]
 
             if output_process is None:
                 if 'gifski_pass' in video_format:
@@ -402,7 +430,7 @@ class VideoCombine:
                     meta_batch.outputs[unique_id] = (counter, output_process)
 
             for image in images:
-                output_process.send(image.tobytes())
+                output_process.send(image)
             if meta_batch is not None:
                 requeue_workflow((meta_batch.unique_id, not meta_batch.has_closed_inputs))
             if meta_batch is None or meta_batch.has_closed_inputs:
