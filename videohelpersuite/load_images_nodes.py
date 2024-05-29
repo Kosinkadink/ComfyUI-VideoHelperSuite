@@ -62,12 +62,12 @@ def images_generator(directory: str, image_load_cap: int = 0, skip_first_images:
         i = ImageOps.exif_transpose(i)
         i = i.convert(iformat)
         i = np.array(i, dtype=np.float16) / 255.0
-        if has_alpha:
-            i[:,:,-1] = 1 - i[:,:,-1]
         if i.shape[0] != size[1] or i.shape[1] != size[0]:
             i = torch.from_numpy(i).movedim(-1, 0).unsqueeze(0)
-            i = common_upscale(i, size[1], size[0], "lanczos", "center")
+            i = common_upscale(i, size[0], size[1], "lanczos", "center")
             i = i.squeeze(0).movedim(0, -1).numpy()
+        if has_alpha:
+            i[:,:,-1] = 1 - i[:,:,-1]
         return i
 
     images =  map(load_image, dir_files)
@@ -100,13 +100,12 @@ def load_images(directory: str, image_load_cap: int = 0, skip_first_images: int 
     images = torch.from_numpy(np.fromiter(gen, np.dtype((np.float16, (height, width, 3 + has_alpha)))))
     if has_alpha:
         #tensors are not continuous. Rewrite will be required if this is an issue
-        masks = images[:,:,:,3:]
+        masks = images[:,:,:,3]
         images = images[:,:,:,:3]
     else:
         masks = torch.zeros((images.size(0), 64, 64), dtype=torch.float16, device="cpu")
     if len(images) == 0:
         raise FileNotFoundError(f"No images could be loaded from directory '{directory}'.")
-
     return images, masks, images.size(0)
 
 class LoadImagesFromDirectoryUpload:
