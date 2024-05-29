@@ -61,7 +61,7 @@ def images_generator(directory: str, image_load_cap: int = 0, skip_first_images:
         i = Image.open(file_path)
         i = ImageOps.exif_transpose(i)
         i = i.convert(iformat)
-        i = np.array(i, dtype=np.float32) / 255.0
+        i = np.array(i, dtype=np.float16) / 255.0
         if has_alpha:
             i[:,:,-1] = 1 - i[:,:,-1]
         if i.shape[0] != size[1] or i.shape[1] != size[0]:
@@ -97,13 +97,13 @@ def load_images(directory: str, image_load_cap: int = 0, skip_first_images: int 
 
     if meta_batch is not None:
         gen = itertools.islice(gen, meta_batch.frames_per_batch)
-    images = torch.from_numpy(np.fromiter(gen, np.dtype((np.float32, (height, width, 3 + has_alpha)))))
+    images = torch.from_numpy(np.fromiter(gen, np.dtype((np.float16, (height, width, 3 + has_alpha)))))
     if has_alpha:
         #tensors are not continuous. Rewrite will be required if this is an issue
         masks = images[:,:,:,3:]
         images = images[:,:,:,:3]
     else:
-        masks = torch.zeros((images.size(0), 64, 64), dtype=torch.float32, device="cpu")
+        masks = torch.zeros((images.size(0), 64, 64), dtype=torch.float16, device="cpu")
     if len(images) == 0:
         raise FileNotFoundError(f"No images could be loaded from directory '{directory}'.")
 

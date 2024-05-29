@@ -4,6 +4,7 @@ import numpy as np
 import torch
 from PIL import Image, ImageOps
 import cv2
+import psutil
 
 import folder_paths
 from comfy.utils import common_upscale
@@ -99,7 +100,7 @@ def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         # convert frame to comfyui's expected format
         # TODO: frame contains no exif information. Check if opencv2 has already applied
-        frame = np.array(frame, dtype=np.float32) / 255.0
+        frame = np.array(frame, dtype=np.float16) / 255.0
         if prev_frame is not None:
             inp  = yield prev_frame
             if inp is not None:
@@ -119,7 +120,7 @@ def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
 def load_video_cv(video: str, force_rate: int, force_size: str,
                   custom_width: int,custom_height: int, frame_load_cap: int,
                   skip_first_frames: int, select_every_nth: int,
-                  meta_batch=None, unique_id=None):
+                  meta_batch=None, unique_id=None, memory_limit_mb=None):
     if meta_batch is None or unique_id not in meta_batch.inputs:
         gen = cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
                                  select_every_nth, meta_batch, unique_id)
@@ -131,11 +132,30 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
     else:
         (gen, width, height, fps, duration, total_frames, target_frame_time) = meta_batch.inputs[unique_id]
 
+    if memory_limit_mb is not None:
+        memory_limit *= 2 ** 20
+    else:
+        #TODO: verify if garbage collection should be performed here.
+        #leaves ~128 MB unreserved for safety
+        memory_limit = (psutil.virtual_memory().available + psutil.swap_memory().free) - 2 ** 27
+    #space required to load as f16, exist as latent with wiggle room, decode to f32
+    max_loadable_frames = int(memory_limit//(width*height*3*(2+4+1/10)))
     if meta_batch is not None:
+        if meta_batch.frames_per_batch > max_loadable_frames:
+            raise RuntimeError(f"Meta Batch set to {meta_batch.frames_per_batch} frames but only {max_loadable_frames} can fit in memory")
         gen = itertools.islice(gen, meta_batch.frames_per_batch)
+    else:
+        original_gen = gen
+        gen = itertools.islice(gen, max_loadable_frames)
 
     #Some minor wizardry to eliminate a copy and reduce max memory by a factor of ~2
-    images = torch.from_numpy(np.fromiter(gen, np.dtype((np.float32, (height, width, 3)))))
+    images = torch.from_numpy(np.fromiter(gen, np.dtype((np.float16, (height, width, 3)))))
+    if meta_batch is None:
+        try:
+            next(original_gen)
+            raise RuntimeError(f"Memory limit hit after loading {len(images)} frames. Stopping execution.")
+        except StopIteration:
+            pass
     if len(images) == 0:
         raise RuntimeError("No frames generated")
     if force_size != "Disabled":
