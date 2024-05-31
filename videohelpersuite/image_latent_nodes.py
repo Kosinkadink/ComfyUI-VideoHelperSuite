@@ -261,6 +261,7 @@ class SelectEveryNthLatent:
                 "required": {
                     "latents": ("LATENT",),
                     "select_every_nth": ("INT", {"default": 1, "min": 1, "max": BIGMAX, "step": 1}),
+                    "skip_first_latents": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
                 },
             }
     
@@ -270,8 +271,8 @@ class SelectEveryNthLatent:
     RETURN_NAMES = ("LATENT", "count",)
     FUNCTION = "select_latents"
 
-    def select_latents(self, latents: dict, select_every_nth: int):
-        sub_latents = latents.copy()["samples"][0::select_every_nth]
+    def select_latents(self, latents: dict, select_every_nth: int, skip_first_latents: int):
+        sub_latents = latents.copy()["samples"][skip_first_latents::select_every_nth]
         return ({"samples": sub_latents}, sub_latents.size(0))
     
 
@@ -282,6 +283,8 @@ class SelectEveryNthImage:
                 "required": {
                     "images": ("IMAGE",),
                     "select_every_nth": ("INT", {"default": 1, "min": 1, "max": BIGMAX, "step": 1}),
+                    "skip_first_images": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
+                    
                 },
             }
     
@@ -291,8 +294,8 @@ class SelectEveryNthImage:
     RETURN_NAMES = ("IMAGE", "count",)
     FUNCTION = "select_images"
 
-    def select_images(self, images: Tensor, select_every_nth: int):
-        sub_images = images[0::select_every_nth]
+    def select_images(self, images: Tensor, select_every_nth: int, skip_first_images: int):
+        sub_images = images[skip_first_images::select_every_nth]
         return (sub_images, sub_images.size(0))
     
 
@@ -303,6 +306,7 @@ class SelectEveryNthMask:
                 "required": {
                     "mask": ("MASK",),
                     "select_every_nth": ("INT", {"default": 1, "min": 1, "max": BIGMAX, "step": 1}),
+                    "skip_first_masks": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
                 },
             }
     
@@ -312,8 +316,8 @@ class SelectEveryNthMask:
     RETURN_NAMES = ("MASK", "count",)
     FUNCTION = "select_masks"
 
-    def select_masks(self, mask: Tensor, select_every_nth: int):
-        sub_mask = mask[0::select_every_nth]
+    def select_masks(self, mask: Tensor, select_every_nth: int, skip_first_masks: int):
+        sub_mask = mask[skip_first_masks::select_every_nth]
         return (sub_mask, sub_mask.size(0))
 
 
