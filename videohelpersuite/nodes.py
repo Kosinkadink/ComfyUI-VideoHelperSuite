@@ -247,6 +247,7 @@ class VideoCombine:
         if isinstance(images, torch.Tensor) and images.size(0) == 0:
             return ("",)
 
+        first_image = images[0]
         # get output information
         output_dir = (
             folder_paths.get_output_directory()
@@ -298,7 +299,7 @@ class VideoCombine:
         # save first frame as png to keep metadata
         file = f"{filename}_{counter:05}.png"
         file_path = os.path.join(full_output_folder, file)
-        Image.fromarray(tensor_to_bytes(images[0])).save(
+        Image.fromarray(tensor_to_bytes(first_image)).save(
             file_path,
             pnginfo=metadata,
             compress_level=4,
@@ -358,8 +359,26 @@ class VideoCombine:
                     logger.warn("Extra format values were not provided, the following defaults will be used: " + str(kwargs) + "\nThis is likely due to usage of ComfyUI-to-python. These values can be manually set by supplying a manual_format_widgets argument")
 
             video_format = apply_format_widgets(format_ext, kwargs)
-            has_alpha = images[0].shape[-1] == 4
-            dimensions = f"{len(images[0][0])}x{len(images[0])}"
+            has_alpha = first_image.shape[-1] == 4
+            dim_alignment = video_format.get("dim_alignment", 8)
+            if (first_image.shape[1] % dim_alignment) or (first_image.shape[0] % dim_alignment):
+                #output frames must be padded
+                to_pad = (-first_image.shape[1] % dim_alignment,
+                          -first_image.shape[0] % dim_alignment)
+                padding = (to_pad[0]//2, to_pad[0] - to_pad[0]//2,
+                           to_pad[1]//2, to_pad[1] - to_pad[1]//2)
+                padfunc = torch.nn.ReplicationPad2d(padding)
+                def pad(image):
+                    image = image.permute((2,0,1))#HWC to CHW
+                    padded = padfunc(image.to(dtype=torch.float32))
+                    return padded.permute((1,2,0))
+                images = map(pad, images)
+                new_dims = (-first_image.shape[1] % dim_alignment + first_image.shape[1],
+                            -first_image.shape[0] % dim_alignment + first_image.shape[0])
+                dimensions = f"{new_dims[0]}x{new_dims[1]}"
+                logger.warn("Output images were not of valid resolution and have had padding applied")
+            else:
+                dimensions = f"{first_image.shape[1]}x{first_image.shape[0]}"
             if loop_count > 0:
                 loop_args = ["-vf", "loop=loop=" + str(loop_count)+":size=" + str(len(images))]
             else:
