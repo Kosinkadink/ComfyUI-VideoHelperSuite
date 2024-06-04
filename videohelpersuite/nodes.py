@@ -174,9 +174,11 @@ def gifski_process(args, video_format, file_path, env):
                 resgs = procgs.stderr.read()
                 outgs = procgs.stdout.read()
             except BrokenPipeError as e:
+                procff.stdin.close()
                 resff = procff.stderr.read()
                 resgs = procgs.stderr.read()
-                raise Exception("An error occurred while creating gifski output\nffmpeg: " \
+                raise Exception("An error occurred while creating gifski output\n" \
+                        + "Make sure you are using gifski --version >=1.32.0\nffmpeg: " \
                         + resff.decode("utf-8") + '\ngifski: ' + resgs.decode("utf-8"))
     if len(resff) > 0:
         print(resff.decode("utf-8"), end="", file=sys.stderr)
