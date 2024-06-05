@@ -49,7 +49,7 @@ def images_generator(directory: str, image_load_cap: int = 0, skip_first_images:
     for image_path in dir_files:
         i = Image.open(image_path)
         #exif_transpose can only ever rotate, but rotating can swap width/height
-        i = ImageOps.exif_transpose(i)
+        ImageOps.exif_transpose(i, in_place=True)
         has_alpha |= 'A' in i.getbands()
         count = sizes.get(i.size, 0)
         sizes[i.size] = count +1
@@ -59,9 +59,11 @@ def images_generator(directory: str, image_load_cap: int = 0, skip_first_images:
     iformat = "RGBA" if has_alpha else "RGB"
     def load_image(file_path):
         i = Image.open(file_path)
-        i = ImageOps.exif_transpose(i)
+        ImageOps.exif_transpose(i, in_place=True)
         i = i.convert(iformat)
-        i = np.array(i, dtype=np.float16) / 255.0
+        i = np.array(i, dtype=np.float16)
+        #This nonsense provides a nearly 50% speedup on my system
+        torch.from_numpy(i).div_(255)
         if i.shape[0] != size[1] or i.shape[1] != size[0]:
             i = torch.from_numpy(i).movedim(-1, 0).unsqueeze(0)
             i = common_upscale(i, size[0], size[1], "lanczos", "center")
