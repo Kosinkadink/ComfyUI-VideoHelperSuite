@@ -101,16 +101,17 @@ def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         # convert frame to comfyui's expected format
         # TODO: frame contains no exif information. Check if opencv2 has already applied
-        frame = np.array(frame, dtype=np.float16) / 255.0
+        frame = np.array(frame, dtype=np.float16)
+        torch.from_numpy(frame).div_(255)
         if prev_frame is not None:
             inp  = yield prev_frame
-            if pbar is not None:
-                pbar.update(1)
             if inp is not None:
                 #ensure the finally block is called
                 return
         prev_frame = frame
         frames_added += 1
+        if pbar is not None:
+            pbar.update_absolute(frames_added, frame_load_cap)
         # if cap exists and we've reached it, stop processing frames
         if frame_load_cap > 0 and frames_added >= frame_load_cap:
             break

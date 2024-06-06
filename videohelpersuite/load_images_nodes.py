@@ -72,14 +72,17 @@ def images_generator(directory: str, image_load_cap: int = 0, skip_first_images:
             i[:,:,-1] = 1 - i[:,:,-1]
         return i
 
-    pbar = ProgressBar(len(dir_files))
+    total_images = len(dir_files)
+    processed_images = 0
+    pbar = ProgressBar(total_images)
     images =  map(load_image, dir_files)
     try:
         prev_image = next(images)
         while True:
             next_image = next(images)
             yield prev_image
-            pbar.update(1)
+            processed_images += 1
+            pbar.update_absolute(processed_images, total_images)
             prev_image = next_image
     except StopIteration:
         pass
