@@ -19,6 +19,7 @@ from .load_video_nodes import LoadVideoUpload, LoadVideoPath
 from .load_images_nodes import LoadImagesFromDirectoryUpload, LoadImagesFromDirectoryPath
 from .batched_nodes import VAEEncodeBatched, VAEDecodeBatched
 from .utils import ffmpeg_path, get_audio, hash_path, validate_path, requeue_workflow, gifski_path, calculate_file_hash
+from comfy.utils import ProgressBar
 
 folder_paths.folder_names_and_paths["VHS_video_formats"] = (
     [
@@ -248,6 +249,7 @@ class VideoCombine:
 
         if isinstance(images, torch.Tensor) and images.size(0) == 0:
             return ("",)
+        pbar = ProgressBar(len(images))
 
         first_image = images[0]
         # get output information
@@ -451,6 +453,7 @@ class VideoCombine:
                     meta_batch.outputs[unique_id] = (counter, output_process)
 
             for image in images:
+                pbar.update(1)
                 output_process.send(image)
             if meta_batch is not None:
                 requeue_workflow((meta_batch.unique_id, not meta_batch.has_closed_inputs))

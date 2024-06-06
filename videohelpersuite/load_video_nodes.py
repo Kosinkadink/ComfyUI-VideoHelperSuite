@@ -7,7 +7,7 @@ import cv2
 import psutil
 
 import folder_paths
-from comfy.utils import common_upscale
+from comfy.utils import common_upscale, ProgressBar
 from .logger import logger
 from .utils import BIGMAX, DIMMAX, calculate_file_hash, get_sorted_dir_files_from_directory, get_audio, lazy_eval, hash_path, validate_path
 
@@ -49,6 +49,7 @@ def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
     video_cap = cv2.VideoCapture(video)
     if not video_cap.isOpened():
         raise ValueError(f"{video} could not be loaded with cv.")
+    pbar = ProgressBar(frame_load_cap) if frame_load_cap > 0 else None
 
     # extract video metadata
     fps = video_cap.get(cv2.CAP_PROP_FPS)
@@ -103,6 +104,8 @@ def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
         frame = np.array(frame, dtype=np.float16) / 255.0
         if prev_frame is not None:
             inp  = yield prev_frame
+            if pbar is not None:
+                pbar.update(1)
             if inp is not None:
                 #ensure the finally block is called
                 return

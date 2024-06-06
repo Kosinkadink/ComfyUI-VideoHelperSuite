@@ -7,7 +7,7 @@ import itertools
 
 import folder_paths
 from comfy.k_diffusion.utils import FolderOfImages
-from comfy.utils import common_upscale
+from comfy.utils import common_upscale, ProgressBar
 from .logger import logger
 from .utils import BIGMAX, calculate_file_hash, get_sorted_dir_files_from_directory, validate_path
 
@@ -72,12 +72,14 @@ def images_generator(directory: str, image_load_cap: int = 0, skip_first_images:
             i[:,:,-1] = 1 - i[:,:,-1]
         return i
 
+    pbar = ProgressBar(len(dir_files))
     images =  map(load_image, dir_files)
     try:
         prev_image = next(images)
         while True:
             next_image = next(images)
             yield prev_image
+            pbar.update(1)
             prev_image = next_image
     except StopIteration:
         pass
