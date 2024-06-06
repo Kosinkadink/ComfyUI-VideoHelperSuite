@@ -101,7 +101,7 @@ def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         # convert frame to comfyui's expected format
         # TODO: frame contains no exif information. Check if opencv2 has already applied
-        frame = np.array(frame, dtype=np.float16)
+        frame = np.array(frame, dtype=np.float32)
         torch.from_numpy(frame).div_(255)
         if prev_frame is not None:
             inp  = yield prev_frame
@@ -142,8 +142,8 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
         #TODO: verify if garbage collection should be performed here.
         #leaves ~128 MB unreserved for safety
         memory_limit = (psutil.virtual_memory().available + psutil.swap_memory().free) - 2 ** 27
-    #space required to load as f16, exist as latent with wiggle room, decode to f32
-    max_loadable_frames = int(memory_limit//(width*height*3*(2+4+1/10)))
+    #space required to load as f32, exist as latent with wiggle room, decode to f32
+    max_loadable_frames = int(memory_limit//(width*height*3*(4+4+1/10)))
     if meta_batch is not None:
         if meta_batch.frames_per_batch > max_loadable_frames:
             raise RuntimeError(f"Meta Batch set to {meta_batch.frames_per_batch} frames but only {max_loadable_frames} can fit in memory")
@@ -153,7 +153,7 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
         gen = itertools.islice(gen, max_loadable_frames)
 
     #Some minor wizardry to eliminate a copy and reduce max memory by a factor of ~2
-    images = torch.from_numpy(np.fromiter(gen, np.dtype((np.float16, (height, width, 3)))))
+    images = torch.from_numpy(np.fromiter(gen, np.dtype((np.float32, (height, width, 3)))))
     if meta_batch is None:
         try:
             next(original_gen)

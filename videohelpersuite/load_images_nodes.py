@@ -49,7 +49,7 @@ def images_generator(directory: str, image_load_cap: int = 0, skip_first_images:
     for image_path in dir_files:
         i = Image.open(image_path)
         #exif_transpose can only ever rotate, but rotating can swap width/height
-        ImageOps.exif_transpose(i, in_place=True)
+        i = ImageOps.exif_transpose(i)
         has_alpha |= 'A' in i.getbands()
         count = sizes.get(i.size, 0)
         sizes[i.size] = count +1
@@ -59,9 +59,9 @@ def images_generator(directory: str, image_load_cap: int = 0, skip_first_images:
     iformat = "RGBA" if has_alpha else "RGB"
     def load_image(file_path):
         i = Image.open(file_path)
-        ImageOps.exif_transpose(i, in_place=True)
+        i = ImageOps.exif_transpose(i)
         i = i.convert(iformat)
-        i = np.array(i, dtype=np.float16)
+        i = np.array(i, dtype=np.float32)
         #This nonsense provides a nearly 50% speedup on my system
         torch.from_numpy(i).div_(255)
         if i.shape[0] != size[1] or i.shape[1] != size[0]:
@@ -104,13 +104,13 @@ def load_images(directory: str, image_load_cap: int = 0, skip_first_images: int 
 
     if meta_batch is not None:
         gen = itertools.islice(gen, meta_batch.frames_per_batch)
-    images = torch.from_numpy(np.fromiter(gen, np.dtype((np.float16, (height, width, 3 + has_alpha)))))
+    images = torch.from_numpy(np.fromiter(gen, np.dtype((np.float32, (height, width, 3 + has_alpha)))))
     if has_alpha:
         #tensors are not continuous. Rewrite will be required if this is an issue
         masks = images[:,:,:,3]
         images = images[:,:,:,:3]
     else:
-        masks = torch.zeros((images.size(0), 64, 64), dtype=torch.float16, device="cpu")
+        masks = torch.zeros((images.size(0), 64, 64), dtype=torch.float32, device="cpu")
     if len(images) == 0:
         raise FileNotFoundError(f"No images could be loaded from directory '{directory}'.")
     return images, masks, images.size(0)
