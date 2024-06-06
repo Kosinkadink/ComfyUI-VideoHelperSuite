@@ -72,6 +72,17 @@ if gifski_path is None:
     if gifski_path is None:
         gifski_path = shutil.which("gifski")
 
+def is_safe_path(path):
+    if "VHS_STRICT_PATHS" not in os.environ:
+        return True
+    basedir = os.path.abspath('.')
+    try:
+        common_path = os.path.commonpath([basedir, path])
+    except:
+        #Different drive on windows
+        return False
+    return common_path == basedir
+
 def get_sorted_dir_files_from_directory(directory: str, skip_first_images: int=0, select_every_nth: int=1, extensions: Iterable=None):
     directory = directory.strip()
     dir_files = os.listdir(directory)
@@ -178,7 +189,7 @@ def validate_sequence(path):
     (path, file) = os.path.split(path)
     if not os.path.isdir(path):
         return False
-    match = re.search('%0?\d+d', file)
+    match = re.search('%0?\\d+d', file)
     if not match:
         return False
     seq = match.group()
@@ -186,7 +197,7 @@ def validate_sequence(path):
         seq = '\\\\d+'
     else:
         seq = '\\\\d{%s}' % seq[1:-1]
-    file_matcher = re.compile(re.sub('%0?\d+d', seq, file))
+    file_matcher = re.compile(re.sub('%0?\\d+d', seq, file))
     for file in os.listdir(path):
         if file_matcher.fullmatch(file):
             return True
@@ -205,7 +216,9 @@ def validate_path(path, allow_none=False, allow_url=True):
         return allow_none
     if is_url(path):
         #Probably not feasible to check if url resolves here
-        return True if allow_url else "URLs are unsupported for this path"
+        if not allow_url:
+            return "URLs are unsupported for this path"
+        return is_safe_path(path)
     if not os.path.isfile(path.strip("\"")):
         return "Invalid file path: {}".format(path)
-    return True
+    return is_safe_path(path)

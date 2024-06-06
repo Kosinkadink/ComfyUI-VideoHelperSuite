@@ -10,6 +10,7 @@ import torch
 from PIL import Image, ExifTags
 from PIL.PngImagePlugin import PngInfo
 from pathlib import Path
+from string import Template
 
 import folder_paths
 from .logger import logger
@@ -18,6 +19,7 @@ from .load_video_nodes import LoadVideoUpload, LoadVideoPath
 from .load_images_nodes import LoadImagesFromDirectoryUpload, LoadImagesFromDirectoryPath
 from .batched_nodes import VAEEncodeBatched, VAEDecodeBatched
 from .utils import ffmpeg_path, get_audio, hash_path, validate_path, requeue_workflow, gifski_path, calculate_file_hash
+from comfy.utils import ProgressBar
 
 folder_paths.folder_names_and_paths["VHS_video_formats"] = (
     [
@@ -82,7 +84,10 @@ def apply_format_widgets(format_name, kwargs):
         video_format = json.load(stream)
     for w in gen_format_widgets(video_format):
         assert(w[0][0] in kwargs)
-        w[0] = str(kwargs[w[0][0]])
+        if len(w[0]) > 3:
+            w[0] = Template(w[0][3]).substitute(val=kwargs[w[0][0]])
+        else:
+            w[0] = str(kwargs[w[0][0]])
     return video_format
 
 def tensor_to_int(tensor, bits):
@@ -131,7 +136,7 @@ def ffmpeg_process(args, video_format, video_metadata, file_path, env):
                 #will also fail. This obscures the cause of the error
                 #and seems to never occur concurrent to the metadata issue
                 if os.path.exists(file_path):
-                    raise Exception("An error occured in the ffmpeg subprocess:\n" \
+                    raise Exception("An error occurred in the ffmpeg subprocess:\n" \
                             + err.decode("utf-8"))
                 #Res was not set
                 print(err.decode("utf-8"), end="", file=sys.stderr)
@@ -149,11 +154,44 @@ def ffmpeg_process(args, video_format, video_metadata, file_path, env):
                 res = proc.stderr.read()
             except BrokenPipeError as e:
                 res = proc.stderr.read()
-                raise Exception("An error occured in the ffmpeg subprocess:\n" \
+                raise Exception("An error occurred in the ffmpeg subprocess:\n" \
                         + res.decode("utf-8"))
     yield total_frames_output
     if len(res) > 0:
         print(res.decode("utf-8"), end="", file=sys.stderr)
+
+def gifski_process(args, video_format, file_path, env):
+    frame_data = yield
+    with subprocess.Popen(args + video_format['main_pass'] + ['-f', 'yuv4mpegpipe', '-'],
+                          stderr=subprocess.PIPE, stdin=subprocess.PIPE,
+                          stdout=subprocess.PIPE, env=env) as procff:
+        with subprocess.Popen([gifski_path] + video_format['gifski_pass']
+                              + ['-q', '-o', file_path, '-'], stderr=subprocess.PIPE,
+                              stdin=procff.stdout, stdout=subprocess.PIPE,
+                              env=env) as procgs:
+            try:
+                while frame_data is not None:
+                    procff.stdin.write(frame_data)
+                    frame_data = yield
+                procff.stdin.flush()
+                procff.stdin.close()
+                resff = procff.stderr.read()
+                resgs = procgs.stderr.read()
+                outgs = procgs.stdout.read()
+            except BrokenPipeError as e:
+                procff.stdin.close()
+                resff = procff.stderr.read()
+                resgs = procgs.stderr.read()
+                raise Exception("An error occurred while creating gifski output\n" \
+                        + "Make sure you are using gifski --version >=1.32.0\nffmpeg: " \
+                        + resff.decode("utf-8") + '\ngifski: ' + resgs.decode("utf-8"))
+    if len(resff) > 0:
+        print(resff.decode("utf-8"), end="", file=sys.stderr)
+    if len(resgs) > 0:
+        print(resgs.decode("utf-8"), end="", file=sys.stderr)
+    #should always be empty as the quiet flag is passed
+    if len(outgs) > 0:
+        print(outgs.decode("utf-8"))
 
 def to_pingpong(inp):
     if not hasattr(inp, "__getitem__"):
@@ -215,7 +253,9 @@ class VideoCombine:
 
         if isinstance(images, torch.Tensor) and images.size(0) == 0:
             return ("",)
+        pbar = ProgressBar(len(images))
 
+        first_image = images[0]
         # get output information
         output_dir = (
             folder_paths.get_output_directory()
@@ -249,7 +289,7 @@ class VideoCombine:
             max_counter = 0
 
             # Loop through the existing files
-            matcher = re.compile(f"{re.escape(filename)}_(\d+)\D*\..+", re.IGNORECASE)
+            matcher = re.compile(f"{re.escape(filename)}_(\\d+)\\D*\\..+", re.IGNORECASE)
             for existing_file in os.listdir(full_output_folder):
                 # Check if the file matches the expected format
                 match = matcher.fullmatch(existing_file)
@@ -267,7 +307,7 @@ class VideoCombine:
         # save first frame as png to keep metadata
         file = f"{filename}_{counter:05}.png"
         file_path = os.path.join(full_output_folder, file)
-        Image.fromarray(tensor_to_bytes(images[0])).save(
+        Image.fromarray(tensor_to_bytes(first_image)).save(
             file_path,
             pnginfo=metadata,
             compress_level=4,
@@ -327,8 +367,26 @@ class VideoCombine:
                     logger.warn("Extra format values were not provided, the following defaults will be used: " + str(kwargs) + "\nThis is likely due to usage of ComfyUI-to-python. These values can be manually set by supplying a manual_format_widgets argument")
 
             video_format = apply_format_widgets(format_ext, kwargs)
-            has_alpha = images[0].shape[-1] == 4
-            dimensions = f"{len(images[0][0])}x{len(images[0])}"
+            has_alpha = first_image.shape[-1] == 4
+            dim_alignment = video_format.get("dim_alignment", 8)
+            if (first_image.shape[1] % dim_alignment) or (first_image.shape[0] % dim_alignment):
+                #output frames must be padded
+                to_pad = (-first_image.shape[1] % dim_alignment,
+                          -first_image.shape[0] % dim_alignment)
+                padding = (to_pad[0]//2, to_pad[0] - to_pad[0]//2,
+                           to_pad[1]//2, to_pad[1] - to_pad[1]//2)
+                padfunc = torch.nn.ReplicationPad2d(padding)
+                def pad(image):
+                    image = image.permute((2,0,1))#HWC to CHW
+                    padded = padfunc(image.to(dtype=torch.float32))
+                    return padded.permute((1,2,0))
+                images = map(pad, images)
+                new_dims = (-first_image.shape[1] % dim_alignment + first_image.shape[1],
+                            -first_image.shape[0] % dim_alignment + first_image.shape[0])
+                dimensions = f"{new_dims[0]}x{new_dims[1]}"
+                logger.warn("Output images were not of valid resolution and have had padding applied")
+            else:
+                dimensions = f"{first_image.shape[1]}x{first_image.shape[0]}"
             if loop_count > 0:
                 loop_args = ["-vf", "loop=loop=" + str(loop_count)+":size=" + str(len(images))]
             else:
@@ -351,27 +409,56 @@ class VideoCombine:
                     i_pix_fmt = 'rgb24'
             file = f"{filename}_{counter:05}.{video_format['extension']}"
             file_path = os.path.join(full_output_folder, file)
+            if loop_count > 0:
+                loop_args = ["-vf", "loop=loop=" + str(loop_count)+":size=" + str(len(images))]
+            else:
+                loop_args = []
             bitrate_arg = []
             bitrate = video_format.get('bitrate')
             if bitrate is not None:
                 bitrate_arg = ["-b:v", str(bitrate) + "M" if video_format.get('megabit') == 'True' else str(bitrate) + "K"]
             args = [ffmpeg_path, "-v", "error", "-f", "rawvideo", "-pix_fmt", i_pix_fmt,
                     "-s", dimensions, "-r", str(frame_rate), "-i", "-"] \
-                    + loop_args + video_format['main_pass'] + bitrate_arg
+                    + loop_args
 
+            images = map(lambda x: x.tobytes(), images)
             env=os.environ.copy()
             if  "environment" in video_format:
                 env.update(video_format["environment"])
 
+            if "pre_pass" in video_format:
+                if meta_batch is not None:
+                    #Performing a prepass requires keeping access to all frames.
+                    #Potential solutions include keeping just output frames in
+                    #memory or using 3 passes with intermediate file, but
+                    #very long gifs probably shouldn't be encouraged
+                    raise Exception("Formats which require a pre_pass are incompatible with Batch Manager.")
+                images = [b''.join(images)]
+                os.makedirs(folder_paths.get_temp_directory(), exist_ok=True)
+                pre_pass_args = args[:13] + video_format['pre_pass']
+                try:
+                    subprocess.run(pre_pass_args, input=images[0], env=env,
+                                   capture_output=True, check=True)
+                except subprocess.CalledProcessError as e:
+                    raise Exception("An error occurred in the ffmpeg prepass:\n" \
+                            + e.stderr.decode("utf-8"))
+            if "inputs_main_pass" in video_format:
+                args = args[:13] + video_format['inputs_main_pass'] + args[13:]
+
             if output_process is None:
-                output_process = ffmpeg_process(args, video_format, video_metadata, file_path, env)
+                if 'gifski_pass' in video_format:
+                    output_process = gifski_process(args, video_format, file_path, env)
+                else:
+                    args += video_format['main_pass'] + bitrate_arg
+                    output_process = ffmpeg_process(args, video_format, video_metadata, file_path, env)
                 #Proceed to first yield
                 output_process.send(None)
                 if meta_batch is not None:
                     meta_batch.outputs[unique_id] = (counter, output_process)
 
             for image in images:
-                output_process.send(image.tobytes())
+                pbar.update(1)
+                output_process.send(image)
             if meta_batch is not None:
                 requeue_workflow((meta_batch.unique_id, not meta_batch.has_closed_inputs))
             if meta_batch is None or meta_batch.has_closed_inputs:
@@ -392,25 +479,7 @@ class VideoCombine:
 
             output_files.append(file_path)
 
-            if "gifski_pass" in video_format:
-                gif_output = f"{filename}_{counter:05}.gif"
-                gif_output_path = os.path.join( full_output_folder, gif_output)
-                gifski_args = [gifski_path] + video_format["gifski_pass"] \
-                        + ["-o", gif_output_path, file_path]
-                try:
-                    res = subprocess.run(gifski_args, env=env, check=True, capture_output=True)
-                except subprocess.CalledProcessError as e:
-                    raise Exception("An error occured in the gifski subprocess:\n" \
-                            + e.stderr.decode("utf-8"))
-                if res.stderr:
-                    print(res.stderr.decode("utf-8"), end="", file=sys.stderr)
-                #output format is actually an image and should be correctly marked
-                #TODO: Evaluate a more consistent solution for this
-                format = "image/gif"
-                output_files.append(gif_output_path)
-                file = gif_output
-
-            elif audio is not None and audio() is not False:
+            if audio is not None and audio() is not False:
                 # Create audio file if input was provided
                 output_file_with_audio = f"{filename}_{counter:05}-audio.{video_format['extension']}"
                 output_file_with_audio_path = os.path.join(full_output_folder, output_file_with_audio)
