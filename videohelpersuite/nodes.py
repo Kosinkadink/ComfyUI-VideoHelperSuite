@@ -253,7 +253,8 @@ class VideoCombine:
 
         if isinstance(images, torch.Tensor) and images.size(0) == 0:
             return ("",)
-        pbar = ProgressBar(len(images))
+        num_frames = len(images)
+        pbar = ProgressBar(num_frames)
 
         first_image = images[0]
         # get output information
@@ -388,7 +389,7 @@ class VideoCombine:
             else:
                 dimensions = f"{first_image.shape[1]}x{first_image.shape[0]}"
             if loop_count > 0:
-                loop_args = ["-vf", "loop=loop=" + str(loop_count)+":size=" + str(len(images))]
+                loop_args = ["-vf", "loop=loop=" + str(loop_count)+":size=" + str(num_frames)]
             else:
                 loop_args = []
             if pingpong:
@@ -409,10 +410,6 @@ class VideoCombine:
                     i_pix_fmt = 'rgb24'
             file = f"{filename}_{counter:05}.{video_format['extension']}"
             file_path = os.path.join(full_output_folder, file)
-            if loop_count > 0:
-                loop_args = ["-vf", "loop=loop=" + str(loop_count)+":size=" + str(len(images))]
-            else:
-                loop_args = []
             bitrate_arg = []
             bitrate = video_format.get('bitrate')
             if bitrate is not None:
