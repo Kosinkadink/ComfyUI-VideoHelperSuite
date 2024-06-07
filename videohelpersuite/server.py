@@ -115,6 +115,10 @@ async def view_video(request):
             except ConnectionResetError as e:
                 #Kill ffmpeg before stdout closes
                 proc.kill()
+            except ConnectionError as e:
+                #Kill ffmpeg before stdout closes
+                proc.kill()
+
     except BrokenPipeError as e:
         pass
     return resp
