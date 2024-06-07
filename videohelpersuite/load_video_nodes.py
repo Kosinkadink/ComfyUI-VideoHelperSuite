@@ -9,7 +9,7 @@ import psutil
 import folder_paths
 from comfy.utils import common_upscale, ProgressBar
 from .logger import logger
-from .utils import BIGMAX, DIMMAX, calculate_file_hash, get_sorted_dir_files_from_directory, get_audio, lazy_eval, hash_path, validate_path
+from .utils import BIGMAX, DIMMAX, calculate_file_hash, get_sorted_dir_files_from_directory, get_audio, lazy_eval, hash_path, validate_path, strip_path
 
 
 video_extensions = ['webm', 'mp4', 'mkv', 'gif']
@@ -46,7 +46,7 @@ def target_size(width, height, force_size, custom_width, custom_height) -> tuple
 
 def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
                        select_every_nth, meta_batch=None, unique_id=None):
-    video_cap = cv2.VideoCapture(video)
+    video_cap = cv2.VideoCapture(strip_path(video))
     if not video_cap.isOpened():
         raise ValueError(f"{video} could not be loaded with cv.")
     pbar = ProgressBar(frame_load_cap) if frame_load_cap > 0 else None
@@ -226,7 +226,7 @@ class LoadVideoUpload:
     FUNCTION = "load_video"
 
     def load_video(self, **kwargs):
-        kwargs['video'] = folder_paths.get_annotated_filepath(kwargs['video'].strip("\""))
+        kwargs['video'] = folder_paths.get_annotated_filepath(strip_path(kwargs['video']))
         return load_video_cv(**kwargs)
 
     @classmethod

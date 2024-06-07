@@ -84,7 +84,7 @@ def is_safe_path(path):
     return common_path == basedir
 
 def get_sorted_dir_files_from_directory(directory: str, skip_first_images: int=0, select_every_nth: int=1, extensions: Iterable=None):
-    directory = directory.strip()
+    directory = strip_path(directory)
     dir_files = os.listdir(directory)
     dir_files = sorted(dir_files)
     dir_files = [os.path.join(directory, x) for x in dir_files]
@@ -203,12 +203,23 @@ def validate_sequence(path):
             return True
     return False
 
+def strip_path(path):
+    #This leaves whitespace inside quotes and only a single "
+    #thus ' ""test"' -> '"test'
+    #consider path.strip(string.whitespace+"\"")
+    #or weightier re.fullmatch("[\\s\"]*(.+?)[\\s\"]*", path).group(1)
+    path = path.strip()
+    if path.startswith("\""):
+        path = path[1:]
+    if path.endswith("\""):
+        path = path[:-1]
+    return path
 def hash_path(path):
     if path is None:
         return "input"
     if is_url(path):
         return "url"
-    return calculate_file_hash(path.strip("\""))
+    return calculate_file_hash(strip_path(path))
 
 
 def validate_path(path, allow_none=False, allow_url=True):
@@ -219,6 +230,6 @@ def validate_path(path, allow_none=False, allow_url=True):
         if not allow_url:
             return "URLs are unsupported for this path"
         return is_safe_path(path)
-    if not os.path.isfile(path.strip("\"")):
+    if not os.path.isfile(strip_path(path)):
         return "Invalid file path: {}".format(path)
     return is_safe_path(path)

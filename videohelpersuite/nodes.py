@@ -18,7 +18,7 @@ from .image_latent_nodes import *
 from .load_video_nodes import LoadVideoUpload, LoadVideoPath
 from .load_images_nodes import LoadImagesFromDirectoryUpload, LoadImagesFromDirectoryPath
 from .batched_nodes import VAEEncodeBatched, VAEDecodeBatched
-from .utils import ffmpeg_path, get_audio, hash_path, validate_path, requeue_workflow, gifski_path, calculate_file_hash
+from .utils import ffmpeg_path, get_audio, hash_path, validate_path, requeue_workflow, gifski_path, calculate_file_hash, strip_path
 from comfy.utils import ProgressBar
 
 folder_paths.folder_names_and_paths["VHS_video_formats"] = (
@@ -540,6 +540,7 @@ class LoadAudio:
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
     FUNCTION = "load_audio"
     def load_audio(self, audio_file, seek_seconds):
+        audio_file = strip_path(audio_file)
         if audio_file is None or validate_path(audio_file) != True:
             raise Exception("audio_file is not a valid path: " + audio_file)
         #Eagerly fetch the audio since the user must be using it if the
@@ -579,7 +580,7 @@ class LoadAudioUpload:
     FUNCTION = "load_audio"
 
     def load_audio(self, start_time, duration, **kwargs):
-        audio_file = folder_paths.get_annotated_filepath(kwargs['audio'].strip("\""))
+        audio_file = folder_paths.get_annotated_filepath(strip_path(kwargs['audio']))
         if audio_file is None or validate_path(audio_file) != True:
             raise Exception("audio_file is not a valid path: " + audio_file)
         
@@ -589,12 +590,12 @@ class LoadAudioUpload:
 
     @classmethod
     def IS_CHANGED(s, audio, start_time, duration):
-        audio_file = folder_paths.get_annotated_filepath(audio.strip("\""))
+        audio_file = folder_paths.get_annotated_filepath(strip_path(audio))
         return hash_path(audio_file)
 
     @classmethod
     def VALIDATE_INPUTS(s, audio, **kwargs):
-        audio_file = folder_paths.get_annotated_filepath(audio.strip("\""))
+        audio_file = folder_paths.get_annotated_filepath(strip_path(audio))
         return validate_path(audio_file, allow_none=True)
 
 class PruneOutputs:

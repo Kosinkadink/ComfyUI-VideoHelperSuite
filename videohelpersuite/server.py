@@ -3,7 +3,7 @@ import folder_paths
 import os
 import time
 import subprocess
-from .utils import is_url, get_sorted_dir_files_from_directory, ffmpeg_path, validate_sequence, is_safe_path
+from .utils import is_url, get_sorted_dir_files_from_directory, ffmpeg_path, validate_sequence, is_safe_path, strip_path
 from comfy.k_diffusion.utils import FolderOfImages
 
 web = server.web
@@ -25,7 +25,7 @@ async def view_video(request):
         if type == "path":
             #special case for path_based nodes
             #NOTE: output_dir may be empty, but non-None
-            output_dir, filename = os.path.split(filename)
+            output_dir, filename = os.path.split(strip_path(filename))
         if output_dir is None:
             output_dir = folder_paths.get_directory_by_type(type)
 
@@ -124,7 +124,8 @@ async def get_path(request):
     query = request.rel_url.query
     if "path" not in query:
         return web.Response(status=404)
-    path = os.path.abspath(query["path"])
+    #NOTE: path always ends in `/`, so this is functionally an lstrip
+    path = os.path.abspath(strip_path(query["path"]))
 
     if not os.path.exists(path) or not is_safe_path(path):
         return web.json_response([])

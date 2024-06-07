@@ -9,7 +9,7 @@ import folder_paths
 from comfy.k_diffusion.utils import FolderOfImages
 from comfy.utils import common_upscale, ProgressBar
 from .logger import logger
-from .utils import BIGMAX, calculate_file_hash, get_sorted_dir_files_from_directory, validate_path
+from .utils import BIGMAX, calculate_file_hash, get_sorted_dir_files_from_directory, validate_path, strip_path
 
 
 def is_changed_load_images(directory: str, image_load_cap: int = 0, skip_first_images: int = 0, select_every_nth: int = 1, **kwargs):
@@ -144,17 +144,17 @@ class LoadImagesFromDirectoryUpload:
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
 
     def load_images(self, directory: str, **kwargs):
-        directory = folder_paths.get_annotated_filepath(directory.strip())
+        directory = folder_paths.get_annotated_filepath(strip_path(directory))
         return load_images(directory, **kwargs)
     
     @classmethod
     def IS_CHANGED(s, directory: str, **kwargs):
-        directory = folder_paths.get_annotated_filepath(directory.strip())
+        directory = folder_paths.get_annotated_filepath(strip_path(directory))
         return is_changed_load_images(directory, **kwargs)
 
     @classmethod
     def VALIDATE_INPUTS(s, directory: str, **kwargs):
-        directory = folder_paths.get_annotated_filepath(directory.strip())
+        directory = folder_paths.get_annotated_filepath(strip_path(directory))
         return validate_load_images(directory)
 
 
@@ -182,6 +182,7 @@ class LoadImagesFromDirectoryPath:
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
 
     def load_images(self, directory: str, **kwargs):
+        directory = strip_path(directory)
         if directory is None or validate_load_images(directory) != True:
             raise Exception("directory is not valid: " + directory)
 
@@ -197,4 +198,4 @@ class LoadImagesFromDirectoryPath:
     def VALIDATE_INPUTS(s, directory: str, **kwargs):
         if directory is None:
             return True
-        return validate_load_images(directory)
+        return validate_load_images(strip_path(directory))
