@@ -11,6 +11,7 @@ from PIL import Image, ExifTags
 from PIL.PngImagePlugin import PngInfo
 from pathlib import Path
 from string import Template
+import itertools
 
 import folder_paths
 from .logger import logger
@@ -219,7 +220,8 @@ class VideoCombine:
             },
             "optional": {
                 "audio": ("VHS_AUDIO",),
-                "meta_batch": ("VHS_BatchManager",)
+                "meta_batch": ("VHS_BatchManager",),
+                "vae": ("VAE",)
             },
             "hidden": {
                 "prompt": "PROMPT",
@@ -248,15 +250,36 @@ class VideoCombine:
         audio=None,
         unique_id=None,
         manual_format_widgets=None,
-        meta_batch=None
+        meta_batch=None,
+        vae=None
     ):
+        if vae is not None:
+            images = images['samples']
 
         if isinstance(images, torch.Tensor) and images.size(0) == 0:
             return ("",)
         num_frames = len(images)
         pbar = ProgressBar(num_frames)
-
-        first_image = images[0]
+        if vae is not None:
+            downscale_ratio = getattr(vae, "downscale_ratio", 8)
+            width = images.size(3)*downscale_ratio
+            height = images.size(2)*downscale_ratio
+            frames_per_batch = (1920 * 1080 * 16) // (width * height) or 1
+            #Python 3.12 adds an itertools.batched, but it's easily replicated for legacy support
+            def batched(it, n):
+                while batch := tuple(itertools.islice(it, n)):
+                    yield batch
+            def batched_encode(images, vae, frames_per_batch):
+                for batch in batched(iter(images), frames_per_batch):
+                    image_batch = torch.from_numpy(np.array(batch))
+                    yield from vae.decode(image_batch)
+            images = batched_encode(images, vae, frames_per_batch)
+            first_image = next(images)
+            #repush first_image
+            images = itertools.chain([first_image], images)
+        else:
+            first_image = images[0]
+            images = iter(images)
         # get output information
         output_dir = (
             folder_paths.get_output_directory()

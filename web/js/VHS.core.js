@@ -174,6 +174,40 @@ async function uploadFile(file) {
         alert(error);
     }
 }
+function addVAEOutputToggle(nodeType) {
+    chainCallback(nodeType.prototype, "onNodeCreated", function() {
+        chainCallback(this, "onConnectInput", function(islot, otype, o, onode, oslot) {
+            if (islot == 1) {
+                this.disconnectOutput(0)
+                this.outputs[0].name = 'LATENT'
+                this.outputs[0].type = 'LATENT'
+            }
+        });
+        chainCallback(this, "disconnectInput", function(slot) {
+            if (slot == 1) {
+                this.disconnectOutput(0)
+                this.outputs[0].name = "IMAGE"
+                this.outputs[0].type = "IMAGE"
+            }
+        })
+    })
+}
+function addVAEInputToggle(nodeType) {
+    chainCallback(nodeType.prototype, "onNodeCreated", function() {
+        chainCallback(this, "onConnectInput", function(islot, otype, o, onode, oslot) {
+            if (islot == 3) {
+                this.disconnectInput(0)
+                this.inputs[0].type = 'LATENT'
+            }
+        });
+        chainCallback(this, "disconnectInput", function(slot) {
+            if (slot == 3) {
+                this.disconnectInput(0)
+                this.inputs[0].type = "IMAGE"
+            }
+        })
+    })
+}
 
 function addDateFormatting(nodeType, field, timestamp_widget = false) {
     chainCallback(nodeType.prototype, "onNodeCreated", function() {
@@ -964,6 +998,7 @@ app.registerExtension({
                 });
             });
             addLoadVideoCommon(nodeType, nodeData);
+            addVAEOutputToggle(nodeType, nodeData);
         } else if (nodeData?.name == "VHS_LoadAudioUpload") {
             addUploadWidget(nodeType, nodeData, "audio", "audio");
   
@@ -983,6 +1018,7 @@ app.registerExtension({
                 });
             });
             addLoadVideoCommon(nodeType, nodeData);
+            addVAEOutputToggle(nodeType, nodeData);
         } else if (nodeData?.name == "VHS_VideoCombine") {
             addDateFormatting(nodeType, "filename_prefix");
             chainCallback(nodeType.prototype, "onExecuted", function(message) {
@@ -993,6 +1029,7 @@ app.registerExtension({
             addVideoPreview(nodeType);
             addPreviewOptions(nodeType);
             addFormatWidgets(nodeType);
+            addVAEInputToggle(nodeType, nodeData)
 
             //Hide the information passing 'gif' output
             //TODO: check how this is implemented for save image

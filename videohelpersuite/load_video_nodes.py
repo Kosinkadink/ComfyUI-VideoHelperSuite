@@ -20,28 +20,16 @@ def is_gif(filename) -> bool:
     return len(file_parts) > 1 and file_parts[-1] == "gif"
 
 
-def target_size(width, height, force_size, custom_width, custom_height) -> tuple[int, int]:
+def target_size(width, height, force_size, custom_width, custom_height, downscale_ratio=8) -> tuple[int, int]:
     if force_size == "Custom":
-        return (custom_width, custom_height)
-    elif force_size == "Custom Height":
-        force_size = "?x"+str(custom_height)
-    elif force_size == "Custom Width":
-        force_size = str(custom_width)+"x?"
-
-    if force_size != "Disabled":
-        force_size = force_size.split("x")
-        if force_size[0] == "?":
-            width = (width*int(force_size[1]))//height
-            #Limit to a multple of 8 for latent conversion
-            width = int(width)+4 & ~7
-            height = int(force_size[1])
-        elif force_size[1] == "?":
-            height = (height*int(force_size[0]))//width
-            height = int(height)+4 & ~7
-            width = int(force_size[0])
-        else:
-            width = int(force_size[0])
-            height = int(force_size[1])
+        width = custom_width
+        height = custom_height
+    elif force_size == "Custom width":
+        height *= custom_width/width
+    elif force_size == "Custom height":
+        width *= custom_height/height
+    width = int(width/downscale_ratio + 0.5) * downscale_ratio
+    height = int(height/downscale_ratio + 0.5) * downscale_ratio
     return (width, height)
 
 def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
@@ -121,10 +109,19 @@ def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
     if prev_frame is not None:
         yield prev_frame
 
+#Python 3.12 adds an itertools.batched, but it's easily replicated for legacy support
+def batched(it, n):
+    while batch := tuple(itertools.islice(it, n)):
+        yield batch
+def batched_vae_encode(images, vae, frames_per_batch):
+    for batch in batched(images, frames_per_batch):
+        image_batch = torch.from_numpy(np.array(batch))
+        yield from vae.encode(image_batch).numpy()
+
 def load_video_cv(video: str, force_rate: int, force_size: str,
                   custom_width: int,custom_height: int, frame_load_cap: int,
                   skip_first_frames: int, select_every_nth: int,
-                  meta_batch=None, unique_id=None, memory_limit_mb=None):
+                  meta_batch=None, unique_id=None, memory_limit_mb=None, vae=None):
     if meta_batch is None or unique_id not in meta_batch.inputs:
         gen = cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
                                  select_every_nth, meta_batch, unique_id)
@@ -143,7 +140,12 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
         #leaves ~128 MB unreserved for safety
         memory_limit = (psutil.virtual_memory().available + psutil.swap_memory().free) - 2 ** 27
     #space required to load as f32, exist as latent with wiggle room, decode to f32
-    max_loadable_frames = int(memory_limit//(width*height*3*(4+4+1/10)))
+    #TODO: fix when vae is not None
+    if vae is not None:
+        max_loadable_frames = int(memory_limit//(width*height*3*(4+4+1/10)))
+    else:
+        #Consider completely ignoring for load_latent case?
+        max_loadable_frames = int(memory_limit//(width*height*3*(.1)))
     if meta_batch is not None:
         if meta_batch.frames_per_batch > max_loadable_frames:
             raise RuntimeError(f"Meta Batch set to {meta_batch.frames_per_batch} frames but only {max_loadable_frames} can fit in memory")
@@ -151,9 +153,26 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
     else:
         original_gen = gen
         gen = itertools.islice(gen, max_loadable_frames)
-
-    #Some minor wizardry to eliminate a copy and reduce max memory by a factor of ~2
-    images = torch.from_numpy(np.fromiter(gen, np.dtype((np.float32, (height, width, 3)))))
+    downscale_ratio = getattr(vae, "downscale_ratio", 8)
+    frames_per_batch = (1920 * 1080 * 16) // (width * height) or 1
+    if force_size != "Disabled" or vae is not None:
+        new_size = target_size(width, height, force_size, custom_width, custom_height, downscale_ratio)
+        if new_size[0] != width or new_size[1] != height:
+            def rescale(frame):
+                s = torch.from_numpy(np.fromiter(frame, np.dtype((np.float32, (height, width, 3)))))
+                s = frame.movedim(-1,1).unsqueeze(0)
+                s = common_upscale(s, new_size[0], new_size[1], "lanczos", "center")
+                return s.movedim(1,-1).squeeze(0).numpy()
+            gen = itertools.chain.from_iterable(map(rescale, batched(frames_per_batch)))
+    else:
+        new_size = width, height
+    if vae is not None:
+        gen = batched_vae_encode(gen, vae, frames_per_batch)
+        vw,vh = new_size[0]//downscale_ratio, new_size[1]//downscale_ratio
+        images = torch.from_numpy(np.fromiter(gen, np.dtype((np.float32, (4,vh,vw)))))
+    else:
+        #Some minor wizardry to eliminate a copy and reduce max memory by a factor of ~2
+        images = torch.from_numpy(np.fromiter(gen, np.dtype((np.float32, (new_size[1], new_size[0], 3)))))
     if meta_batch is None:
         try:
             next(original_gen)
@@ -162,12 +181,6 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
             pass
     if len(images) == 0:
         raise RuntimeError("No frames generated")
-    if force_size != "Disabled":
-        new_size = target_size(width, height, force_size, custom_width, custom_height)
-        if new_size[0] != width or new_size[1] != height:
-            s = images.movedim(-1,1)
-            s = common_upscale(s, new_size[0], new_size[1], "lanczos", "center")
-            images = s.movedim(1,-1)
 
     #Setup lambda for lazy audio capture
     audio = lambda : get_audio(video, skip_first_frames * target_frame_time,
@@ -183,11 +196,14 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
         "loaded_fps": 1/target_frame_time,
         "loaded_frame_count": len(images),
         "loaded_duration": len(images) * target_frame_time,
-        "loaded_width": images.shape[2],
-        "loaded_height": images.shape[1],
+        "loaded_width": new_size[0],
+        "loaded_height": new_size[1],
     }
+    if vae is None:
+        return (images, len(images), lazy_eval(audio), video_info)
+    else:
+        return ({"samples": images}, len(images), lazy_eval(audio), video_info)
 
-    return (images, len(images), lazy_eval(audio), video_info)
 
 
 class LoadVideoUpload:
@@ -211,7 +227,8 @@ class LoadVideoUpload:
                      "select_every_nth": ("INT", {"default": 1, "min": 1, "max": BIGMAX, "step": 1}),
                      },
                 "optional": {
-                    "meta_batch": ("VHS_BatchManager",)
+                    "meta_batch": ("VHS_BatchManager",),
+                    "vae": ("VAE",),
                 },
                 "hidden": {
                     "unique_id": "UNIQUE_ID"
@@ -220,8 +237,8 @@ class LoadVideoUpload:
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
 
-    RETURN_TYPES = ("IMAGE", "INT", "VHS_AUDIO", "VHS_VIDEOINFO",)
-    RETURN_NAMES = ("IMAGE", "frame_count", "audio", "video_info",)
+    RETURN_TYPES = ("IMAGE", "INT", "VHS_AUDIO", "VHS_VIDEOINFO", "LATENT")
+    RETURN_NAMES = ("IMAGE", "frame_count", "audio", "video_info", "LATENT")
 
     FUNCTION = "load_video"
 
@@ -256,7 +273,8 @@ class LoadVideoPath:
                 "select_every_nth": ("INT", {"default": 1, "min": 1, "max": BIGMAX, "step": 1}),
             },
             "optional": {
-                "meta_batch": ("VHS_BatchManager",)
+                "meta_batch": ("VHS_BatchManager",),
+                "vae": ("VAE",),
             },
             "hidden": {
                 "unique_id": "UNIQUE_ID"
@@ -265,8 +283,8 @@ class LoadVideoPath:
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
 
-    RETURN_TYPES = ("IMAGE", "INT", "VHS_AUDIO", "VHS_VIDEOINFO",)
-    RETURN_NAMES = ("IMAGE", "frame_count", "audio", "video_info",)
+    RETURN_TYPES = ("IMAGE", "INT", "VHS_AUDIO", "VHS_VIDEOINFO")
+    RETURN_NAMES = ("IMAGE", "frame_count", "audio", "video_info")
 
     FUNCTION = "load_video"
 
