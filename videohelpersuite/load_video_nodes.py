@@ -159,7 +159,7 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
 
     #Some minor wizardry to eliminate a copy and reduce max memory by a factor of ~2
     images = torch.from_numpy(np.fromiter(gen, np.dtype((np.float32, (height, width, 3)))))
-    if meta_batch is None:
+    if meta_batch is None and memory_limit is not None:
         try:
             next(original_gen)
             raise RuntimeError(f"Memory limit hit after loading {len(images)} frames. Stopping execution.")
