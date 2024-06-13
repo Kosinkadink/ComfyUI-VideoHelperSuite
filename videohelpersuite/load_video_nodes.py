@@ -136,21 +136,26 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
     else:
         (gen, width, height, fps, duration, total_frames, target_frame_time) = meta_batch.inputs[unique_id]
 
+    memory_limit = None
     if memory_limit_mb is not None:
         memory_limit *= 2 ** 20
     else:
         #TODO: verify if garbage collection should be performed here.
         #leaves ~128 MB unreserved for safety
-        memory_limit = (psutil.virtual_memory().available + psutil.swap_memory().free) - 2 ** 27
-    #space required to load as f32, exist as latent with wiggle room, decode to f32
-    max_loadable_frames = int(memory_limit//(width*height*3*(4+4+1/10)))
-    if meta_batch is not None:
-        if meta_batch.frames_per_batch > max_loadable_frames:
-            raise RuntimeError(f"Meta Batch set to {meta_batch.frames_per_batch} frames but only {max_loadable_frames} can fit in memory")
-        gen = itertools.islice(gen, meta_batch.frames_per_batch)
-    else:
-        original_gen = gen
-        gen = itertools.islice(gen, max_loadable_frames)
+        try:
+            memory_limit = (psutil.virtual_memory().available + psutil.swap_memory().free) - 2 ** 27
+        except:
+            logger.warn("Failed to calculate available memory. Memory load limit has been disabled")
+    if memory_limit is not None:
+        #space required to load as f32, exist as latent with wiggle room, decode to f32
+        max_loadable_frames = int(memory_limit//(width*height*3*(4+4+1/10)))
+        if meta_batch is not None:
+            if meta_batch.frames_per_batch > max_loadable_frames:
+                raise RuntimeError(f"Meta Batch set to {meta_batch.frames_per_batch} frames but only {max_loadable_frames} can fit in memory")
+            gen = itertools.islice(gen, meta_batch.frames_per_batch)
+        else:
+            original_gen = gen
+            gen = itertools.islice(gen, max_loadable_frames)
 
     #Some minor wizardry to eliminate a copy and reduce max memory by a factor of ~2
     images = torch.from_numpy(np.fromiter(gen, np.dtype((np.float32, (height, width, 3)))))
