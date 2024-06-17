@@ -21,13 +21,15 @@ def is_gif(filename) -> bool:
 
 
 def target_size(width, height, force_size, custom_width, custom_height, downscale_ratio=8) -> tuple[int, int]:
-    if force_size == "Custom":
-        width = custom_width
-        height = custom_height
+    if force_size == "Disabled":
+        pass
     elif force_size == "Custom width":
         height *= custom_width/width
     elif force_size == "Custom height":
         width *= custom_height/height
+    else:
+        width = custom_width
+        height = custom_height
     width = int(width/downscale_ratio + 0.5) * downscale_ratio
     height = int(height/downscale_ratio + 0.5) * downscale_ratio
     return (width, height)
@@ -160,9 +162,9 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
         if new_size[0] != width or new_size[1] != height:
             def rescale(frame):
                 s = torch.from_numpy(np.fromiter(frame, np.dtype((np.float32, (height, width, 3)))))
-                s = s.movedim(-1,1).unsqueeze(0)
+                s = s.movedim(-1,1)
                 s = common_upscale(s, new_size[0], new_size[1], "lanczos", "center")
-                return s.movedim(1,-1).squeeze(0).numpy()
+                return s.movedim(1,-1).numpy()
             gen = itertools.chain.from_iterable(map(rescale, batched(gen, frames_per_batch)))
     else:
         new_size = width, height
