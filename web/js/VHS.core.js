@@ -174,39 +174,70 @@ async function uploadFile(file) {
         alert(error);
     }
 }
-function addVAEOutputToggle(nodeType) {
-    chainCallback(nodeType.prototype, "onNodeCreated", function() {
-        chainCallback(this, "onConnectInput", function(islot, otype, o, onode, oslot) {
-            if (islot == 1) {
-                this.disconnectOutput(0)
-                this.outputs[0].name = 'LATENT'
-                this.outputs[0].type = 'LATENT'
+function addVAEOutputToggle(nodeType, nodeData) {
+    nodeData.output.pop()
+    chainCallback(nodeType.prototype, "onConnectionsChange", function(contype, slot, iscon, linfo) {
+        if (contype == LiteGraph.INPUT && slot == 1) {
+            if (iscon && linfo) {
+                if (this.linkTimeout) {
+                    clearTimeout(this.linkTimeout)
+                    this.linkTimeout = false
+                } else if (this.outputs[0].type == "IMAGE") {
+                    this.linkTimeout = setTimeout(() => {
+                        this.linkTimeout = false
+                        this.disconnectOutput(0);
+                    }, 50)
+                }
+                this.outputs[0].name = 'LATENT';
+                this.outputs[0].type = 'LATENT';
+            } else{
+                if (this.outputs[0].type == "LATENT") {
+                    this.linkTimeout = setTimeout(() => {
+                        this.linkTimeout = false
+                        this.disconnectOutput(0);
+                    }, 50)
+                }
+                this.outputs[0].name = "IMAGE";
+                this.outputs[0].type = "IMAGE";
             }
-        });
-        chainCallback(this, "disconnectInput", function(slot) {
-            if (slot == 1) {
-                this.disconnectOutput(0)
-                this.outputs[0].name = "IMAGE"
-                this.outputs[0].type = "IMAGE"
+        }
+    });
+    chainCallback(nodeType.prototype, "onNodeCreated", function(contype, slot, iscon, linf) {
+        this.updateLink = function(link) {
+            if (link.origin_slot == 0 && this.outputs[0].type=="LATENT") {
+                return {'origin_id': link.origin_id,
+                        'origin_slot': 4}
             }
-        })
-    })
+            return link
+        }
+    });
+
 }
-function addVAEInputToggle(nodeType) {
-    chainCallback(nodeType.prototype, "onNodeCreated", function() {
-        chainCallback(this, "onConnectInput", function(islot, otype, o, onode, oslot) {
-            if (islot == 3) {
-                this.disconnectInput(0)
-                this.inputs[0].type = 'LATENT'
+function addVAEInputToggle(nodeType, nodeData) {
+    delete nodeData.input.optional["latents"]
+    chainCallback(nodeType.prototype, "onConnectionsChange", function(contype, slot, iscon, linf) {
+        if (contype == LiteGraph.INPUT && slot == 3) {
+            if (iscon && linf) {
+                this.disconnectInput(0);
+                this.inputs[0].type = 'LATENT';
+            } else {
+                this.disconnectInput(0);
+                this.inputs[0].type = "IMAGE";
             }
-        });
-        chainCallback(this, "disconnectInput", function(slot) {
-            if (slot == 3) {
-                this.disconnectInput(0)
-                this.inputs[0].type = "IMAGE"
+        }
+    });
+    chainCallback(nodeType.prototype, "onNodeCreated", function(contype, slot, iscon, linf) {
+        this.original_getInputLink = this.getInputLink
+        this.getInputLink = function(slot) {
+            let link = this.original_getInputLink(slot)
+            if (slot == 0 && this.inputs[0].type=="LATENT") {
+                return {'origin_id': link.origin_id,
+                        'origin_slot': link.origin_slot,
+                        'target_slot': 4}
             }
-        })
-    })
+            return link
+        }
+    });
 }
 
 function addDateFormatting(nodeType, field, timestamp_widget = false) {

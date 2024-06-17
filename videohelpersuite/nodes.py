@@ -207,7 +207,6 @@ class VideoCombine:
         ffmpeg_formats = get_video_formats()
         return {
             "required": {
-                "images": ("IMAGE",),
                 "frame_rate": (
                     "FLOAT",
                     {"default": 8, "min": 1, "step": 1},
@@ -219,9 +218,11 @@ class VideoCombine:
                 "save_output": ("BOOLEAN", {"default": True}),
             },
             "optional": {
+                "images": ("IMAGE",),
                 "audio": ("VHS_AUDIO",),
                 "meta_batch": ("VHS_BatchManager",),
-                "vae": ("VAE",)
+                "vae": ("VAE",),
+                "latents": ("LATENT",),
             },
             "hidden": {
                 "prompt": "PROMPT",
@@ -238,9 +239,10 @@ class VideoCombine:
 
     def combine_video(
         self,
-        images,
         frame_rate: int,
         loop_count: int,
+        images=None,
+        latents=None,
         filename_prefix="AnimateDiff",
         format="image/gif",
         pingpong=False,
@@ -253,11 +255,15 @@ class VideoCombine:
         meta_batch=None,
         vae=None
     ):
+        if latents is not None:
+            images = latents
+        if images is None:
+            return ((save_output, []),)
         if vae is not None:
             images = images['samples']
 
         if isinstance(images, torch.Tensor) and images.size(0) == 0:
-            return ("",)
+            return ((save_output, []),)
         num_frames = len(images)
         pbar = ProgressBar(num_frames)
         if vae is not None:

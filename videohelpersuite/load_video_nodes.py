@@ -160,10 +160,10 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
         if new_size[0] != width or new_size[1] != height:
             def rescale(frame):
                 s = torch.from_numpy(np.fromiter(frame, np.dtype((np.float32, (height, width, 3)))))
-                s = frame.movedim(-1,1).unsqueeze(0)
+                s = s.movedim(-1,1).unsqueeze(0)
                 s = common_upscale(s, new_size[0], new_size[1], "lanczos", "center")
                 return s.movedim(1,-1).squeeze(0).numpy()
-            gen = itertools.chain.from_iterable(map(rescale, batched(frames_per_batch)))
+            gen = itertools.chain.from_iterable(map(rescale, batched(gen, frames_per_batch)))
     else:
         new_size = width, height
     if vae is not None:
@@ -200,9 +200,9 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
         "loaded_height": new_size[1],
     }
     if vae is None:
-        return (images, len(images), lazy_eval(audio), video_info)
+        return (images, len(images), lazy_eval(audio), video_info, None)
     else:
-        return ({"samples": images}, len(images), lazy_eval(audio), video_info)
+        return (None, len(images), lazy_eval(audio), video_info, {"samples": images})
 
 
 
@@ -283,8 +283,8 @@ class LoadVideoPath:
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
 
-    RETURN_TYPES = ("IMAGE", "INT", "VHS_AUDIO", "VHS_VIDEOINFO")
-    RETURN_NAMES = ("IMAGE", "frame_count", "audio", "video_info")
+    RETURN_TYPES = ("IMAGE", "INT", "VHS_AUDIO", "VHS_VIDEOINFO", "LATENT")
+    RETURN_NAMES = ("IMAGE", "frame_count", "audio", "video_info", "LATENT")
 
     FUNCTION = "load_video"
 
