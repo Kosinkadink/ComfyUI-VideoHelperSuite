@@ -218,10 +218,23 @@ function addVAEInputToggle(nodeType, nodeData) {
     chainCallback(nodeType.prototype, "onConnectionsChange", function(contype, slot, iscon, linf) {
         if (contype == LiteGraph.INPUT && slot == 3) {
             if (iscon && linf) {
-                this.disconnectInput(0);
+                if (this.linkTimeout) {
+                    clearTimeout(this.linkTimeout)
+                    this.linkTimeout = false
+                } else if (this.inputs[0].type == "IMAGE") {
+                    this.linkTimeout = setTimeout(() => {
+                        this.linkTimeout = false
+                        this.disconnectInput(0);
+                    }, 50)
+                }
                 this.inputs[0].type = 'LATENT';
             } else {
-                this.disconnectInput(0);
+                if (this.inputs[0].type == "LATENT") {
+                    this.linkTimeout = setTimeout(() => {
+                        this.linkTimeout = false
+                        this.disconnectInput(0);
+                    }, 50)
+                }
                 this.inputs[0].type = "IMAGE";
             }
         }
