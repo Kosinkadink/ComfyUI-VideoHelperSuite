@@ -48,6 +48,7 @@ async def view_video(request):
             if not os.path.isfile(file) and not validate_sequence(file):
                     return web.Response(status=404)
 
+    frame_rate = query.get('frame_rate', 8)
     if query.get('format', 'video') == "folder":
         #Check that folder contains some valid image file, get it's extension
         #ffmpeg seems to not support list globs, so support for mixed extensions seems unfeasible
@@ -63,9 +64,11 @@ async def view_video(request):
             for path in valid_images:
                 f.write("file '" + os.path.abspath(path) + "'\n")
                 f.write("duration 0.125\n")
-        in_args = ["-safe", "0", "-i", concat_file]
+        in_args = ["-framerate", str(frame_rate), "-safe", "0", "-i", concat_file]
     else:
         in_args = ["-an", "-i", file]
+        if '%' in file:
+            in_args = ['-framerate', str(frame_rate)] + in_args
 
     args = [ffmpeg_path, "-v", "error"] + in_args
     vfilters = []

@@ -543,6 +543,7 @@ class VideoCombine:
                 "subfolder": subfolder,
                 "type": "output" if save_output else "temp",
                 "format": format,
+                "frame_rate": frame_rate,
             }
         ]
         return {"ui": {"gifs": previews}, "result": ((save_output, output_files),)}

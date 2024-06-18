@@ -572,6 +572,9 @@ function addPreviewOptions(nodeType) {
         if (previewWidget.videoEl?.hidden == false && previewWidget.videoEl.src) {
             //Use full quality video
             url = api.apiURL('/view?' + new URLSearchParams(previewWidget.value.params));
+            //Workaround for 16bit png: Just do first frame
+            url = url.replace('%2503d', '001')
+            console.log(url)
         } else if (previewWidget.imgEl?.hidden == false && previewWidget.imgEl.src) {
             url = previewWidget.imgEl.src;
             url = new URL(url);
