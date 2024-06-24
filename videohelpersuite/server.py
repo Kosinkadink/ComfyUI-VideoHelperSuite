@@ -64,7 +64,7 @@ async def view_video(request):
             for path in valid_images:
                 f.write("file '" + os.path.abspath(path) + "'\n")
                 f.write("duration 0.125\n")
-        in_args = ["-framerate", str(frame_rate), "-safe", "0", "-i", concat_file]
+        in_args = ["-safe", "0", "-i", concat_file]
     else:
         in_args = ["-an", "-i", file]
         if '%' in file:
