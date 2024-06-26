@@ -546,6 +546,9 @@ class VideoCombine:
                 "frame_rate": frame_rate,
             }
         ]
+        if num_frames == 1 and 'png' in format and '%03d' in file:
+            previews[0]['format'] = 'image/png'
+            previews[0]['filename'] = file.replace('%03d', '001')
         return {"ui": {"gifs": previews}, "result": ((save_output, output_files),)}
     @classmethod
     def VALIDATE_INPUTS(self, format, **kwargs):
