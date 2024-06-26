@@ -174,6 +174,84 @@ async function uploadFile(file) {
         alert(error);
     }
 }
+function addVAEOutputToggle(nodeType, nodeData) {
+    nodeData.output.pop()
+    chainCallback(nodeType.prototype, "onConnectionsChange", function(contype, slot, iscon, linfo) {
+        if (contype == LiteGraph.INPUT && slot == 1) {
+            if (iscon && linfo) {
+                if (this.linkTimeout) {
+                    clearTimeout(this.linkTimeout)
+                    this.linkTimeout = false
+                } else if (this.outputs[0].type == "IMAGE") {
+                    this.linkTimeout = setTimeout(() => {
+                        this.linkTimeout = false
+                        this.disconnectOutput(0);
+                    }, 50)
+                }
+                this.outputs[0].name = 'LATENT';
+                this.outputs[0].type = 'LATENT';
+            } else{
+                if (this.outputs[0].type == "LATENT") {
+                    this.linkTimeout = setTimeout(() => {
+                        this.linkTimeout = false
+                        this.disconnectOutput(0);
+                    }, 50)
+                }
+                this.outputs[0].name = "IMAGE";
+                this.outputs[0].type = "IMAGE";
+            }
+        }
+    });
+    chainCallback(nodeType.prototype, "onNodeCreated", function(contype, slot, iscon, linf) {
+        this.updateLink = function(link) {
+            if (link.origin_slot == 0 && this.outputs[0].type=="LATENT") {
+                return {'origin_id': link.origin_id,
+                        'origin_slot': 4}
+            }
+            return link
+        }
+    });
+
+}
+function addVAEInputToggle(nodeType, nodeData) {
+    delete nodeData.input.optional["latents"]
+    chainCallback(nodeType.prototype, "onConnectionsChange", function(contype, slot, iscon, linf) {
+        if (contype == LiteGraph.INPUT && slot == 3) {
+            if (iscon && linf) {
+                if (this.linkTimeout) {
+                    clearTimeout(this.linkTimeout)
+                    this.linkTimeout = false
+                } else if (this.inputs[0].type == "IMAGE") {
+                    this.linkTimeout = setTimeout(() => {
+                        this.linkTimeout = false
+                        this.disconnectInput(0);
+                    }, 50)
+                }
+                this.inputs[0].type = 'LATENT';
+            } else {
+                if (this.inputs[0].type == "LATENT") {
+                    this.linkTimeout = setTimeout(() => {
+                        this.linkTimeout = false
+                        this.disconnectInput(0);
+                    }, 50)
+                }
+                this.inputs[0].type = "IMAGE";
+            }
+        }
+    });
+    chainCallback(nodeType.prototype, "onNodeCreated", function(contype, slot, iscon, linf) {
+        this.original_getInputLink = this.getInputLink
+        this.getInputLink = function(slot) {
+            let link = this.original_getInputLink(slot)
+            if (slot == 0 && this.inputs[0].type=="LATENT") {
+                return {'origin_id': link.origin_id,
+                        'origin_slot': link.origin_slot,
+                        'target_slot': 4}
+            }
+            return link
+        }
+    });
+}
 
 function addDateFormatting(nodeType, field, timestamp_widget = false) {
     chainCallback(nodeType.prototype, "onNodeCreated", function() {
@@ -494,6 +572,9 @@ function addPreviewOptions(nodeType) {
         if (previewWidget.videoEl?.hidden == false && previewWidget.videoEl.src) {
             //Use full quality video
             url = api.apiURL('/view?' + new URLSearchParams(previewWidget.value.params));
+            //Workaround for 16bit png: Just do first frame
+            url = url.replace('%2503d', '001')
+            console.log(url)
         } else if (previewWidget.imgEl?.hidden == false && previewWidget.imgEl.src) {
             url = previewWidget.imgEl.src;
             url = new URL(url);
@@ -964,6 +1045,7 @@ app.registerExtension({
                 });
             });
             addLoadVideoCommon(nodeType, nodeData);
+            addVAEOutputToggle(nodeType, nodeData);
         } else if (nodeData?.name == "VHS_LoadAudioUpload") {
             addUploadWidget(nodeType, nodeData, "audio", "audio");
   
@@ -983,6 +1065,7 @@ app.registerExtension({
                 });
             });
             addLoadVideoCommon(nodeType, nodeData);
+            addVAEOutputToggle(nodeType, nodeData);
         } else if (nodeData?.name == "VHS_VideoCombine") {
             addDateFormatting(nodeType, "filename_prefix");
             chainCallback(nodeType.prototype, "onExecuted", function(message) {
@@ -993,6 +1076,7 @@ app.registerExtension({
             addVideoPreview(nodeType);
             addPreviewOptions(nodeType);
             addFormatWidgets(nodeType);
+            addVAEInputToggle(nodeType, nodeData)
 
             //Hide the information passing 'gif' output
             //TODO: check how this is implemented for save image

@@ -11,6 +11,7 @@ from PIL import Image, ExifTags
 from PIL.PngImagePlugin import PngInfo
 from pathlib import Path
 from string import Template
+import itertools
 
 import folder_paths
 from .logger import logger
@@ -206,7 +207,6 @@ class VideoCombine:
         ffmpeg_formats = get_video_formats()
         return {
             "required": {
-                "images": ("IMAGE",),
                 "frame_rate": (
                     "FLOAT",
                     {"default": 8, "min": 1, "step": 1},
@@ -218,8 +218,11 @@ class VideoCombine:
                 "save_output": ("BOOLEAN", {"default": True}),
             },
             "optional": {
+                "images": ("IMAGE",),
                 "audio": ("VHS_AUDIO",),
-                "meta_batch": ("VHS_BatchManager",)
+                "meta_batch": ("VHS_BatchManager",),
+                "vae": ("VAE",),
+                "latents": ("LATENT",),
             },
             "hidden": {
                 "prompt": "PROMPT",
@@ -236,9 +239,10 @@ class VideoCombine:
 
     def combine_video(
         self,
-        images,
         frame_rate: int,
         loop_count: int,
+        images=None,
+        latents=None,
         filename_prefix="AnimateDiff",
         format="image/gif",
         pingpong=False,
@@ -248,15 +252,40 @@ class VideoCombine:
         audio=None,
         unique_id=None,
         manual_format_widgets=None,
-        meta_batch=None
+        meta_batch=None,
+        vae=None
     ):
+        if latents is not None:
+            images = latents
+        if images is None:
+            return ((save_output, []),)
+        if vae is not None:
+            images = images['samples']
 
         if isinstance(images, torch.Tensor) and images.size(0) == 0:
-            return ("",)
+            return ((save_output, []),)
         num_frames = len(images)
         pbar = ProgressBar(num_frames)
-
-        first_image = images[0]
+        if vae is not None:
+            downscale_ratio = getattr(vae, "downscale_ratio", 8)
+            width = images.size(3)*downscale_ratio
+            height = images.size(2)*downscale_ratio
+            frames_per_batch = (1920 * 1080 * 16) // (width * height) or 1
+            #Python 3.12 adds an itertools.batched, but it's easily replicated for legacy support
+            def batched(it, n):
+                while batch := tuple(itertools.islice(it, n)):
+                    yield batch
+            def batched_encode(images, vae, frames_per_batch):
+                for batch in batched(iter(images), frames_per_batch):
+                    image_batch = torch.from_numpy(np.array(batch))
+                    yield from vae.decode(image_batch)
+            images = batched_encode(images, vae, frames_per_batch)
+            first_image = next(images)
+            #repush first_image
+            images = itertools.chain([first_image], images)
+        else:
+            first_image = images[0]
+            images = iter(images)
         # get output information
         output_dir = (
             folder_paths.get_output_directory()
@@ -514,8 +543,12 @@ class VideoCombine:
                 "subfolder": subfolder,
                 "type": "output" if save_output else "temp",
                 "format": format,
+                "frame_rate": frame_rate,
             }
         ]
+        if num_frames == 1 and 'png' in format and '%03d' in file:
+            previews[0]['format'] = 'image/png'
+            previews[0]['filename'] = file.replace('%03d', '001')
         return {"ui": {"gifs": previews}, "result": ((save_output, output_files),)}
     @classmethod
     def VALIDATE_INPUTS(self, format, **kwargs):

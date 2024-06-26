@@ -139,6 +139,7 @@ class LoadImagesFromDirectoryUpload:
         }
     
     RETURN_TYPES = ("IMAGE", "MASK", "INT")
+    RETURN_NAMES = ("IMAGE", "MASK", "frame_count")
     FUNCTION = "load_images"
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
@@ -177,6 +178,7 @@ class LoadImagesFromDirectoryPath:
         }
     
     RETURN_TYPES = ("IMAGE", "MASK", "INT")
+    RETURN_NAMES = ("IMAGE", "MASK", "frame_count")
     FUNCTION = "load_images"
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
