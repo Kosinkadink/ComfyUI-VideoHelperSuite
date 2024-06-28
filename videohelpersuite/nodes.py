@@ -260,7 +260,10 @@ class VideoCombine:
         if images is None:
             return ((save_output, []),)
         if vae is not None:
-            images = images['samples']
+            if isinstance(images, dict):
+                images = images['samples']
+            else:
+                vae = None
 
         if isinstance(images, torch.Tensor) and images.size(0) == 0:
             return ((save_output, []),)
