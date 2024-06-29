@@ -156,21 +156,30 @@ def requeue_workflow(requeue_required=(-1,True)):
         requeue_workflow_unchecked()
 
 def get_audio(file, start_time=0, duration=0):
-    args = [ffmpeg_path, "-v", "error", "-i", file]
+    args = [ffmpeg_path, "-i", file]
     if start_time > 0:
         args += ["-ss", str(start_time)]
     if duration > 0:
         args += ["-t", str(duration)]
     try:
         #TODO: scan for sample rate and maintain
-        res =  subprocess.run(args + ["-ar", "44100","-f", "f32le", "-"],
-                              stdout=subprocess.PIPE, check=True).stdout
-        audio = torch.frombuffer(bytearray(res), dtype=torch.float32)
+        res =  subprocess.run(args + ["-f", "f32le", "-"],
+                              capture_output=True, check=True)
+        audio = torch.frombuffer(bytearray(res.stdout), dtype=torch.float32)
     except subprocess.CalledProcessError as e:
         logger.warning(f"Failed to extract audio from: {file}")
-        audio = torch.zeros(1,1)
-    audio = audio.reshape((-1,2)).transpose(0,1).unsqueeze(0)
-    return {'waveform': audio, 'sample_rate': 44100}
+        audio = torch.zeros(1,2)
+    match = re.search(', (\\d+) Hz, (\\w+), ',res.stderr.decode('utf-8'))
+    if match:
+        ar = int(match.group(1))
+        #NOTE: Just throwing an error for other channel types right now
+        #Will deal with issues if they come
+        ac = {"mono": 1, "stereo": 2}[match.group(2)]
+    else:
+        ar = 44100
+        ac = 2
+    audio = audio.reshape((-1,ac)).transpose(0,1).unsqueeze(0)
+    return {'waveform': audio, 'sample_rate': ar}
 
 class LazyAudioMap(Mapping):
     def __init__(self, file, start_time, duration):
