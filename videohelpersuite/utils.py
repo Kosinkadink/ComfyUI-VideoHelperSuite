@@ -4,6 +4,8 @@ from typing import Iterable
 import shutil
 import subprocess
 import re
+from collections.abc import Mapping
+import torch
 
 import server
 from .logger import logger
@@ -160,26 +162,36 @@ def get_audio(file, start_time=0, duration=0):
     if duration > 0:
         args += ["-t", str(duration)]
     try:
-        res =  subprocess.run(args + ["-f", "wav", "-"],
+        #TODO: scan for sample rate and maintain
+        res =  subprocess.run(args + ["-ar", "44100","-f", "f32le", "-"],
                               stdout=subprocess.PIPE, check=True).stdout
+        audio = torch.frombuffer(bytearray(res), dtype=torch.float32)
     except subprocess.CalledProcessError as e:
         logger.warning(f"Failed to extract audio from: {file}")
-        return False
-    return res
+        audio = torch.zeros(1,1)
+    audio = audio.reshape((-1,2)).transpose(0,1).unsqueeze(0)
+    return {'waveform': audio, 'sample_rate': 44100}
 
-
-def lazy_eval(func):
-    class Cache:
-        def __init__(self, func):
-            self.res = None
-            self.func = func
-        def get(self):
-            if self.res is None:
-                self.res = self.func()
-            return self.res
-    cache = Cache(func)
-    return lambda : cache.get()
-
+class LazyAudioMap(Mapping):
+    def __init__(self, file, start_time, duration):
+        self.file = file
+        self.start_time=start_time
+        self.duration=duration
+        self._dict=None
+    def __getitem__(self, key):
+        if self._dict is None:
+            self._dict = get_audio(self.file, self.start_time, self.duration)
+        return self._dict[key]
+    def __iter__(self):
+        if self._dict is None:
+            self._dict = get_audio(self.file, self.start_time, self.duration)
+        return iter(self._dict)
+    def __len__(self):
+        if self._dict is None:
+            self._dict = get_audio(self.file, self.start_time, self.duration)
+        return len(self._dict)
+def lazy_get_audio(file, start_time=0, duration=0):
+    return LazyAudioMap(file, start_time, duration)
 
 def is_url(url):
     return url.split("://")[0] in ["http", "https"]

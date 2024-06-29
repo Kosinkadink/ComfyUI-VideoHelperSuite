@@ -219,7 +219,7 @@ class VideoCombine:
             },
             "optional": {
                 "images": ("IMAGE",),
-                "audio": ("VHS_AUDIO",),
+                "audio": ("AUDIO",),
                 "meta_batch": ("VHS_BatchManager",),
                 "vae": ("VAE",),
                 "latents": ("LATENT",),
@@ -508,7 +508,7 @@ class VideoCombine:
 
             output_files.append(file_path)
 
-            if audio is not None and audio() is not False:
+            if audio is not None:
                 # Create audio file if input was provided
                 output_file_with_audio = f"{filename}_{counter:05}-audio.{video_format['extension']}"
                 output_file_with_audio_path = os.path.join(full_output_folder, output_file_with_audio)
@@ -520,16 +520,20 @@ class VideoCombine:
                 # FFmpeg command with audio re-encoding
                 #TODO: expose audio quality options if format widgets makes it in
                 #Reconsider forcing apad/shortest
+                channels = audio['waveform'].size(1)
                 min_audio_dur = total_frames_output / frame_rate + 1
                 mux_args = [ffmpeg_path, "-v", "error", "-n", "-i", file_path,
-                            "-i", "-", "-c:v", "copy"] \
+                            "-ar", str(audio['sample_rate']), "-ac", str(channels),
+                            "-f", "f32le", "-i", "-", "-c:v", "copy"] \
                             + video_format["audio_pass"] \
                             + ["-af", "apad=whole_dur="+str(min_audio_dur),
                                "-shortest", output_file_with_audio_path]
 
+                audio_data = audio['waveform'].squeeze(0).transpose(0,1) \
+                        .numpy().tobytes()
                 try:
-                    res = subprocess.run(mux_args, input=audio(), env=env,
-                                         capture_output=True, check=True)
+                    res = subprocess.run(mux_args, input=audio_data,
+                                         env=env, capture_output=True, check=True)
                 except subprocess.CalledProcessError as e:
                     raise Exception("An error occured in the ffmpeg subprocess:\n" \
                             + e.stderr.decode("utf-8"))
@@ -568,7 +572,7 @@ class LoadAudio:
             "optional" : {"seek_seconds": ("FLOAT", {"default": 0, "min": 0})}
         }
 
-    RETURN_TYPES = ("VHS_AUDIO",)
+    RETURN_TYPES = ("AUDIO",)
     RETURN_NAMES = ("audio",)
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
     FUNCTION = "load_audio"
@@ -578,8 +582,7 @@ class LoadAudio:
             raise Exception("audio_file is not a valid path: " + audio_file)
         #Eagerly fetch the audio since the user must be using it if the
         #node executes, unlike Load Video
-        audio = get_audio(audio_file, start_time=seek_seconds)
-        return (lambda : audio,)
+        return (get_audio(audio_file, start_time=seek_seconds),)
 
     @classmethod
     def IS_CHANGED(s, audio_file, seek_seconds):
@@ -608,7 +611,7 @@ class LoadAudioUpload:
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
 
-    RETURN_TYPES = ("VHS_AUDIO", )
+    RETURN_TYPES = ("AUDIO", )
     RETURN_NAMES = ("audio",)
     FUNCTION = "load_audio"
 
@@ -617,9 +620,7 @@ class LoadAudioUpload:
         if audio_file is None or validate_path(audio_file) != True:
             raise Exception("audio_file is not a valid path: " + audio_file)
         
-        audio = get_audio(audio_file, start_time, duration)
-
-        return (lambda : audio,)
+        return (get_audio(audio_file, start_time, duration),)
 
     @classmethod
     def IS_CHANGED(s, audio, start_time, duration):
