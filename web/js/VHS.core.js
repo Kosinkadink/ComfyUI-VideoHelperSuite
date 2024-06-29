@@ -174,6 +174,39 @@ async function uploadFile(file) {
         alert(error);
     }
 }
+function applyVHSAudioLinksFix(nodeType, nodeData, audio_slot) {
+    chainCallback(nodeType.prototype, "onConnectionsChange", function(contype, slot, iscon, linfo) {
+        if (contype == LiteGraph.OUTPUT && slot == audio_slot) {
+            if (linfo.type == "VHS_AUDIO") {
+                this.outputs[audio_slot].type = "AUDIO"
+                let tnode = app.graph._nodes_by_id[linfo.target_id]
+                let inputDef = LiteGraph.registered_node_types[tnode.type].nodeData.input
+                let has_migrated = true
+                if (inputDef?.required) {
+                    for (let k in inputDef.required) {
+                        if (inputDef.required[k][0] == "VHS_AUDIO") {
+                            has_migrated = false
+                            break
+                        }
+                    }
+                }
+                if (has_migrated &&inputDef?.optional) {
+                    for (let k in inputDef.optional) {
+                        if (inputDef.optional[k][0] == "VHS_AUDIO") {
+                            has_migrated = false
+                            break
+                        }
+                    }
+                }
+                if (!has_migrated) {
+                    //need to add node and migrate
+                    app.ui.dialog.show("This workflow contains one or more nodes which use the old VHS_AUDIO format. They have been highlighted in red. An AudioToVHSAudio node must be added to convert to this legacy format")
+                    tnode.bgcolor = "#C00"
+                }
+            }
+        }
+    })
+}
 function addVAEOutputToggle(nodeType, nodeData) {
     nodeData.output.pop()
     chainCallback(nodeType.prototype, "onConnectionsChange", function(contype, slot, iscon, linfo) {
@@ -1046,9 +1079,12 @@ app.registerExtension({
             });
             addLoadVideoCommon(nodeType, nodeData);
             addVAEOutputToggle(nodeType, nodeData);
+            applyVHSAudioLinksFix(nodeType, nodeData, 2)
         } else if (nodeData?.name == "VHS_LoadAudioUpload") {
             addUploadWidget(nodeType, nodeData, "audio", "audio");
-  
+            applyVHSAudioLinksFix(nodeType, nodeData, 0)
+        } else if (nodeData?.name == "VHS_LoadAudio"){
+            applyVHSAudioLinksFix(nodeType, nodeData, 0)
         } else if (nodeData?.name =="VHS_LoadVideoPath") {
             chainCallback(nodeType.prototype, "onNodeCreated", function() {
                 const pathWidget = this.widgets.find((w) => w.name === "video");
@@ -1066,6 +1102,7 @@ app.registerExtension({
             });
             addLoadVideoCommon(nodeType, nodeData);
             addVAEOutputToggle(nodeType, nodeData);
+            applyVHSAudioLinksFix(nodeType, nodeData, 2)
         } else if (nodeData?.name == "VHS_VideoCombine") {
             addDateFormatting(nodeType, "filename_prefix");
             chainCallback(nodeType.prototype, "onExecuted", function(message) {
