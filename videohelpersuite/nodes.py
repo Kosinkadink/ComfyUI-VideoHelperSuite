@@ -574,7 +574,7 @@ class LoadAudio:
 
     RETURN_TYPES = ("AUDIO",)
     RETURN_NAMES = ("audio",)
-    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢/audio"
     FUNCTION = "load_audio"
     def load_audio(self, audio_file, seek_seconds):
         audio_file = strip_path(audio_file)
@@ -609,7 +609,7 @@ class LoadAudioUpload:
                      },
                 }
 
-    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢/audio"
 
     RETURN_TYPES = ("AUDIO", )
     RETURN_NAMES = ("audio",)
@@ -631,6 +631,39 @@ class LoadAudioUpload:
     def VALIDATE_INPUTS(s, audio, **kwargs):
         audio_file = folder_paths.get_annotated_filepath(strip_path(audio))
         return validate_path(audio_file, allow_none=True)
+class AudioToVHSAudio:
+    """Legacy method for external nodes that utilized VHS_AUDIO,
+    VHS_AUDIO is deprecated as a format and should no longer be used"""
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"audio": ("AUDIO",)}}
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢/audio"
+
+    RETURN_TYPES = ("VHS_AUDIO", )
+    RETURN_NAMES = ("vhs_audio",)
+    FUNCTION = "convert_audio"
+
+    def convert_audio(self, audio):
+        ar = str(audio['sample_rate'])
+        ac = str(audio['waveform'].size(1))
+        mux_args = [ffmpeg_path, "-f", "f32le", "-ar", ar, "-ac", ac,
+                    "-i", "-", "-f", "wav", "-"]
+
+        audio_data = audio['waveform'].squeeze(0).transpose(0,1) \
+                .numpy().tobytes()
+        try:
+            res = subprocess.run(mux_args, input=audio_data,
+                                 capture_output=True, check=True)
+        except subprocess.CalledProcessError as e:
+            raise Exception("An error occured in the ffmpeg subprocess:\n" \
+                    + e.stderr.decode("utf-8"))
+        if res.stderr:
+            print(res.stderr.decode("utf-8"), end="", file=sys.stderr)
+        return (lambda x : res.stdout,)
+
+
+
+
 
 class PruneOutputs:
     @classmethod
@@ -838,6 +871,7 @@ NODE_CLASS_MAPPINGS = {
     "VHS_LoadImagesPath": LoadImagesFromDirectoryPath,
     "VHS_LoadAudio": LoadAudio,
     "VHS_LoadAudioUpload": LoadAudioUpload,
+    "VHS_AudioToVHSAudio": AudioToVHSAudio,
     "VHS_PruneOutputs": PruneOutputs,
     "VHS_BatchManager": BatchManager,
     "VHS_VideoInfo": VideoInfo,
@@ -871,6 +905,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_LoadImagesPath": "Load Images (Path) 🎥🅥🅗🅢",
     "VHS_LoadAudio": "Load Audio (Path)🎥🅥🅗🅢",
     "VHS_LoadAudioUpload": "Load Audio (Upload)🎥🅥🅗🅢",
+    "VHS_AudioToVHSAudio": "Audio to legacy VHS_AUDIO🎥🅥🅗🅢",
     "VHS_PruneOutputs": "Prune Outputs 🎥🅥🅗🅢",
     "VHS_BatchManager": "Meta Batch Manager 🎥🅥🅗🅢",
     "VHS_VideoInfo": "Video Info 🎥🅥🅗🅢",
