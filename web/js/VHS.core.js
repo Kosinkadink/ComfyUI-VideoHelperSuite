@@ -1202,5 +1202,22 @@ app.registerExtension({
                 batchInput.name = "meta_batch"
             }
         }
+    },
+    async setup() {
+        //cg-use-everywhere link workaround
+        //particularly invasive, plan to remove
+        let originalGraphToPrompt = app.graphToPrompt
+        let graphToPrompt = async function() {
+            let res = await originalGraphToPrompt.apply(this, arguments);
+            for (let n of app.graph._nodes) {
+                if (n.type.startsWith('VHS_LoadVideo')) {
+                    if (!n.inputs[1].link && res.output[n.id].inputs.vae) {
+                        delete res.output[n.id].inputs.vae
+                    }
+                }
+            }
+            return res
+        }
+        app.graphToPrompt = graphToPrompt
     }
 });
