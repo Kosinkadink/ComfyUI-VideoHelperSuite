@@ -147,20 +147,21 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
             memory_limit = (psutil.virtual_memory().available + psutil.swap_memory().free) - 2 ** 27
         except:
             logger.warn("Failed to calculate available memory. Memory load limit has been disabled")
-    #space required to load as f32, exist as latent with wiggle room, decode to f32
-    #TODO: fix when vae is not None
-    if vae is not None:
-        max_loadable_frames = int(memory_limit//(width*height*3*(4+4+1/10)))
-    else:
-        #Consider completely ignoring for load_latent case?
-        max_loadable_frames = int(memory_limit//(width*height*3*(.1)))
-    if meta_batch is not None:
-        if meta_batch.frames_per_batch > max_loadable_frames:
-            raise RuntimeError(f"Meta Batch set to {meta_batch.frames_per_batch} frames but only {max_loadable_frames} can fit in memory")
-        gen = itertools.islice(gen, meta_batch.frames_per_batch)
-    else:
-        original_gen = gen
-        gen = itertools.islice(gen, max_loadable_frames)
+    if memory_limit is not None:
+        if vae is not None:
+            #space required to load as f32, exist as latent with wiggle room, decode to f32
+            max_loadable_frames = int(memory_limit//(width*height*3*(4+4+1/10)))
+        else:
+            #TODO: use better estimate for when vae is not None
+            #Consider completely ignoring for load_latent case?
+            max_loadable_frames = int(memory_limit//(width*height*3*(.1)))
+        if meta_batch is not None:
+            if meta_batch.frames_per_batch > max_loadable_frames:
+                raise RuntimeError(f"Meta Batch set to {meta_batch.frames_per_batch} frames but only {max_loadable_frames} can fit in memory")
+            gen = itertools.islice(gen, meta_batch.frames_per_batch)
+        else:
+            original_gen = gen
+            gen = itertools.islice(gen, max_loadable_frames)
     downscale_ratio = getattr(vae, "downscale_ratio", 8)
     frames_per_batch = (1920 * 1080 * 16) // (width * height) or 1
     if force_size != "Disabled" or vae is not None:
