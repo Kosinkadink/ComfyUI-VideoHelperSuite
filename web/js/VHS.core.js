@@ -1210,8 +1210,8 @@ app.registerExtension({
         let graphToPrompt = async function() {
             let res = await originalGraphToPrompt.apply(this, arguments);
             for (let n of app.graph._nodes) {
-                if (n.type.startsWith('VHS_LoadVideo')) {
-                    if (!n.inputs[1].link && res.output[n.id].inputs.vae) {
+                if (n?.type?.startsWith('VHS_LoadVideo')) {
+                    if (!n?.inputs[1]?.link && res?.output[n.id]?.inputs?.vae) {
                         delete res.output[n.id].inputs.vae
                     }
                 }
