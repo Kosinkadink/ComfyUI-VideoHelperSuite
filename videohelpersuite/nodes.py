@@ -675,6 +675,7 @@ class BatchManager:
         self.outputs = {}
         self.unique_id = None
         self.has_closed_inputs = False
+        self.total_frames = float('inf')
     def reset(self):
         self.close_inputs()
         for key in self.outputs:
@@ -721,6 +722,9 @@ class BatchManager:
             self.reset()
             self.frames_per_batch = frames_per_batch
             self.unique_id = unique_id
+        else:
+            num_batches = (self.total_frames+self.frames_per_batch-1)//frames_per_batch
+            print(f'Meta-Batch {requeue}/{num_batches}')
         #onExecuted seems to not be called unless some message is sent
         return (self,)
 

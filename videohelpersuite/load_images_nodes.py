@@ -55,6 +55,8 @@ def images_generator(directory: str, image_load_cap: int = 0, skip_first_images:
         sizes[i.size] = count +1
     size = max(sizes.items(), key=lambda x: x[1])[0]
     yield size[0], size[1], has_alpha
+    if meta_batch is not None:
+        yield min(image_load_cap, len(dir_files))
 
     iformat = "RGBA" if has_alpha else "RGB"
     def load_image(file_path):
@@ -99,6 +101,7 @@ def load_images(directory: str, image_load_cap: int = 0, skip_first_images: int 
         (width, height, has_alpha) = next(gen)
         if meta_batch is not None:
             meta_batch.inputs[unique_id] = (gen, width, height, has_alpha)
+            meta_batch.total_frames = min(meta_batch.total_frames, next(gen))
     else:
         gen, width, height, has_alpha = meta_batch.inputs[unique_id]
 

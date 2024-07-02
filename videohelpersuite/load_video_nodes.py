@@ -63,6 +63,8 @@ def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
         target_frame_time = 1/force_rate
 
     yield (width, height, fps, duration, total_frames, target_frame_time)
+    if meta_batch is not None:
+        yield min(frame_load_cap, total_frames)
 
     time_offset=target_frame_time - base_frame_time
     while video_cap.isOpened():
@@ -133,6 +135,7 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
 
         if meta_batch is not None:
             meta_batch.inputs[unique_id] = (gen, width, height, fps, duration, total_frames, target_frame_time)
+            meta_batch.total_frames = min(meta_batch.total_frames, next(gen))
 
     else:
         (gen, width, height, fps, duration, total_frames, target_frame_time) = meta_batch.inputs[unique_id]
