@@ -9,7 +9,7 @@ import psutil
 import folder_paths
 from comfy.utils import common_upscale, ProgressBar
 from .logger import logger
-from .utils import BIGMAX, DIMMAX, calculate_file_hash, get_sorted_dir_files_from_directory, get_audio, lazy_eval, hash_path, validate_path, strip_path
+from .utils import BIGMAX, DIMMAX, calculate_file_hash, get_sorted_dir_files_from_directory, lazy_get_audio, hash_path, validate_path, strip_path
 
 
 video_extensions = ['webm', 'mp4', 'mkv', 'gif']
@@ -23,10 +23,10 @@ def is_gif(filename) -> bool:
 def target_size(width, height, force_size, custom_width, custom_height, downscale_ratio=8) -> tuple[int, int]:
     if force_size == "Disabled":
         pass
-    elif force_size == "Custom Width":
+    elif force_size == "Custom Width" or force_size.endswith('x?'):
         height *= custom_width/width
         width = custom_width
-    elif force_size == "Custom Height":
+    elif force_size == "Custom Height" or force_size.startswith('?x'):
         width *= custom_height/height
         height = custom_height
     else:
@@ -195,7 +195,7 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
         raise RuntimeError("No frames generated")
 
     #Setup lambda for lazy audio capture
-    audio = lambda : get_audio(video, skip_first_frames * target_frame_time,
+    audio = lazy_get_audio(video, skip_first_frames * target_frame_time,
                                frame_load_cap*target_frame_time*select_every_nth)
     #Adjust target_frame_time for select_every_nth
     target_frame_time *= select_every_nth
@@ -212,9 +212,9 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
         "loaded_height": new_size[1],
     }
     if vae is None:
-        return (images, len(images), lazy_eval(audio), video_info, None)
+        return (images, len(images), audio, video_info, None)
     else:
-        return (None, len(images), lazy_eval(audio), video_info, {"samples": images})
+        return (None, len(images), audio, video_info, {"samples": images})
 
 
 
@@ -249,7 +249,7 @@ class LoadVideoUpload:
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
 
-    RETURN_TYPES = ("IMAGE", "INT", "VHS_AUDIO", "VHS_VIDEOINFO", "LATENT")
+    RETURN_TYPES = ("IMAGE", "INT", "AUDIO", "VHS_VIDEOINFO", "LATENT")
     RETURN_NAMES = ("IMAGE", "frame_count", "audio", "video_info", "LATENT")
 
     FUNCTION = "load_video"
@@ -295,7 +295,7 @@ class LoadVideoPath:
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
 
-    RETURN_TYPES = ("IMAGE", "INT", "VHS_AUDIO", "VHS_VIDEOINFO", "LATENT")
+    RETURN_TYPES = ("IMAGE", "INT", "AUDIO", "VHS_VIDEOINFO", "LATENT")
     RETURN_NAMES = ("IMAGE", "frame_count", "audio", "video_info", "LATENT")
 
     FUNCTION = "load_video"

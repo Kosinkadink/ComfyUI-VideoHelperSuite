@@ -66,7 +66,7 @@ async def view_video(request):
                 f.write("duration 0.125\n")
         in_args = ["-safe", "0", "-i", concat_file]
     else:
-        in_args = ["-an", "-i", file]
+        in_args = ["-i", file]
         if '%' in file:
             in_args = ['-framerate', str(frame_rate)] + in_args
 
