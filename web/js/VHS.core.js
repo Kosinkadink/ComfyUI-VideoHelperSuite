@@ -500,7 +500,10 @@ function addVideoPreview(nodeType) {
             }
             return [width, -4];//no loaded src, widget should not display
         }
-        element.style['pointer-events'] = "none"
+        element.addEventListener('contextmenu', (e)  => {
+            e.preventDefault()
+            return app.canvas._mousedown_callback(e)
+        }, true);
         previewWidget.value = {hidden: false, paused: false, params: {}}
         previewWidget.parentEl = document.createElement("div");
         previewWidget.parentEl.className = "vhs_preview";
@@ -521,6 +524,12 @@ function addVideoPreview(nodeType) {
             previewWidget.parentEl.hidden = true;
             fitHeight(this);
         });
+        previewWidget.videoEl.onmouseenter =  () => {
+            previewWidget.videoEl.muted = false;
+        };
+        previewWidget.videoEl.onmouseleave = () => {
+            previewWidget.videoEl.muted = true;
+        };
 
         previewWidget.imgEl = document.createElement("img");
         previewWidget.imgEl.style['width'] = "100%"
@@ -607,7 +616,6 @@ function addPreviewOptions(nodeType) {
             url = api.apiURL('/view?' + new URLSearchParams(previewWidget.value.params));
             //Workaround for 16bit png: Just do first frame
             url = url.replace('%2503d', '001')
-            console.log(url)
         } else if (previewWidget.imgEl?.hidden == false && previewWidget.imgEl.src) {
             url = previewWidget.imgEl.src;
             url = new URL(url);

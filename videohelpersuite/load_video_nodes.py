@@ -23,10 +23,10 @@ def is_gif(filename) -> bool:
 def target_size(width, height, force_size, custom_width, custom_height, downscale_ratio=8) -> tuple[int, int]:
     if force_size == "Disabled":
         pass
-    elif force_size == "Custom Width":
+    elif force_size == "Custom Width" or force_size.endswith('x?'):
         height *= custom_width/width
         width = custom_width
-    elif force_size == "Custom Height":
+    elif force_size == "Custom Height" or force_size.startswith('?x'):
         width *= custom_height/height
         height = custom_height
     else:
