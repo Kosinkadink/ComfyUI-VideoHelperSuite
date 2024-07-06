@@ -659,11 +659,42 @@ class AudioToVHSAudio:
                     + e.stderr.decode("utf-8"))
         if res.stderr:
             print(res.stderr.decode("utf-8"), end="", file=sys.stderr)
-        return (lambda x : res.stdout,)
+        return (lambda: res.stdout,)
 
+class VHSAudioToAudio:
+    """Legacy method for external nodes that utilized VHS_AUDIO,
+    VHS_AUDIO is deprecated as a format and should no longer be used"""
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"vhs_audio": ("VHS_AUDIO",)}}
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢/audio"
 
+    RETURN_TYPES = ("AUDIO", )
+    RETURN_NAMES = ("audio",)
+    FUNCTION = "convert_audio"
 
-
+    def convert_audio(self, vhs_audio):
+        if not vhs_audio or not vhs_audio():
+            raise Exception("audio input is not valid")
+        args = [ffmpeg_path, "-i", '-']
+        try:
+            res =  subprocess.run(args + ["-f", "f32le", "-"], input=vhs_audio(),
+                                  capture_output=True, check=True)
+            audio = torch.frombuffer(bytearray(res.stdout), dtype=torch.float32)
+        except subprocess.CalledProcessError as e:
+            raise Exception("An error occured in the ffmpeg subprocess:\n" \
+                    + e.stderr.decode("utf-8"))
+        match = re.search(', (\\d+) Hz, (\\w+), ',res.stderr.decode('utf-8'))
+        if match:
+            ar = int(match.group(1))
+            #NOTE: Just throwing an error for other channel types right now
+            #Will deal with issues if they come
+            ac = {"mono": 1, "stereo": 2}[match.group(2)]
+        else:
+            ar = 44100
+            ac = 2
+        audio = audio.reshape((-1,ac)).transpose(0,1).unsqueeze(0)
+        return ({'waveform': audio, 'sample_rate': ar},)
 
 class PruneOutputs:
     @classmethod
@@ -876,6 +907,7 @@ NODE_CLASS_MAPPINGS = {
     "VHS_LoadAudio": LoadAudio,
     "VHS_LoadAudioUpload": LoadAudioUpload,
     "VHS_AudioToVHSAudio": AudioToVHSAudio,
+    "VHS_VHSAudioToAudio": VHSAudioToAudio,
     "VHS_PruneOutputs": PruneOutputs,
     "VHS_BatchManager": BatchManager,
     "VHS_VideoInfo": VideoInfo,
@@ -910,6 +942,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_LoadAudio": "Load Audio (Path)🎥🅥🅗🅢",
     "VHS_LoadAudioUpload": "Load Audio (Upload)🎥🅥🅗🅢",
     "VHS_AudioToVHSAudio": "Audio to legacy VHS_AUDIO🎥🅥🅗🅢",
+    "VHS_VHSAudioToAudio": "Legacy VHS_AUDIO to Audio🎥🅥🅗🅢",
     "VHS_PruneOutputs": "Prune Outputs 🎥🅥🅗🅢",
     "VHS_BatchManager": "Meta Batch Manager 🎥🅥🅗🅢",
     "VHS_VideoInfo": "Video Info 🎥🅥🅗🅢",
