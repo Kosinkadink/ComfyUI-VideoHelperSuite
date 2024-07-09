@@ -3,7 +3,7 @@ import folder_paths
 import os
 import time
 import subprocess
-from .utils import is_url, get_sorted_dir_files_from_directory, ffmpeg_path, validate_sequence, is_safe_path, strip_path
+from .utils import is_url, get_sorted_dir_files_from_directory, ffmpeg_path, validate_sequence, is_safe_path, strip_path, try_download_video
 from comfy.k_diffusion.utils import FolderOfImages
 
 web = server.web
@@ -18,6 +18,7 @@ async def view_video(request):
     #Path code misformats urls on windows and must be skipped
     if is_url(filename):
         file = filename
+        file = try_download_video(file) or file
     else:
         filename, output_dir = folder_paths.annotated_filepath(filename)
 
