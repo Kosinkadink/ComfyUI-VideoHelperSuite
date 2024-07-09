@@ -78,6 +78,8 @@ ytdl_path = os.environ.get("VHS_YTDL", None) or shutil.which('yt-dlp') \
         or shutil.which('youtube-dl')
 download_history = {}
 def try_download_video(url):
+    if ytdl_path is None:
+        return None
     if url in download_history:
         return download_history[url]
     os.makedirs(folder_paths.get_temp_directory(), exist_ok=True)
