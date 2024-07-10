@@ -2,7 +2,7 @@
     "main_pass":
     [
         "-n",
-        "-pix_fmt", "yuv420p",
+        "-pix_fmt", ["pix_fmt",["yuv420p","yuva420p"]],
         "-crf", ["crf","INT", {"default": 20, "min": 0, "max": 100, "step": 1}],
         "-b:v", "0"
     ],
