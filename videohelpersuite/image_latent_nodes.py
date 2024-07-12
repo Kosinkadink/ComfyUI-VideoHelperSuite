@@ -3,7 +3,7 @@ import torch
 
 import comfy.utils
 
-from .utils import BIGMIN, BIGMAX
+from .utils import BIGMIN, BIGMAX, select_indexes_from_str, convert_str_to_indexes, select_indexes
 
 
 class MergeStrategies:
@@ -378,7 +378,7 @@ class GetMaskCount:
         return (mask.size(0),)
 
 
-class DuplicateLatents:
+class RepeatLatents:
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -403,7 +403,7 @@ class DuplicateLatents:
         return (new_latents, new_latents["samples"].size(0),)
 
 
-class DuplicateImages:
+class RepeatImages:
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -427,7 +427,7 @@ class DuplicateImages:
         return (new_images, new_images.size(0),)
 
 
-class DuplicateMasks:
+class RepeatMasks:
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -451,12 +451,94 @@ class DuplicateMasks:
         return (new_mask, new_mask.size(0),)
 
 
-# class SelectLatents:
-#     @classmethod
-#     def INPUT_TYPES(s):
-#         return {
-#                 "required": {
-#                     "images": ("IMAGE",),
-#                     "select_indeces": ("STRING", {"default": ""}),
-#                 },
-#             }
+select_description = """Use comma-separated indexes to select items in the given order.
+Supports negative indexes, python-style ranges (end index excluded),
+as well as range step.
+
+Acceptable entries (assuming 16 items provided, so idxs 0 to 15 exist):
+0         -> Returns [0]
+-1        -> Returns [15]
+0, 1, 13  -> Returns [0, 1, 13]
+0:5, 13   -> Returns [0, 1, 2, 3, 4, 13]
+0:-1      -> Returns [0, 1, 2, ..., 13, 14]
+0:5:-1    -> Returns [4, 3, 2, 1, 0]
+0:5:2     -> Returns [0, 2, 4]
+::-1     -> Returns [15, 14, 13, ..., 2, 1, 0]
+"""
+class SelectLatents:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+                "required": {
+                    "latent": ("LATENT",),
+                    "indexes": ("STRING", {"default": "0"}),
+                    "err_if_missing": ("BOOLEAN", {"default": True}),
+                    "err_if_empty": ("BOOLEAN", {"default": True}),
+                },
+            }
+    
+    DESCRIPTION = select_description
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢/latent"
+
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "select"
+
+    def select(self, latent: dict[str, Tensor], indexes: str, err_if_missing: bool, err_if_empty: bool):
+        # latents are a dict and may contain different stuff (like noise_mask), so need to account for it all
+        latent = latent.copy()
+        latents_len = len(latent["samples"])
+        real_idxs = convert_str_to_indexes(indexes, latents_len, allow_missing=not err_if_missing)
+        if err_if_empty and len(real_idxs) == 0:
+            raise Exception(f"Nothing was selected based on indexes found in '{indexes}'.")
+        for key, val in latent.items():
+            if type(val) == Tensor and len(val) == latents_len:
+                latent[key] = select_indexes(val, real_idxs)
+        return (latent,)
+
+
+class SelectImages:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+                "required": {
+                    "image": ("IMAGE",),
+                    "indexes": ("STRING", {"default": "0"}),
+                    "err_if_missing": ("BOOLEAN", {"default": True}),
+                    "err_if_empty": ("BOOLEAN", {"default": True}),
+                },
+            }
+    
+    DESCRIPTION = select_description
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢/image"
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "select"
+
+    def select(self, image: Tensor, indexes: str, err_if_missing: bool, err_if_empty: bool):
+        to_return = select_indexes_from_str(input_obj=image, indexes=indexes,
+                                        err_if_missing=err_if_missing, err_if_empty=err_if_empty)
+        to_return_type = type(to_return)
+        return (to_return,)
+
+
+class SelectMasks:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+                "required": {
+                    "mask": ("MASK",),
+                    "indexes": ("STRING", {"default": "0"}),
+                    "err_if_missing": ("BOOLEAN", {"default": True}),
+                    "err_if_empty": ("BOOLEAN", {"default": True}),
+                },
+            }
+    
+    DESCRIPTION = select_description
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢/mask"
+
+    RETURN_TYPES = ("MASK",)
+    FUNCTION = "select"
+
+    def select(self, mask: Tensor, indexes: str, err_if_missing: bool, err_if_empty: bool):
+        return (select_indexes_from_str(input_obj=mask, indexes=indexes,
+                                        err_if_missing=err_if_missing, err_if_empty=err_if_empty),)
