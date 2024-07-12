@@ -3,7 +3,7 @@ import torch
 
 import comfy.utils
 
-from .utils import BIGMIN, BIGMAX
+from .utils import BIGMIN, BIGMAX, select_indexes_from_str, convert_str_to_indexes, select_indexes
 
 
 class MergeStrategies:
@@ -48,13 +48,15 @@ class SplitLatents:
     RETURN_NAMES = ("LATENT_A", "A_count", "LATENT_B", "B_count")
     FUNCTION = "split_latents"
 
-    def split_latents(self, latents: dict, split_index: int):
-        latents = latents.copy()
-        group_a = latents["samples"][:split_index]
-        group_b = latents["samples"][split_index:]
-        group_a_latent = {"samples": group_a}
-        group_b_latent = {"samples": group_b}
-        return (group_a_latent, group_a.size(0), group_b_latent, group_b.size(0))
+    def split_latents(self, latents: dict[str, Tensor], split_index: int):
+        latents_len = len(latents["samples"])
+        group_a = latents.copy()
+        group_b = latents.copy()
+        for key, val in latents.items():
+            if type(val) == Tensor and len(val) == latents_len:
+                group_a[key] = latents[key][:split_index]
+                group_b[key] = latents[key][split_index:]
+        return (group_a, group_a["samples"].size(0), group_b, group_b["samples"].size(0))
 
 
 class SplitImages:
@@ -125,6 +127,7 @@ class MergeLatents:
         latents_A = latents_A.copy()["samples"]
         latents_B = latents_B.copy()["samples"]
 
+        # TODO: handle other properties on latents besides just "samples"
         # if not same dimensions, do scaling
         if latents_A.shape[3] != latents_B.shape[3] or latents_A.shape[2] != latents_B.shape[2]:
             A_size = latents_A.shape[3] * latents_A.shape[2]
@@ -271,9 +274,13 @@ class SelectEveryNthLatent:
     RETURN_NAMES = ("LATENT", "count",)
     FUNCTION = "select_latents"
 
-    def select_latents(self, latents: dict, select_every_nth: int, skip_first_latents: int):
-        sub_latents = latents.copy()["samples"][skip_first_latents::select_every_nth]
-        return ({"samples": sub_latents}, sub_latents.size(0))
+    def select_latents(self, latents: dict[str, Tensor], select_every_nth: int, skip_first_latents: int):
+        latents = latents.copy()
+        latents_len = len(latents["samples"])
+        for key, val in latents.items():
+            if type(val) == Tensor and len(val) == latents_len:
+                latents[key] = val[skip_first_latents::select_every_nth]
+        return (latents, latents["samples"].size(0))
     
 
 class SelectEveryNthImage:
@@ -378,7 +385,7 @@ class GetMaskCount:
         return (mask.size(0),)
 
 
-class DuplicateLatents:
+class RepeatLatents:
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -395,15 +402,18 @@ class DuplicateLatents:
     FUNCTION = "duplicate_input"
 
     def duplicate_input(self, latents: dict[str, Tensor], multiply_by: int):
-        new_latents = latents.copy()
-        full_latents = []
-        for n in range(0, multiply_by):
-            full_latents.append(new_latents["samples"])
-        new_latents["samples"] = torch.cat(full_latents, dim=0)
-        return (new_latents, new_latents["samples"].size(0),)
+        latents = latents.copy()
+        latents_len = len(latents["samples"])
+        for key, val in latents.items():
+            if type(val) == Tensor and len(val) == latents_len:
+                full_latents = []
+                for _ in range(0, multiply_by):
+                    full_latents.append(latents[key])
+                latents[key] = torch.cat(full_latents, dim=0)
+        return (latents, latents["samples"].size(0),)
 
 
-class DuplicateImages:
+class RepeatImages:
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -427,7 +437,7 @@ class DuplicateImages:
         return (new_images, new_images.size(0),)
 
 
-class DuplicateMasks:
+class RepeatMasks:
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -451,12 +461,94 @@ class DuplicateMasks:
         return (new_mask, new_mask.size(0),)
 
 
-# class SelectLatents:
-#     @classmethod
-#     def INPUT_TYPES(s):
-#         return {
-#                 "required": {
-#                     "images": ("IMAGE",),
-#                     "select_indeces": ("STRING", {"default": ""}),
-#                 },
-#             }
+select_description = """Use comma-separated indexes to select items in the given order.
+Supports negative indexes, python-style ranges (end index excluded),
+as well as range step.
+
+Acceptable entries (assuming 16 items provided, so idxs 0 to 15 exist):
+0         -> Returns [0]
+-1        -> Returns [15]
+0, 1, 13  -> Returns [0, 1, 13]
+0:5, 13   -> Returns [0, 1, 2, 3, 4, 13]
+0:-1      -> Returns [0, 1, 2, ..., 13, 14]
+0:5:-1    -> Returns [4, 3, 2, 1, 0]
+0:5:2     -> Returns [0, 2, 4]
+::-1     -> Returns [15, 14, 13, ..., 2, 1, 0]
+"""
+class SelectLatents:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+                "required": {
+                    "latent": ("LATENT",),
+                    "indexes": ("STRING", {"default": "0"}),
+                    "err_if_missing": ("BOOLEAN", {"default": True}),
+                    "err_if_empty": ("BOOLEAN", {"default": True}),
+                },
+            }
+    
+    DESCRIPTION = select_description
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢/latent"
+
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "select"
+
+    def select(self, latent: dict[str, Tensor], indexes: str, err_if_missing: bool, err_if_empty: bool):
+        # latents are a dict and may contain different stuff (like noise_mask), so need to account for it all
+        latent = latent.copy()
+        latents_len = len(latent["samples"])
+        real_idxs = convert_str_to_indexes(indexes, latents_len, allow_missing=not err_if_missing)
+        if err_if_empty and len(real_idxs) == 0:
+            raise Exception(f"Nothing was selected based on indexes found in '{indexes}'.")
+        for key, val in latent.items():
+            if type(val) == Tensor and len(val) == latents_len:
+                latent[key] = select_indexes(val, real_idxs)
+        return (latent,)
+
+
+class SelectImages:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+                "required": {
+                    "image": ("IMAGE",),
+                    "indexes": ("STRING", {"default": "0"}),
+                    "err_if_missing": ("BOOLEAN", {"default": True}),
+                    "err_if_empty": ("BOOLEAN", {"default": True}),
+                },
+            }
+    
+    DESCRIPTION = select_description
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢/image"
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "select"
+
+    def select(self, image: Tensor, indexes: str, err_if_missing: bool, err_if_empty: bool):
+        to_return = select_indexes_from_str(input_obj=image, indexes=indexes,
+                                        err_if_missing=err_if_missing, err_if_empty=err_if_empty)
+        to_return_type = type(to_return)
+        return (to_return,)
+
+
+class SelectMasks:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+                "required": {
+                    "mask": ("MASK",),
+                    "indexes": ("STRING", {"default": "0"}),
+                    "err_if_missing": ("BOOLEAN", {"default": True}),
+                    "err_if_empty": ("BOOLEAN", {"default": True}),
+                },
+            }
+    
+    DESCRIPTION = select_description
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢/mask"
+
+    RETURN_TYPES = ("MASK",)
+    FUNCTION = "select"
+
+    def select(self, mask: Tensor, indexes: str, err_if_missing: bool, err_if_empty: bool):
+        return (select_indexes_from_str(input_obj=mask, indexes=indexes,
+                                        err_if_missing=err_if_missing, err_if_empty=err_if_empty),)
