@@ -1272,5 +1272,17 @@ app.registerExtension({
             return res
         }
         app.graphToPrompt = graphToPrompt
-    }
+    },
+    async init() {
+        let e = app.extensions.filter((w) => w.name == 'UVR5.AudioPreviewer')
+        if (e.length) {
+            let orig = e[0].beforeRegisterNodeDef
+            e[0].beforeRegisterNodeDef = function(nodeType, nodeData, app) {
+                if(!nodeData?.name?.startsWith("VHS_")) {
+                    return orig.apply(this, arguments);
+                }
+            }
+        }
+
+    },
 });
