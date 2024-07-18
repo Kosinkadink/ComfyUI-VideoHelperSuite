@@ -166,7 +166,7 @@ async function uploadFile(file) {
         });
 
         if (resp.status === 200) {
-            return resp.status
+            return resp
         } else {
             alert(resp.status + " - " + resp.statusText);
         }
@@ -401,7 +401,7 @@ function addUploadWidget(nodeType, nodeData, widgetName, type="video") {
                     }
                     let successes = 0;
                     for(const file of fileInput.files) {
-                        if (await uploadFile(file) == 200) {
+                        if ((await uploadFile(file)).status == 200) {
                             successes++;
                         } else {
                             //Upload failed, but some prior uploads may have succeeded
@@ -428,11 +428,12 @@ function addUploadWidget(nodeType, nodeData, widgetName, type="video") {
                 style: "display: none",
                 onchange: async () => {
                     if (fileInput.files.length) {
-                        if (await uploadFile(fileInput.files[0]) != 200) {
+                        let resp = await uploadFile(fileInput.files[0])
+                        if (resp.status != 200) {
                             //upload failed and file can not be added to options
                             return;
                         }
-                        const filename = fileInput.files[0].name;
+                        const filename = (await resp.json()).name;
                         pathWidget.options.values.push(filename);
                         pathWidget.value = filename;
                         if (pathWidget.callback) {
@@ -448,11 +449,12 @@ function addUploadWidget(nodeType, nodeData, widgetName, type="video") {
                 style: "display: none",
                 onchange: async () => {
                     if (fileInput.files.length) {
-                        if (await uploadFile(fileInput.files[0]) != 200) {
+                        let resp = await uploadFile(fileInput.files[0])
+                        if (resp.status != 200) {
                             //upload failed and file can not be added to options
                             return;
                         }
-                        const filename = fileInput.files[0].name;
+                        const filename = (await resp.json()).name;
                         pathWidget.options.values.push(filename);
                         pathWidget.value = filename;
                         if (pathWidget.callback) {
