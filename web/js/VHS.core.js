@@ -164,15 +164,34 @@ function initHelpDOM() {
             'min-height': 100*scale + "px",
             'max-height': 600*scale + "px",
             'overflow-y': 'auto',
-            'font-size': app.canvas.ds.scale/1.5 + "em",
+            'font-size': app.canvas.ds.scale + "em",
             'background-color': '#333',
             'box-shadow': '0 0 10px black',
             'border-radius': '4px',
+            padding: '3px',
             zIndex: 3,
             position: "absolute",
             display: 'inline',
         });
     });
+}
+function collapseOnClick() {
+    let doCollapse = this.innerHTML[1] == '-'
+    setCollapse(this.parentElement, doCollapse)
+}
+function setCollapse(el, doCollapse) {
+    if (doCollapse) {
+        el.children[0].innerHTML = '[+]'
+        el.children[1].style.overflowY = 'hidden'
+        el.children[1].style.height = '1.5em'
+        el.children[1].style.height = '1.5em'
+        el.children[1].style.color = '#CCC'
+    } else {
+        el.children[0].innerHTML = '[-]'
+        el.children[1].style.overflowY = ''
+        el.children[1].style.height = ''
+        el.children[1].style.color = ''
+    }
 }
 function selectHelp(name, value) {
     //attempt to navigate to name in help
@@ -189,23 +208,11 @@ function selectHelp(name, value) {
         if (!match) {
             return null
         }
-        for (let i of items.children) {
+        for (let i of items.querySelectorAll('.VHS_collapse')) {
             if (i.contains(match)) {
-                //uncollapse
-                for(let c of i.children) {
-                    if(c.collapsed) {
-                        c.collapsed = false;
-                        c.style.display = 'initial'
-                    }
-
-                }
-                i.style['color'] = '#AAF'
+                setCollapse(i, false)
             } else {
-                for(let c of i.children) {
-                        c.collapsed = true
-                        c.style.display = 'none'
-                }
-                i.style['color'] = '#AFA'
+                setCollapse(i, true)
             }
         }
         return match
@@ -1117,6 +1124,10 @@ function addHelp(node, nodeType, description) {
             } else {
                 helpDOM.node = this;
                 helpDOM.innerHTML = this.description || "no help provided ".repeat(20)
+                for (let e of helpDOM.querySelectorAll('.VHS_collapse')) {
+                    e.children[0].onclick = collapseOnClick
+                    e.children[0].style.cursor = 'pointer'
+                }
             }
             return true
         }
@@ -1137,7 +1148,7 @@ function addHelp(node, nodeType, description) {
                 //TODO: provide help specific to element clicked
                 let inputRows = Math.max(n.inputs.length, n.outputs.length)
                 if (pos[1] < LiteGraph.NODE_SLOT_HEIGHT * inputRows) {
-                    let row = Math.floor(pos[1] / LiteGraph.NODE_SLOT_HEIGHT)
+                    let row = Math.floor((pos[1] - 7) / LiteGraph.NODE_SLOT_HEIGHT)
                     if (pos[0] < n.size[0]/2) {
                         if (row < n.inputs.length) {
                             selectHelp(n.inputs[row].name)
