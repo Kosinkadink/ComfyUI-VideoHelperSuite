@@ -8,7 +8,7 @@ function chainCallback(object, property, callback) {
         console.error("Tried to add callback to non-existant object")
         return;
     }
-    if (property in object) {
+    if (property in object && object[property]) {
         const callback_orig = object[property]
         object[property] = function () {
             const r = callback_orig.apply(this, arguments);
@@ -139,7 +139,82 @@ function useKVState(nodeType) {
         });
     })
 }
+var helpDOM = document.createElement("div");
+helpDOM.className = "litegraph";
+document.body.appendChild(helpDOM);
+function initHelpDOM() {
+    chainCallback(app.canvas, "onDrawForeground", function (ctx, visible_rect){
+        let n = helpDOM.node
+        if (!n) {
+            helpDOM.style['left'] = '-5000px'
+            return
+        }
+        //draw : function(ctx, node, widgetWidth, widgetY, height) {
+        //update widget position, even if off screen
+        const transform = ctx.getTransform();
+        const scale = app.canvas.ds.scale;//gets the litegraph zoom
+        //calculate coordinates with account for browser zoom
+        const x = transform.e*scale/transform.a;
+        const y = transform.f*scale/transform.a;
+        //TODO: text reflows at low zoom. investigate alternatives
+        Object.assign(helpDOM.style, {
+            left: (x+(n.pos[0] + n.size[0]+25)*scale) + "px",
+            top: (y+(n.pos[1]-LiteGraph.NODE_TITLE_HEIGHT)*scale) + "px",
+            width: (400*scale) + "px",
+            'min-height': 100*scale + "px",
+            'max-height': 600*scale + "px",
+            'overflow-y': 'auto',
+            'font-size': app.canvas.ds.scale/1.5 + "em",
+            'background-color': '#333',
+            'box-shadow': '0 0 10px black',
+            'border-radius': '4px',
+            zIndex: 3,
+            position: "absolute",
+            display: 'inline',
+        });
+    });
+}
+function selectHelp(name, value) {
+    //attempt to navigate to name in help
+    function collapseUnlessMatch(items,t) {
+        var match = items.querySelector('[title="' + t + '"]')
+        if (!match) {
+            for (let i of items.children) {
+                if (i.innerHTML.slice(0,t.length+5).includes(t)) {
+                    match = i
+                    break
+                }
+            }
+        }
+        if (!match) {
+            return null
+        }
+        for (let i of items.children) {
+            if (i.contains(match)) {
+                //uncollapse
+                for(let c of i.children) {
+                    if(c.collapsed) {
+                        c.collapsed = false;
+                        c.style.display = 'initial'
+                    }
 
+                }
+                i.style['color'] = '#AAF'
+            } else {
+                for(let c of i.children) {
+                        c.collapsed = true
+                        c.style.display = 'none'
+                }
+                i.style['color'] = '#AFA'
+            }
+        }
+        return match
+    }
+    let target = collapseUnlessMatch(helpDOM, name)
+    if (target && value) {
+        collapseUnlessMatch(target, value)
+    }
+}
 function fitHeight(node) {
     node.setSize([node.size[0], node.computeSize([node.size[0], node.size[1]])[1]])
     node?.graph?.setDirtyCanvas(true);
@@ -1024,6 +1099,78 @@ app.ui.settings.addSetting({
     type: "boolean",
     defaultValue: false,
 });
+function addHelp(node, nodeType, description) {
+    node.description = description
+    chainCallback(nodeType.prototype, "onDrawForeground", function (ctx) {
+        //draw question mark
+        ctx.save()
+        ctx.font = 'bold 20px Arial'
+        ctx.fillText("?", this.size[0]-17, -8)
+        ctx.restore()
+    })
+    chainCallback(node, "onMouseDown", function (e, pos, canvas) {
+        //On click would be preferred, but this'll be good enough
+        if (pos[1] < 0 && pos[0] + LiteGraph.NODE_TITLE_HEIGHT > this.size[0]) {
+            //corner question mark clicked
+            if (helpDOM.node == this) {
+                helpDOM.node = undefined
+            } else {
+                helpDOM.node = this;
+                helpDOM.innerHTML = this.description || "no help provided ".repeat(20)
+            }
+            return true
+        }
+    })
+    let timeout = null
+    chainCallback(node, "onMouseMove", function (e, pos, canvas) {
+        if (timeout) {
+            clearTimeout(timeout)
+            timeout = null
+        }
+        if (helpDOM.node != this) {
+            return
+        }
+        timeout = setTimeout(() => {
+            let n = this
+            if (pos[0] > 0 && pos[0] < n.size[0]
+                && pos[1] > 0 && pos[1] < n.size[1]) {
+                //TODO: provide help specific to element clicked
+                let inputRows = Math.max(n.inputs.length, n.outputs.length)
+                if (pos[1] < LiteGraph.NODE_SLOT_HEIGHT * inputRows) {
+                    let row = Math.floor(pos[1] / LiteGraph.NODE_SLOT_HEIGHT)
+                    if (pos[0] < n.size[0]/2) {
+                        if (row < n.inputs.length) {
+                            selectHelp(n.inputs[row].name)
+                        }
+                    } else {
+                        if (row < n.outputs.length) {
+                            selectHelp(n.outputs[row].name)
+                        }
+                    }
+                } else {
+                    //probably widget, but widgets have variable height.
+                    for (let w of n.widgets) {
+                        let wheight = LiteGraph.NODE_WIDGET_HEIGHT
+                        if (w.computeSize) {
+                            wheight = w.computeSize(n.size[0])
+                        }
+                        if (pos[1] < w.y + wheight) {
+                            selectHelp(w.name, w.value)
+                            break
+                        }
+                    }
+                }
+            }
+        }, 500)
+    })
+    chainCallback(node, "onMouseLeave", function (e, pos, canvas) {
+        if (timeout) {
+            clearTimeout(timeout)
+            timeout = null
+        }
+    });
+}
+
 
 app.registerExtension({
     name: "VideoHelperSuite.Core",
@@ -1031,6 +1178,9 @@ app.registerExtension({
         if(nodeData?.name?.startsWith("VHS_")) {
             useKVState(nodeType);
             chainCallback(nodeType.prototype, "onNodeCreated", function () {
+                if (nodeData.description) {
+                    addHelp(this, nodeType, nodeData.description)
+                }
                 let new_widgets = []
                 if (this.widgets) {
                     for (let w of this.widgets) {
@@ -1259,6 +1409,7 @@ app.registerExtension({
         }
     },
     async setup() {
+        initHelpDOM()
         //cg-use-everywhere link workaround
         //particularly invasive, plan to remove
         let originalGraphToPrompt = app.graphToPrompt
