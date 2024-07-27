@@ -145,7 +145,7 @@ document.body.appendChild(helpDOM);
 function initHelpDOM() {
     chainCallback(app.canvas, "onDrawForeground", function (ctx, visible_rect){
         let n = helpDOM.node
-        if (!n) {
+        if (!n || !n?.graph) {
             helpDOM.style['left'] = '-5000px'
             return
         }
