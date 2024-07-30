@@ -820,7 +820,7 @@ function addLoadVideoCommon(nodeType, nodeData) {
         let priorSize = sizeWidget.value;
         let updateSize = function(value, _, node) {
             if (sizeWidget.value == 'Custom' || priorSize != sizeWidget.value) {
-                node.updateParameters({"force_size": sizeWidget.serializePreview()});
+                node?.updateParameters({"force_size": sizeWidget.serializePreview()});
             }
             priorSize = sizeWidget.value;
         }
