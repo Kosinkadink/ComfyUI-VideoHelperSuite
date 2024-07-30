@@ -508,7 +508,15 @@ class VideoCombine:
 
             output_files.append(file_path)
 
+
+            a_waveform = None
             if audio is not None:
+                try:
+                    #safely check if audio produced by VHS_LoadVideo actually exists
+                    a_waveform = audio['waveform']
+                except:
+                    pass
+            if a_waveform is not None:
                 # Create audio file if input was provided
                 output_file_with_audio = f"{filename}_{counter:05}-audio.{video_format['extension']}"
                 output_file_with_audio_path = os.path.join(full_output_folder, output_file_with_audio)

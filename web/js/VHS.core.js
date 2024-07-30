@@ -52,6 +52,16 @@ const renameDict  = {VHS_VideoCombine : {save_output : "save_image"}}
 function useKVState(nodeType) {
     chainCallback(nodeType.prototype, "onNodeCreated", function () {
         chainCallback(this, "onConfigure", function(info) {
+            if (this.inputs) {
+                for (let i = 0; i < this.inputs.length; i++) {
+                    let dt = this?.getInputDataType(i)
+                    if (dt && this.inputs[i]?.type != dt) {
+                        this.inputs[i].type = dt
+                        console.warn("input type mismatch for " + this.title + " slot " + i)
+
+                    }
+                }
+            }
             if (!this.widgets) {
                 //Node has no widgets, there is nothing to restore
                 return
@@ -1131,8 +1141,6 @@ app.registerExtension({
             addFormatWidgets(nodeType);
             addVAEInputToggle(nodeType, nodeData)
 
-            //Hide the information passing 'gif' output
-            //TODO: check how this is implemented for save image
             chainCallback(nodeType.prototype, "onNodeCreated", function() {
                 this._outputs = this.outputs
                 Object.defineProperty(this, "outputs", {
