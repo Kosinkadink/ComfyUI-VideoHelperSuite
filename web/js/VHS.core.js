@@ -799,7 +799,7 @@ function addLoadVideoCommon(nodeType, nodeData) {
         let update = function (value, _, node) {
             let param = {}
             param[this.name] = value
-            node.updateParameters(param);
+            node?.updateParameters(param);
         }
         chainCallback(frameCapWidget, "callback", update);
         chainCallback(frameSkipWidget, "callback", update);
@@ -1113,7 +1113,7 @@ app.registerExtension({
                     }
                     format += "/" + extension;
                     let params = {filename : value, type: "path", format: format};
-                    this.updateParameters(params, true);
+                    this?.updateParameters(params, true);
                 });
             });
             addLoadVideoCommon(nodeType, nodeData);
