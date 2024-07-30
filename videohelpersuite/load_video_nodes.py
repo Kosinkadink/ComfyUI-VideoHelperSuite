@@ -9,7 +9,7 @@ import psutil
 import folder_paths
 from comfy.utils import common_upscale, ProgressBar
 from .logger import logger
-from .utils import BIGMAX, DIMMAX, calculate_file_hash, get_sorted_dir_files_from_directory, lazy_get_audio, hash_path, validate_path, strip_path
+from .utils import BIGMAX, DIMMAX, calculate_file_hash, get_sorted_dir_files_from_directory, lazy_get_audio, hash_path, validate_path, strip_path, try_download_video, is_url
 
 
 video_extensions = ['webm', 'mp4', 'mkv', 'gif']
@@ -303,6 +303,8 @@ class LoadVideoPath:
     def load_video(self, **kwargs):
         if kwargs['video'] is None or validate_path(kwargs['video']) != True:
             raise Exception("video is not a valid path: " + kwargs['video'])
+        if is_url(kwargs['video']):
+            kwargs['video'] = try_download_video(kwargs['video']) or kwargs['video']
         return load_video_cv(**kwargs)
 
     @classmethod

@@ -19,7 +19,7 @@ from .image_latent_nodes import *
 from .load_video_nodes import LoadVideoUpload, LoadVideoPath
 from .load_images_nodes import LoadImagesFromDirectoryUpload, LoadImagesFromDirectoryPath
 from .batched_nodes import VAEEncodeBatched, VAEDecodeBatched
-from .utils import ffmpeg_path, get_audio, hash_path, validate_path, requeue_workflow, gifski_path, calculate_file_hash, strip_path
+from .utils import ffmpeg_path, get_audio, hash_path, validate_path, requeue_workflow, gifski_path, calculate_file_hash, strip_path, try_download_video, is_url
 from comfy.utils import ProgressBar
 
 folder_paths.folder_names_and_paths["VHS_video_formats"] = (
@@ -508,7 +508,15 @@ class VideoCombine:
 
             output_files.append(file_path)
 
+
+            a_waveform = None
             if audio is not None:
+                try:
+                    #safely check if audio produced by VHS_LoadVideo actually exists
+                    a_waveform = audio['waveform']
+                except:
+                    pass
+            if a_waveform is not None:
                 # Create audio file if input was provided
                 output_file_with_audio = f"{filename}_{counter:05}-audio.{video_format['extension']}"
                 output_file_with_audio_path = os.path.join(full_output_folder, output_file_with_audio)
@@ -580,6 +588,8 @@ class LoadAudio:
         audio_file = strip_path(audio_file)
         if audio_file is None or validate_path(audio_file) != True:
             raise Exception("audio_file is not a valid path: " + audio_file)
+        if is_url(audio_file):
+            audio_file = try_download_video(audio_file) or audio_file
         #Eagerly fetch the audio since the user must be using it if the
         #node executes, unlike Load Video
         return (get_audio(audio_file, start_time=seek_seconds),)
