@@ -77,7 +77,7 @@ async def view_video(request):
     try:
         res = subprocess.run(['ffmpeg'] + in_args + ['-t', '0', '-f', 'null', '-'],
                              capture_output=True, check=True)
-        match = re.search(': Video: (\\w+) .+, (\d+) fps,', res.stderr.decode('utf-8'))
+        match = re.search(': Video: (\\w+) .+, (\\d+) fps,', res.stderr.decode('utf-8'))
         if match:
             base_fps = float(match.group(2))
             if match.group(1) == 'vp9':
