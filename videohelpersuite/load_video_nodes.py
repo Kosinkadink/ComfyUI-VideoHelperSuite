@@ -41,7 +41,6 @@ def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
     video_cap = cv2.VideoCapture(strip_path(video))
     if not video_cap.isOpened():
         raise ValueError(f"{video} could not be loaded with cv.")
-    pbar = ProgressBar(frame_load_cap) if frame_load_cap > 0 else None
 
     # extract video metadata
     fps = video_cap.get(cv2.CAP_PROP_FPS)
@@ -63,9 +62,18 @@ def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
         target_frame_time = 1/force_rate
 
     yield (width, height, fps, duration, total_frames, target_frame_time)
+    if total_frames and total_frames.is_integer():
+        if force_rate != 0:
+            yieldable_frames = int(total_frames / fps * force_rate)
+        else:
+            yieldable_frames = total_frames
+        if frame_load_cap != 0:
+            yieldable_frames =  min(frame_load_cap, yieldable_frames)
+    else:
+        yieldable_frames = 0
+    pbar = ProgressBar(yieldable_frames)
     if meta_batch is not None:
-        yield min(frame_load_cap, total_frames)
-
+        yield yieldable_frames
     time_offset=target_frame_time - base_frame_time
     while video_cap.isOpened():
         if time_offset < target_frame_time:
@@ -105,7 +113,7 @@ def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
         prev_frame = frame
         frames_added += 1
         if pbar is not None:
-            pbar.update_absolute(frames_added, frame_load_cap)
+            pbar.update_absolute(frames_added, yieldable_frames)
         # if cap exists and we've reached it, stop processing frames
         if frame_load_cap > 0 and frames_added >= frame_load_cap:
             break
@@ -135,7 +143,9 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
 
         if meta_batch is not None:
             meta_batch.inputs[unique_id] = (gen, width, height, fps, duration, total_frames, target_frame_time)
-            meta_batch.total_frames = min(meta_batch.total_frames, next(gen))
+            yieldable_frames = next(gen)
+            if yieldable_frames:
+                meta_batch.total_frames = min(meta_batch.total_frames, yieldable_frames)
 
     else:
         (gen, width, height, fps, duration, total_frames, target_frame_time) = meta_batch.inputs[unique_id]
