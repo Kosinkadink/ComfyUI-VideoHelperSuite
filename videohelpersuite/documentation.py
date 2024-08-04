@@ -9,7 +9,7 @@ def as_html(entry, depth=0):
         html = ''
         for k in entry:
             #html += f'<{tag} title={k}>{k}: {as_html(entry[k], depth=depth+1)}</{tag}>'
-            html += f'<div title={k} style=\"display: flex; font-size: {size}em\" class=\"VHS_collapse\"><div style=\"color: #AAA\">[-]</div><div>{k}: {as_html(entry[k], depth=depth+1)}</div></div>'
+            html += f'<div title={k} style=\"display: flex; font-size: {size}em\" class=\"VHS_collapse\"><div style=\"color: #AAA; height: 1.5em\">[-]</div><div>{k}: {as_html(entry[k], depth=depth+1)}</div></div>'
         return html
     if isinstance(entry, list):
         html = ''
@@ -21,5 +21,4 @@ def as_html(entry, depth=0):
 def format_descriptions(nodes):
     for k in descriptions:
         nodes[k].DESCRIPTION = as_html(descriptions[k])
-        print(nodes[k].DESCRIPTION)
 

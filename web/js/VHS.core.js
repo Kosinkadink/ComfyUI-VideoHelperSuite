@@ -140,13 +140,36 @@ function useKVState(nodeType) {
     })
 }
 var helpDOM = document.createElement("div");
-helpDOM.className = "litegraph";
-document.body.appendChild(helpDOM);
 function initHelpDOM() {
+    let parentDOM = document.createElement("div");
+    document.body.appendChild(parentDOM)
+    parentDOM.appendChild(helpDOM)
+    helpDOM.className = "litegraph";
+    let scrollbarStyle = document.createElement('style');
+    scrollbarStyle.innerHTML = `
+    <style id="scroll-properties">
+            * {
+                scrollbar-width: 6px;
+                scrollbar-color: #0003  #0000;
+            }
+            ::-webkit-scrollbar {
+                background: transparent;
+                width: 6px;
+            }
+            ::-webkit-scrollbar-thumb {
+                background: #0005;
+                border-radius: 20px
+            }
+            ::-webkit-scrollbar-button {
+                display: none;
+            }
+        </style>
+    `
+    parentDOM.appendChild(scrollbarStyle)
     chainCallback(app.canvas, "onDrawForeground", function (ctx, visible_rect){
         let n = helpDOM.node
         if (!n || !n?.graph) {
-            helpDOM.style['left'] = '-5000px'
+            parentDOM.style['left'] = '-5000px'
             return
         }
         //draw : function(ctx, node, widgetWidth, widgetY, height) {
@@ -157,17 +180,19 @@ function initHelpDOM() {
         const x = transform.e*scale/transform.a;
         const y = transform.f*scale/transform.a;
         //TODO: text reflows at low zoom. investigate alternatives
-        Object.assign(helpDOM.style, {
-            left: (x+(n.pos[0] + n.size[0]+25)*scale) + "px",
+        Object.assign(parentDOM.style, {
+            left: (x+(n.pos[0] + n.size[0]+15)*scale) + "px",
             top: (y+(n.pos[1]-LiteGraph.NODE_TITLE_HEIGHT)*scale) + "px",
-            width: (400*scale) + "px",
-            'min-height': 100*scale + "px",
-            'max-height': 600*scale + "px",
-            'overflow-y': 'auto',
-            'font-size': app.canvas.ds.scale + "em",
-            'background-color': '#333',
-            'box-shadow': '0 0 10px black',
-            'border-radius': '4px',
+            width: "400px",
+            minHeight: "100px",
+            maxHeight: "600px",
+            overflowY: 'auto',
+            transformOrigin: '0 0',
+            transform: 'scale(' + scale + ',' + scale +')',
+            fontSize: '18px',
+            backgroundColor: LiteGraph.NODE_DEFAULT_BGCOLOR,
+            boxShadow: '0 0 10px black',
+            borderRadius: '4px',
             padding: '3px',
             zIndex: 3,
             position: "absolute",
