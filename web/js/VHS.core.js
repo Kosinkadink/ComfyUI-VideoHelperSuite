@@ -1240,7 +1240,7 @@ app.registerExtension({
                 })
                 let el = document.createElement("div")
                 el.innerHTML = description
-                nodeData.description = el.querySelector('#VHS_shortdesc').innerHTML || el.children[1]?.firstChild?.innerHTML
+                nodeData.description = el.querySelector('#VHS_shortdesc')?.innerHTML || el.children[1]?.firstChild?.innerHTML
             }
             chainCallback(nodeType.prototype, "onNodeCreated", function () {
                 let new_widgets = []
