@@ -1233,8 +1233,16 @@ app.registerExtension({
     async beforeRegisterNodeDef(nodeType, nodeData, app) {
         if(nodeData?.name?.startsWith("VHS_")) {
             useKVState(nodeType);
+            if (nodeData.description) {
+                let description = nodeData.description
+                chainCallback(nodeType.prototype, "onNodeCreated", function () {
+                    helpDOM.addHelp(this, nodeType, description)
+                })
+                let el = document.createElement("div")
+                el.innerHTML = description
+                nodeData.description = el.querySelector('#VHS_shortdesc').innerHTML || el.children[1]?.firstChild?.innerHTML
+            }
             chainCallback(nodeType.prototype, "onNodeCreated", function () {
-                helpDOM.addHelp(this, nodeType, nodeData.description)
                 let new_widgets = []
                 if (this.widgets) {
                     for (let w of this.widgets) {
