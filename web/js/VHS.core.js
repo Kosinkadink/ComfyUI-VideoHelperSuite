@@ -1194,7 +1194,7 @@ function searchBox(event, [x,y], node) {
             if (extensions) {
                 params.extensions = extensions
             }
-            let optionsURL = api.apiURL('getpath?' + new URLSearchParams(params));
+            let optionsURL = api.apiURL('/getpath?' + new URLSearchParams(params));
             try {
                 let resp = await fetch(optionsURL);
                 options = await resp.json();
