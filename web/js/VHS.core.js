@@ -52,6 +52,16 @@ const renameDict  = {VHS_VideoCombine : {save_output : "save_image"}}
 function useKVState(nodeType) {
     chainCallback(nodeType.prototype, "onNodeCreated", function () {
         chainCallback(this, "onConfigure", function(info) {
+            if (this.inputs) {
+                for (let i = 0; i < this.inputs.length; i++) {
+                    let dt = this?.getInputDataType(i)
+                    if (dt && this.inputs[i]?.type != dt) {
+                        this.inputs[i].type = dt
+                        console.warn("input type mismatch for " + this.title + " slot " + i)
+
+                    }
+                }
+            }
             if (!this.widgets) {
                 //Node has no widgets, there is nothing to restore
                 return
@@ -717,7 +727,8 @@ function addVideoPreview(nodeType) {
             e.preventDefault()
             return app.canvas._mousewheel_callback(e)
         }, true);
-        previewWidget.value = {hidden: false, paused: false, params: {}}
+        previewWidget.value = {hidden: false, paused: false, params: {},
+            muted: app.ui.settings.getSettingValue("VHS.DefaultMute", false)}
         previewWidget.parentEl = document.createElement("div");
         previewWidget.parentEl.className = "vhs_preview";
         previewWidget.parentEl.style['width'] = "100%"
@@ -738,7 +749,7 @@ function addVideoPreview(nodeType) {
             fitHeight(this);
         });
         previewWidget.videoEl.onmouseenter =  () => {
-            previewWidget.videoEl.muted = false;
+            previewWidget.videoEl.muted = previewWidget.value.muted
         };
         previewWidget.videoEl.onmouseleave = () => {
             previewWidget.videoEl.muted = true;
@@ -896,6 +907,10 @@ function addPreviewOptions(nodeType) {
                 }
             }
         }});
+        const muteDesc = (previewWidget.value.muted ? "Unmute" : "Mute") + " Preview"
+        optNew.push({content: muteDesc, callback: () => {
+            previewWidget.value.muted = !previewWidget.value.muted
+        }})
         if(options.length > 0 && options[0] != null && optNew.length > 0) {
             optNew.push(null);
         }
@@ -1004,7 +1019,7 @@ function addLoadVideoCommon(nodeType, nodeData) {
         let update = function (value, _, node) {
             let param = {}
             param[this.name] = value
-            node.updateParameters(param);
+            node?.updateParameters(param);
         }
         chainCallback(frameCapWidget, "callback", update);
         chainCallback(frameSkipWidget, "callback", update);
@@ -1013,7 +1028,7 @@ function addLoadVideoCommon(nodeType, nodeData) {
         let priorSize = sizeWidget.value;
         let updateSize = function(value, _, node) {
             if (sizeWidget.value == 'Custom' || priorSize != sizeWidget.value) {
-                node.updateParameters({"force_size": sizeWidget.serializePreview()});
+                node?.updateParameters({"force_size": sizeWidget.serializePreview()});
             }
             priorSize = sizeWidget.value;
         }
@@ -1227,6 +1242,12 @@ app.ui.settings.addSetting({
     type: "boolean",
     defaultValue: false,
 });
+app.ui.settings.addSetting({
+    id: "VHS.DefaultMute",
+    name: "🎥🅥🅗🅢 Mute videos by default",
+    type: "boolean",
+    defaultValue: false,
+});
 
 app.registerExtension({
     name: "VideoHelperSuite.Core",
@@ -1334,7 +1355,7 @@ app.registerExtension({
                     }
                     format += "/" + extension;
                     let params = {filename : value, type: "path", format: format};
-                    this.updateParameters(params, true);
+                    this?.updateParameters(params, true);
                 });
             });
             addLoadVideoCommon(nodeType, nodeData);
@@ -1352,8 +1373,6 @@ app.registerExtension({
             addFormatWidgets(nodeType);
             addVAEInputToggle(nodeType, nodeData)
 
-            //Hide the information passing 'gif' output
-            //TODO: check how this is implemented for save image
             chainCallback(nodeType.prototype, "onNodeCreated", function() {
                 this._outputs = this.outputs
                 Object.defineProperty(this, "outputs", {

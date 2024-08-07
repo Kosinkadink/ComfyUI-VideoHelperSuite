@@ -11,6 +11,7 @@ from torch import Tensor
 
 import server
 from .logger import logger
+import folder_paths
 
 BIGMIN = -(2**53-1)
 BIGMAX = (2**53-1)
@@ -75,6 +76,31 @@ if gifski_path is None:
     gifski_path = os.environ.get("JOV_GIFSKI", None)
     if gifski_path is None:
         gifski_path = shutil.which("gifski")
+ytdl_path = os.environ.get("VHS_YTDL", None) or shutil.which('yt-dlp') \
+        or shutil.which('youtube-dl')
+download_history = {}
+def try_download_video(url):
+    if ytdl_path is None:
+        return None
+    if url in download_history:
+        return download_history[url]
+    os.makedirs(folder_paths.get_temp_directory(), exist_ok=True)
+    #Format information could be added to only download audio for Load Audio,
+    #but this gets hairy if same url is also used for video.
+    #Best to just always keep defaults
+    #dl_format = ['-f', 'ba'] if is_audio else []
+    try:
+        res = subprocess.run([ytdl_path, "--print", "after_move:filepath",
+                              "-P", folder_paths.get_temp_directory(), url],
+                             capture_output=True, check=True)
+        #strip newline
+        file = res.stdout.decode('utf-8')[:-1]
+    except subprocess.CalledProcessError as e:
+        raise Exception("An error occurred in the yt-dl process:\n" \
+                + e.stderr.decode("utf-8"))
+        file = None
+    download_history[url] = file
+    return file
 
 def is_safe_path(path):
     if "VHS_STRICT_PATHS" not in os.environ:

@@ -3,7 +3,8 @@ import folder_paths
 import os
 import time
 import subprocess
-from .utils import is_url, get_sorted_dir_files_from_directory, ffmpeg_path, validate_sequence, is_safe_path, strip_path
+import re
+from .utils import is_url, get_sorted_dir_files_from_directory, ffmpeg_path, validate_sequence, is_safe_path, strip_path, try_download_video
 from comfy.k_diffusion.utils import FolderOfImages
 
 web = server.web
@@ -18,6 +19,7 @@ async def view_video(request):
     #Path code misformats urls on windows and must be skipped
     if is_url(filename):
         file = filename
+        file = try_download_video(file) or file
     else:
         filename, output_dir = folder_paths.annotated_filepath(filename)
 
@@ -69,15 +71,33 @@ async def view_video(request):
         in_args = ["-i", file]
         if '%' in file:
             in_args = ['-framerate', str(frame_rate)] + in_args
-
+    #Do prepass to pull info
+    #breaks skip_first frames if this default is ever actually needed
+    base_fps = 30
+    try:
+        res = subprocess.run(['ffmpeg'] + in_args + ['-t', '0', '-f', 'null', '-'],
+                             capture_output=True, check=True)
+        match = re.search(': Video: (\\w+) .+, (\\d+) fps,', res.stderr.decode('utf-8'))
+        if match:
+            base_fps = float(match.group(2))
+            if match.group(1) == 'vp9':
+                #force libvpx for transparency
+                in_args = ['-c:v', 'libvpx-vp9'] + in_args
+    except subprocess.CalledProcessError as e:
+        print("An error occurred in the ffmpeg prepass:\n" \
+                + e.stderr.decode("utf-8"))
     args = [ffmpeg_path, "-v", "error"] + in_args
     vfilters = []
-    if int(query.get('force_rate',0)) != 0:
-        vfilters.append("fps=fps="+query['force_rate'] + ":round=up:start_time=0.001")
+    target_rate = float(query.get('force_rate', 0)) or base_fps
+    modified_rate = target_rate / float(query.get('select_every_nth',1))
     if int(query.get('skip_first_frames', 0)) > 0:
-        vfilters.append(f"select=gt(n\\,{int(query['skip_first_frames'])-1})")
-    if int(query.get('select_every_nth', 1)) > 1:
-        vfilters.append(f"select=not(mod(n\\,{query['select_every_nth']}))")
+        skip = float(query.get('skip_first_frames'))/target_rate
+        if skip > 1/modified_rate:
+            skip += 1/modified_rate
+            pass
+        args += ["-ss", str(skip)]
+    if int(query.get('force_rate',0)) != 0:
+        args += ['-r', str(modified_rate)]
     if query.get('force_size','Disabled') != "Disabled":
         size = query['force_size'].split('x')
         if size[0] == '?' or size[1] == '?':
@@ -90,7 +110,6 @@ async def view_video(request):
             vfilters.append(f"crop=if(gt({ar}\\,a)\\,iw\\,ih*{ar}):if(gt({ar}\\,a)\\,iw/{ar}\\,ih)")
         size = ':'.join(size)
         vfilters.append(f"scale={size}")
-    vfilters.append("setpts=PTS-STARTPTS")
     if len(vfilters) > 0:
         args += ["-vf", ",".join(vfilters)]
     if int(query.get('frame_load_cap', 0)) > 0:
