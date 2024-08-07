@@ -224,7 +224,7 @@ function initHelpDOM() {
     helpDOM.selectHelp = function(name, value) {
         //attempt to navigate to name in help
         function collapseUnlessMatch(items,t) {
-            var match = items.querySelector('[title="' + t + '"]')
+            var match = items.querySelector('[vhs_title="' + t + '"]')
             if (!match) {
                 for (let i of items.children) {
                     if (i.innerHTML.slice(0,t.length+5).includes(t)) {
