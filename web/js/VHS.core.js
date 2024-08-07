@@ -1235,12 +1235,19 @@ app.registerExtension({
             useKVState(nodeType);
             if (nodeData.description) {
                 let description = nodeData.description
+                let el = document.createElement("div")
+                el.innerHTML = description
+                if (!el.children.length) {
+                    //Is plaintext. Do minor convenience formatting
+                    let chunks = description.split('\n')
+                    nodeData.description = chunks[0]
+                    description = chunks.join('<br>')
+                } else {
+                    nodeData.description = el.querySelector('#VHS_shortdesc')?.innerHTML || el.children[1]?.firstChild?.innerHTML
+                }
                 chainCallback(nodeType.prototype, "onNodeCreated", function () {
                     helpDOM.addHelp(this, nodeType, description)
                 })
-                let el = document.createElement("div")
-                el.innerHTML = description
-                nodeData.description = el.querySelector('#VHS_shortdesc')?.innerHTML || el.children[1]?.firstChild?.innerHTML
             }
             chainCallback(nodeType.prototype, "onNodeCreated", function () {
                 let new_widgets = []
