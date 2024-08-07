@@ -268,7 +268,7 @@ function initHelpDOM() {
         }
 
         node.description = description
-        chainCallback(nodeType.prototype, "onDrawForeground", function (ctx) {
+        chainCallback(node, "onDrawForeground", function (ctx) {
             //draw question mark
             ctx.save()
             ctx.font = 'bold 20px Arial'
