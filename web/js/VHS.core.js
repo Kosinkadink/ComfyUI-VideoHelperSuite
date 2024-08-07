@@ -524,7 +524,8 @@ function addVideoPreview(nodeType) {
             e.preventDefault()
             return app.canvas._mousewheel_callback(e)
         }, true);
-        previewWidget.value = {hidden: false, paused: false, params: {}}
+        previewWidget.value = {hidden: false, paused: false, params: {},
+            muted: app.ui.settings.getSettingValue("VHS.DefaultMute", false)}
         previewWidget.parentEl = document.createElement("div");
         previewWidget.parentEl.className = "vhs_preview";
         previewWidget.parentEl.style['width'] = "100%"
@@ -545,7 +546,7 @@ function addVideoPreview(nodeType) {
             fitHeight(this);
         });
         previewWidget.videoEl.onmouseenter =  () => {
-            previewWidget.videoEl.muted = false;
+            previewWidget.videoEl.muted = previewWidget.value.muted
         };
         previewWidget.videoEl.onmouseleave = () => {
             previewWidget.videoEl.muted = true;
@@ -703,6 +704,10 @@ function addPreviewOptions(nodeType) {
                 }
             }
         }});
+        const muteDesc = (previewWidget.value.muted ? "Unmute" : "Mute") + " Preview"
+        optNew.push({content: muteDesc, callback: () => {
+            previewWidget.value.muted = !previewWidget.value.muted
+        }})
         if(options.length > 0 && options[0] != null && optNew.length > 0) {
             optNew.push(null);
         }
@@ -1031,6 +1036,12 @@ function searchBox(event, [x,y], node) {
 app.ui.settings.addSetting({
     id: "VHS.AdvancedPreviews",
     name: "🎥🅥🅗🅢 Advanced Previews",
+    type: "boolean",
+    defaultValue: false,
+});
+app.ui.settings.addSetting({
+    id: "VHS.DefaultMute",
+    name: "🎥🅥🅗🅢 Mute videos by default",
     type: "boolean",
     defaultValue: false,
 });
