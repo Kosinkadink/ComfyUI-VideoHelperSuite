@@ -62,7 +62,7 @@ def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
         target_frame_time = 1/force_rate
 
     yield (width, height, fps, duration, total_frames, target_frame_time)
-    if total_frames and total_frames.is_integer():
+    if total_frames > 0:
         if force_rate != 0:
             yieldable_frames = int(total_frames / fps * force_rate)
         else:
