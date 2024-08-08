@@ -191,8 +191,9 @@ function initHelpDOM() {
         const transform = ctx.getTransform();
         const scale = app.canvas.ds.scale;//gets the litegraph zoom
         //calculate coordinates with account for browser zoom
-        const x = transform.e*scale/transform.a;
-        const y = transform.f*scale/transform.a;
+        const bcr = app.canvas.canvas.getBoundingClientRect()
+        const x = transform.e*scale/transform.a + bcr.x;
+        const y = transform.f*scale/transform.a + bcr.y;
         //TODO: text reflows at low zoom. investigate alternatives
         Object.assign(parentDOM.style, {
             left: (x+(n.pos[0] + n.size[0]+15)*scale) + "px",
