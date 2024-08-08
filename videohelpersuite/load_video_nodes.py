@@ -150,7 +150,7 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
     else:
         (gen, width, height, fps, duration, total_frames, target_frame_time) = meta_batch.inputs[unique_id]
 
-    memory_limit = None
+    memory_limit = memory_limit_mb
     if memory_limit_mb is not None:
         memory_limit *= 2 ** 20
     else:
