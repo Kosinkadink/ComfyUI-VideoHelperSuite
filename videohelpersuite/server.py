@@ -75,7 +75,7 @@ async def view_video(request):
     #breaks skip_first frames if this default is ever actually needed
     base_fps = 30
     try:
-        res = subprocess.run(['ffmpeg'] + in_args + ['-t', '0', '-f', 'null', '-'],
+        res = subprocess.run([ffmpeg_path] + in_args + ['-t', '0', '-f', 'null', '-'],
                              capture_output=True, check=True)
         match = re.search(': Video: (\\w+) .+, (\\d+) fps,', res.stderr.decode('utf-8'))
         if match:
