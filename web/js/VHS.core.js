@@ -219,7 +219,6 @@ function initHelpDOM() {
             el.children[0].innerHTML = '[+]'
             el.children[1].style.overflowY = 'hidden'
             el.children[1].style.height = '1.5em'
-            el.children[1].style.height = '1.5em'
             el.children[1].style.color = '#CCC'
         } else {
             el.children[0].innerHTML = '[-]'
