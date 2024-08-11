@@ -201,7 +201,7 @@ function initHelpDOM() {
             width: "400px",
             minHeight: "100px",
             maxHeight: "600px",
-            overflowY: 'auto',
+            overflowY: 'scroll',
             transformOrigin: '0 0',
             transform: 'scale(' + scale + ',' + scale +')',
             fontSize: '18px',
@@ -216,27 +216,30 @@ function initHelpDOM() {
     });
     function setCollapse(el, doCollapse) {
         if (doCollapse) {
-            for (let image of el.querySelectorAll("img,video")) {
-                image.hidden = true
-            }
+            el.style.width = '0px'
+            el.style.minWidth = '100%'
             el.children[0].innerHTML = '[+]'
-            el.children[1].style.overflowY = 'hidden'
-            el.children[1].style.height = '2cap'
             el.children[1].style.color = '#CCC'
+            el.children[1].style.overflowX = 'hidden'
+            el.children[1].style.textOverflow = 'ellipsis'
+            el.children[1].style.whiteSpace = 'nowrap'
+            for (let child of el.children[1].children) {
+                child.style.display = 'none'
+            }
         } else {
+            el.style.width = ''
+            el.style.minWidth = ''
             el.children[0].innerHTML = '[-]'
-            el.children[1].style.overflowY = ''
-            el.children[1].style.height = ''
             el.children[1].style.color = ''
-            for (let image of el.querySelectorAll("img,video")) {
-                let scan = image
-                while (scan.parentElement && scan.parentElement != el) {
-                    scan = scan.parentElement
-                    if (scan.hidden || scan.style.overflowY) {
-                        return
-                    }
+            el.children[1].style.overflowX = ''
+            el.children[1].style.textOverflow = ''
+            el.children[1].style.whiteSpace = ''
+            for (let child of el.children[1].children) {
+                if (child.matches('.VHS_collapse')) {
+                    child.style.display = 'flex'
+                } else {
+                    child.style.display = ''
                 }
-                image.hidden = false
             }
         }
     }

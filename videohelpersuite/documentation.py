@@ -1,5 +1,5 @@
 def image(src):
-    return f'<img src={src} style="width: 100%">'
+    return f'<img src={src} style="width: 0px; min-width: 100%">'
 descriptions = {
   'VHS_VideoCombine': ['Video Combine', '<div id=VHS_shortdesc style="font-size: .8em">Combine an image sequence into a video</div>', {
     'Inputs': {'images': 'The images to be turned into a video','audio':'(optional) audio to add to the video','meta_batch': '(optional) Connect to a Meta Batch manager to divide extremely long image sequences into sub batches. See the documentation for Meta Batch Manager','vae':'(optional) If provided, the node will take latents as input instead of images. This drastically reduces the required RAM (not VRAM) required when working with very long sequences'},
