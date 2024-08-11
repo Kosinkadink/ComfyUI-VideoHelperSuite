@@ -216,30 +216,33 @@ function initHelpDOM() {
     });
     function setCollapse(el, doCollapse) {
         if (doCollapse) {
-            el.style.width = '0px'
-            el.style.minWidth = '100%'
             el.children[0].innerHTML = '[+]'
-            el.children[1].style.color = '#CCC'
-            el.children[1].style.overflowX = 'hidden'
-            el.children[1].style.textOverflow = 'ellipsis'
-            el.children[1].style.whiteSpace = 'nowrap'
+            Object.assign(el.children[1].style, {
+                color: '#CCC',
+                overflowX: 'hidden',
+                width: '0px',
+                minWidth: 'calc(100% - 20px)',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+            })
             for (let child of el.children[1].children) {
+                if (child.style.display != 'none'){
+                    child.origDisplay = child.style.display
+                }
                 child.style.display = 'none'
             }
         } else {
-            el.style.width = ''
-            el.style.minWidth = ''
             el.children[0].innerHTML = '[-]'
-            el.children[1].style.color = ''
-            el.children[1].style.overflowX = ''
-            el.children[1].style.textOverflow = ''
-            el.children[1].style.whiteSpace = ''
+            Object.assign(el.children[1].style, {
+                color: '',
+                overflowX: '',
+                width: '100%',
+                minWidth: '',
+                textOverflow: '',
+                whiteSpace: '',
+            })
             for (let child of el.children[1].children) {
-                if (child.matches('.VHS_collapse')) {
-                    child.style.display = 'flex'
-                } else {
-                    child.style.display = ''
-                }
+                child.style.display = child.origDisplay
             }
         }
     }
@@ -262,6 +265,7 @@ function initHelpDOM() {
             if (!match) {
                 return null
             }
+            match.scrollIntoView(false)
             for (let i of items.querySelectorAll('.VHS_collapse')) {
                 if (i.contains(match)) {
                     setCollapse(i, false)
@@ -313,6 +317,9 @@ function initHelpDOM() {
                     for (let e of helpDOM.querySelectorAll('.VHS_collapse')) {
                         e.children[0].onclick = helpDOM.collapseOnClick
                         e.children[0].style.cursor = 'pointer'
+                    }
+                    for (let e of helpDOM.querySelectorAll('.VHS_precollapse')) {
+                        setCollapse(e, true)
                     }
                 }
                 return true
