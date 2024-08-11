@@ -216,15 +216,28 @@ function initHelpDOM() {
     });
     function setCollapse(el, doCollapse) {
         if (doCollapse) {
+            for (let image of el.querySelectorAll("img,video")) {
+                image.hidden = true
+            }
             el.children[0].innerHTML = '[+]'
             el.children[1].style.overflowY = 'hidden'
-            el.children[1].style.height = '1.5em'
+            el.children[1].style.height = '2cap'
             el.children[1].style.color = '#CCC'
         } else {
             el.children[0].innerHTML = '[-]'
             el.children[1].style.overflowY = ''
             el.children[1].style.height = ''
             el.children[1].style.color = ''
+            for (let image of el.querySelectorAll("img,video")) {
+                let scan = image
+                while (scan.parentElement && scan.parentElement != el) {
+                    scan = scan.parentElement
+                    if (scan.hidden || scan.style.overflowY) {
+                        return
+                    }
+                }
+                image.hidden = false
+            }
         }
     }
     helpDOM.collapseOnClick = function() {
