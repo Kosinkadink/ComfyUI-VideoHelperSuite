@@ -177,6 +177,12 @@ function initHelpDOM() {
             ::-webkit-scrollbar-button {
                 display: none;
             }
+            .VHS_loopedvideo::-webkit-media-controls-mute-button {
+                display:none;
+            }
+            .VHS_loopedvideo::-webkit-media-controls-fullscreen-button {
+                display:none;
+            }
         </style>
     `
     parentDOM.appendChild(scrollbarStyle)
