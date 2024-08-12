@@ -906,7 +906,17 @@ class VideoInfoLoaded:
 
         return (*loaded_info,)
 
+class SelectFilename:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"filenames": ("VHS_FILENAMES",), "index": ("INT", {"default": -1, "step": 1, "min": -1})}}
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES =("Filename",)
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
+    FUNCTION = "select_filename"
 
+    def select_filename(self, filenames, index):
+        return (filenames[1][index],)
 
 NODE_CLASS_MAPPINGS = {
     "VHS_VideoCombine": VideoCombine,
@@ -923,6 +933,7 @@ NODE_CLASS_MAPPINGS = {
     "VHS_VideoInfo": VideoInfo,
     "VHS_VideoInfoSource": VideoInfoSource,
     "VHS_VideoInfoLoaded": VideoInfoLoaded,
+    "VHS_SelectFilename": SelectFilename,
     # Batched Nodes
     "VHS_VAEEncodeBatched": VAEEncodeBatched,
     "VHS_VAEDecodeBatched": VAEDecodeBatched,
@@ -961,6 +972,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_VideoInfo": "Video Info 🎥🅥🅗🅢",
     "VHS_VideoInfoSource": "Video Info (Source) 🎥🅥🅗🅢",
     "VHS_VideoInfoLoaded": "Video Info (Loaded) 🎥🅥🅗🅢",
+    "VHS_SelectFilename": "Select Filename 🎥🅥🅗🅢",
     # Batched Nodes
     "VHS_VAEEncodeBatched": "VAE Encode Batched 🎥🅥🅗🅢",
     "VHS_VAEDecodeBatched": "VAE Decode Batched 🎥🅥🅗🅢",
