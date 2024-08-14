@@ -222,7 +222,7 @@ function initHelpDOM() {
     });
     function setCollapse(el, doCollapse) {
         if (doCollapse) {
-            el.children[0].innerHTML = '[+]'
+            el.children[0].children[0].innerHTML = '+'
             Object.assign(el.children[1].style, {
                 color: '#CCC',
                 overflowX: 'hidden',
@@ -238,7 +238,7 @@ function initHelpDOM() {
                 child.style.display = 'none'
             }
         } else {
-            el.children[0].innerHTML = '[-]'
+            el.children[0].children[0].innerHTML = '-'
             Object.assign(el.children[1].style, {
                 color: '',
                 overflowX: '',
@@ -253,7 +253,7 @@ function initHelpDOM() {
         }
     }
     helpDOM.collapseOnClick = function() {
-        let doCollapse = this.innerHTML[1] == '-'
+        let doCollapse = this.children[0].innerHTML == '-'
         setCollapse(this.parentElement, doCollapse)
     }
     helpDOM.selectHelp = function(name, value) {
@@ -271,9 +271,14 @@ function initHelpDOM() {
             if (!match) {
                 return null
             }
-            //This is bad since it tries to scroll the main view to fit the help window itself onscreen.
-            //TODO: Find safer alternative
-            //match.scrollIntoView(false)
+            //For longer documentation items with fewer collapsable elements,
+            //scroll to make sure the entirety of the selected item is visible
+            //This has the unfortunate side effect of trying to scroll the main
+            //window if the documentation windows is forcibly offscreen,
+            //but it's easy to simply scroll the main window back and seems to
+            //have no visual side effects
+            match.scrollIntoView(false)
+            window.scrollTo(0,0)
             for (let i of items.querySelectorAll('.VHS_collapse')) {
                 if (i.contains(match)) {
                     setCollapse(i, false)
@@ -361,15 +366,20 @@ function initHelpDOM() {
                         }
                     } else {
                         //probably widget, but widgets have variable height.
+                        let basey = LiteGraph.NODE_SLOT_HEIGHT * inputRows + 6
                         for (let w of n.widgets) {
-                            let wheight = LiteGraph.NODE_WIDGET_HEIGHT
+                            if (w.y) {
+                                basey = w.y
+                            }
+                            let wheight = LiteGraph.NODE_WIDGET_HEIGHT+4
                             if (w.computeSize) {
                                 wheight = w.computeSize(n.size[0])[1]
                             }
-                            if (pos[1] < w.y + wheight) {
+                            if (pos[1] < basey + wheight) {
                                 helpDOM.selectHelp(w.name, w.value)
                                 break
                             }
+                            basey += wheight
                         }
                     }
                 }

@@ -3,7 +3,6 @@ def image(src):
 def video(src):
     return f'<video src={src} autoplay muted loop controls controlslist="nodownload noremoteplayback noplaybackrate" style="width: 0px; min-width: 100%" class="VHS_loopedvideo">'
 def short_desc(desc):
-    return  f'<div id=VHS_shortdesc style="font-size: .8em">Combine an image sequence into a video</div>'
     return  f'<div id=VHS_shortdesc style="font-size: .8em">{desc}</div>'
 
 common_descriptions = {
@@ -325,7 +324,7 @@ descriptions = {
         },
      'Outputs': {
          'LATENT': 'The combined group of latents',
-         'count': 'The legnth of the combined group',
+         'count': 'The length of the combined group',
         },
      'Widgets': {
         'merge_strategy': common_descriptions['merge_strategy'],
@@ -334,10 +333,70 @@ descriptions = {
         },
 
     }],
-    "VHS_MergeImages": None,
-    "VHS_MergeMasks": None,
-    "VHS_GetLatentCount": None,
-    "VHS_GetImageCount": None,
+    "VHS_MergeImages": ['Merge Images', short_desc('Combine two groups of images into a single group of images'),
+    {'Inputs': {
+        'images_A': 'The first group of images',
+        'images_B': 'The first group of images',
+        },
+     'Outputs': {
+         'IMAGE': 'The combined group of images',
+         'count': 'The length of the combined group',
+        },
+     'Widgets': {
+        'merge_strategy': common_descriptions['merge_strategy'],
+        'scale_method': common_descriptions['scale_method'],
+        'crop': common_descriptions['crop_method'],
+        },
+
+    }],
+    "VHS_MergeMasks": ['Merge Masks', short_desc('Combine two groups of masks into a single group of masks'),
+    {'Inputs': {
+        'mask_A': 'The first group of masks',
+        'mask_B': 'The first group of masks',
+        },
+     'Outputs': {
+         'MASK': 'The combined group of masks',
+         'count': 'The length of the combined group',
+        },
+     'Widgets': {
+        'merge_strategy': common_descriptions['merge_strategy'],
+        'scale_method': common_descriptions['scale_method'],
+        'crop': common_descriptions['crop_method'],
+        },
+
+    }],
+    "VHS_GetLatentCount":  ['Merge Masks', short_desc('Combine two groups of masks into a single group of masks'),
+    {'Inputs': {
+        'mask_A': 'The first group of masks',
+        'mask_B': 'The first group of masks',
+        },
+     'Outputs': {
+         'MASK': 'The combined group of masks',
+         'count': 'The length of the combined group',
+        },
+     'Widgets': {
+        'merge_strategy': common_descriptions['merge_strategy'],
+        'scale_method': common_descriptions['scale_method'],
+        'crop': common_descriptions['crop_method'],
+        },
+
+    }],
+    "VHS_GetImageCount":  ['Merge Images', short_desc('Combine two groups of masks into a single group of masks'),
+    {'Inputs': {
+        'mask_A': 'The first group of masks',
+        'mask_B': 'The first group of masks',
+        },
+     'Outputs': {
+         'MASK': 'The combined group of masks',
+         'count': 'The length of the combined group',
+        },
+     'Widgets': {
+        'merge_strategy': common_descriptions['merge_strategy'],
+        'scale_method': common_descriptions['scale_method'],
+        'crop': common_descriptions['crop_method'],
+        },
+
+    }],
     "VHS_GetMaskCount": None,
     "VHS_DuplicateLatents": None,
     "VHS_DuplicateImages": None,
@@ -364,7 +423,7 @@ def as_html(entry, depth=0):
             else:
                 name = k
             collapse_flag = ' VHS_precollapse' if entry.get("collapsed", False) or collapse_single else ''
-            html += f'<div vhs_title=\"{name}\" style=\"display: flex; font-size: {size}em\" class=\"VHS_collapse{collapse_flag}\"><div style=\"color: #AAA; height: 1.5em; width: 1.5em; min-width: 1.5em; max-width: 1.5em\">[-]</div><div style=\"width: 100%\">{name}: {as_html(entry[k], depth=depth+1)}</div></div>'
+            html += f'<div vhs_title=\"{name}\" style=\"display: flex; font-size: {size}em\" class=\"VHS_collapse{collapse_flag}\"><div style=\"color: #AAA; height: 1.5em;\">[<span style=\"font-family: monospace\">-</span>]</div><div style=\"width: 100%\">{name}: {as_html(entry[k], depth=depth+1)}</div></div>'
         return html
     if isinstance(entry, list):
         html = ''
