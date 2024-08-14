@@ -271,7 +271,9 @@ function initHelpDOM() {
             if (!match) {
                 return null
             }
-            match.scrollIntoView(false)
+            //This is bad since it tries to scroll the main view to fit the help window itself onscreen.
+            //TODO: Find safer alternative
+            //match.scrollIntoView(false)
             for (let i of items.querySelectorAll('.VHS_collapse')) {
                 if (i.contains(match)) {
                     setCollapse(i, false)
@@ -362,7 +364,7 @@ function initHelpDOM() {
                         for (let w of n.widgets) {
                             let wheight = LiteGraph.NODE_WIDGET_HEIGHT
                             if (w.computeSize) {
-                                wheight = w.computeSize(n.size[0])
+                                wheight = w.computeSize(n.size[0])[1]
                             }
                             if (pos[1] < w.y + wheight) {
                                 helpDOM.selectHelp(w.name, w.value)
