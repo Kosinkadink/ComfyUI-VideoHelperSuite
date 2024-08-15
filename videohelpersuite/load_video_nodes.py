@@ -285,7 +285,7 @@ class LoadVideoPath:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "video": ("STRING", {"default": "X://insert/path/here.mp4", "vhs_path_extensions": video_extensions}),
+                "video": ("STRING", {"placeholder": "X://insert/path/here.mp4", "vhs_path_extensions": video_extensions}),
                 "force_rate": ("INT", {"default": 0, "min": 0, "max": 60, "step": 1}),
                  "force_size": (["Disabled", "Custom Height", "Custom Width", "Custom", "256x?", "?x256", "256x256", "512x?", "?x512", "512x512"],),
                  "custom_width": ("INT", {"default": 512, "min": 0, "max": DIMMAX, "step": 8}),

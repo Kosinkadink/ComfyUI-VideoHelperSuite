@@ -1480,9 +1480,9 @@ app.registerExtension({
                             if (label != null) {
                                 ctx.fillText(label, margin * 2, y + H * 0.7);
                             }
-                            ctx.fillStyle = text_color;
+                            ctx.fillStyle = this.value ? text_color : '#777';
                             ctx.textAlign = "right";
-                            let disp_text = this.format_path(String(this.value))
+                            let disp_text = this.format_path(String(this.value || this.options.placeholder))
                             ctx.fillText(disp_text, widget_width - margin * 2, y + H * 0.7); //30 chars max
                             ctx.restore();
                         }
@@ -1512,8 +1512,10 @@ app.registerExtension({
                     }
                 };
                 if (inputData.length > 1) {
-                    if (inputData[1].vhs_path_extensions) {
-                        w.options.extensions = inputData[1].vhs_path_extensions;
+                    w.options = inputData[1]
+                    if (w.options.vhs_path_extensions) {
+                        w.options.extensions = w.options.vhs_path_extensions
+                        delete w.options.vhs_path_extensions
                     }
                     if (inputData[1].default) {
                         w.value = inputData[1].default;

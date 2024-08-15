@@ -167,7 +167,7 @@ class LoadImagesFromDirectoryPath:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "directory": ("STRING", {"default": "X://path/to/images", "vhs_path_extensions": []}),
+                "directory": ("STRING", {"placeholder": "X://path/to/images", "vhs_path_extensions": []}),
             },
             "optional": {
                 "image_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
