@@ -489,16 +489,6 @@ function addVAEOutputToggle(nodeType, nodeData) {
             }
         }
     });
-    chainCallback(nodeType.prototype, "onNodeCreated", function(contype, slot, iscon, linf) {
-        this.updateLink = function(link) {
-            if (link.origin_slot == 0 && this.outputs[0].type=="LATENT") {
-                return {'origin_id': link.origin_id,
-                        'origin_slot': 4}
-            }
-            return link
-        }
-    });
-
 }
 function addVAEInputToggle(nodeType, nodeData) {
     delete nodeData.input.optional["latents"]
@@ -524,18 +514,6 @@ function addVAEInputToggle(nodeType, nodeData) {
                 }
                 this.inputs[0].type = "IMAGE";
             }
-        }
-    });
-    chainCallback(nodeType.prototype, "onNodeCreated", function(contype, slot, iscon, linf) {
-        this.original_getInputLink = this.getInputLink
-        this.getInputLink = function(slot) {
-            let link = this.original_getInputLink(slot)
-            if (slot == 0 && this.inputs[0].type=="LATENT") {
-                return {'origin_id': link.origin_id,
-                        'origin_slot': link.origin_slot,
-                        'target_slot': 4}
-            }
-            return link
         }
     });
 }
