@@ -5,20 +5,44 @@ def image(src):
 def video(src):
     return f'<video src={src} autoplay muted loop controls controlslist="nodownload noremoteplayback noplaybackrate" style="width: 0px; min-width: 100%" class="VHS_loopedvideo">'
 def short_desc(desc):
-    return  f'<div id=VHS_shortdesc style="font-size: .8em">{desc}</div>'
+    return f'<div id=VHS_shortdesc style="font-size: .8em">{desc}</div>'
+
+def format_each(desc, **kwargs):
+    if isinstance(desc, dict):
+        res = {}
+        for k,v in desc.items():
+            res[format_each(k, **kwargs)] = format_each(v, **kwargs)
+        return res
+    if isinstance(desc, list):
+        res = []
+        for v in desc:
+            res.append(format_each(v, **kwargs))
+        return res
+    return desc.format(**kwargs)
+def format_type(desc, lower, lowers=None, upper=None, uppers=None, cap=None):
+    """Utility function for nodes with image/latent/mask variants"""
+    if lowers is None:
+        lowers = lower + 's'
+    if cap is None:
+        cap = lower.capitalize()
+    if upper is None:
+        upper = lower.upper()
+    if uppers is None:
+        uppers = lowers.upper()
+    return format_each(desc, lower=lower, lowers=lowers, upper=upper, uppers=uppers, cap=cap)
 
 common_descriptions = {
   'merge_strategy': [
       'Determines what the output resolution will be if input resolutions don\'t match',
       {'match A': 'Always use the resolution for A',
-      'match B': 'Always use the resolution  for B',
+      'match B': 'Always use the resolution for B',
       'match smaller': 'Pick the smaller resolution by area',
       'match larger': 'Pick the larger resolution by area',
       }],
   'scale_method': [
     'Determines what method to use if scaling is required',
     {'nearest-exact': 'Each pixel of the ouput is set to the closest matching pixel of the unscaled input. No blending is performed',
-    'bilinear': ''
+    'bilinear': '',
       }],
   'crop_method': '',
   'VHS_PATH': [
@@ -28,7 +52,28 @@ common_descriptions = {
     'You can navigate up a directory by pressing Ctrl+B (or Ctrl+W if supported by browser)',
     'The filter on suggested file types can be disabled by pressing Ctrl+G.',
     'If converted to an input, this functions as a string',
-      ]
+      ],
+    "GetCount": ['Get {cap} Count 🎥🅥🅗🅢', short_desc('Return the number of {lowers} in an input as an INT'),
+    {'Inputs': {
+        '{lowers}': 'The input {lower}',
+        },
+     'Outputs': {
+         'count': 'The number of {lowers} in the input',
+        },
+    }],
+    "SelectEveryNth": ['Select Every Nth {cap} 🎥🅥🅗🅢', short_desc('Keep only 1 {lower} for every interval'),
+    {'Inputs': {
+        '{lowers}': 'The input {lower}',
+        },
+     'Outputs': {
+         '{upper}': 'The output {lowers}',
+         'count': 'The number of {lowers} in the input',
+        },
+     'Widgets':{
+         'select_every_nth': 'The interval from which one frame is kept. 1 means no frames are skipped.',
+         'skip_first_{lowers}': 'A number of frames which that is skipped from the start. This applies before select_every_nth. As a result, multiple copies of the node can each have a different skip_first_frames to divide the {lower} into groups'
+        },
+    }],
 }
 
 descriptions = {
@@ -44,7 +89,7 @@ descriptions = {
                ]
         },
     'Widgets':{
-        'frame_rate': 'The frame rate  which will be used for the output video. Consider converting this to an input and connecting this to a load Video with Video Info(Loaded)->fps. When including audio, failure to properly set this will result in audio desync',
+        'frame_rate': 'The frame rate which will be used for the output video. Consider converting this to an input and connecting this to a load Video with Video Info(Loaded)->fps. When including audio, failure to properly set this will result in audio desync',
         'loop_count': 'The number of additional times the video should repeat.',
         'filename_prefix': 'A prefix to add to the name of the output filename. This can include subfolders or format strings.',
         'format': 'The output format to use. Formats starting with, \'image\' are saved with PIL, but formats starting with \'video\' utilize the video_formats system. \'video\' options require ffmpeg and selecting one frequently adds additional options to the node.',
@@ -53,7 +98,7 @@ descriptions = {
         },
     'Common Format Widgets': {
         'crf': 'Determines how much to prioritize quality over filesize. Numbers vary between formats, but on each format that includes it, the default value provides visually loss less output',
-        'pix_fmt': ['The pixel format to use for output. Alternative options will often have higher quality at the cost of increased file size and  reduced compatibility with external software.', {
+        'pix_fmt': ['The pixel format to use for output. Alternative options will often have higher quality at the cost of increased file size and reduced compatibility with external software.', {
             'yuv420p': 'The most common and default format',
             'yuv420p10le': 'Use 10 bit color depth. This can improve color quality when combined with 16bit input color depth',
             'yuva420p': 'Include transparency in the output video'
@@ -78,7 +123,7 @@ descriptions = {
          },
      'Widgets': {
          'video': 'The video file to be loaded. Lists all files with a video extension in the ComfyUI/Input folder',
-         'force_rate': 'Drops or duplicates frames so that the produced output has the target frame rate. Many motion models are trained on videos  of a specific frame rate and will give better results if input matches that frame rate. If set to 0, all frames are returned. May give unusual results with inputs that have a variable frame rate like animated gifs. Reducing this value can also greatly reduce the execution time and memory requirements.',
+         'force_rate': 'Drops or duplicates frames so that the produced output has the target frame rate. Many motion models are trained on videos of a specific frame rate and will give better results if input matches that frame rate. If set to 0, all frames are returned. May give unusual results with inputs that have a variable frame rate like animated gifs. Reducing this value can also greatly reduce the execution time and memory requirements.',
          'force_size': ['Allows for conveniently scaling the input without requiring an additional node. Provides options to maintain aspect ratio or conveniently target common training formats for Animate Diff', {'custom_width': 'Allows for an arbitrary width to be entered, cropping to maintain aspect ratio if possible',
                'custom_height': 'Allows for an arbitrary height to be entered, cropping to maintain aspect ratio if possible'}],
          'frame_load_cap': 'The maximum number of frames to load. If 0, all frames are loaded.',
@@ -104,7 +149,7 @@ descriptions = {
          },
      'Widgets': {
          'video': ['The video file to be loaded.', 'You can also select an image to load it as a single frame'] + common_descriptions['VHS_PATH'],
-         'force_rate': 'Drops or duplicates frames so that the produced output has the target frame rate. Many motion models are trained on videos  of a specific frame rate and will give better results if input matches that frame rate. If set to 0, all frames are returned. May give unusual results with inputs that have a variable frame rate like animated gifs. Reducing this value can also greatly reduce the execution time and memory requirements.',
+         'force_rate': 'Drops or duplicates frames so that the produced output has the target frame rate. Many motion models are trained on videos of a specific frame rate and will give better results if input matches that frame rate. If set to 0, all frames are returned. May give unusual results with inputs that have a variable frame rate like animated gifs. Reducing this value can also greatly reduce the execution time and memory requirements.',
          'force_size': ['Allows for conveniently scaling the input without requiring an additional node. Provides options to maintain aspect ratio or conveniently target common training formats for Animate Diff', {'custom_width': 'Allows for an arbitrary width to be entered, cropping to maintain aspect ratio if possible',
                'custom_height': 'Allows for an arbitrary height to be entered, cropping to maintain aspect ratio if possible'}],
          'frame_load_cap': 'The maximum number of frames to load. If 0, all frames are loaded.',
@@ -386,39 +431,53 @@ descriptions = {
         },
 
     }],
-    "VHS_GetLatentCount":  ['Get Latent Count 🎥🅥🅗🅢', short_desc('Return the number of latents in an input as an INT'),
+    "VHS_GetLatentCount": format_type(common_descriptions['GetCount'], 'latent'),
+    "VHS_GetImageCount": format_type(common_descriptions['GetCount'], 'image'),
+    "VHS_GetMaskCount": format_type(common_descriptions['GetCount'], 'mask'),
+    "VHS_DuplicateLatents": ['Repeat Latents 🎥🅥🅗🅢', short_desc('Append copies of a latent to itself so it repeats'),
     {'Inputs': {
-        'latents': 'The input latent',
+        'latents': 'The latents to be repeated',
         },
      'Outputs': {
-         'count': 'The number of latents in the input',
+         'LATENT': 'The latent with repeats',
+         'count': 'The number of latents in the output. Equal to the length of the input latent * multiply_by',
+        },
+     'Widgets': {
+        'multiply_by': 'Controls the number of times the latent should repeat. 1, the default, means no change.',
         },
     }],
-    "VHS_GetImageCount": ['Get Image Count 🎥🅥🅗🅢', short_desc('Return the number of images in an input as an INT'),
+    "VHS_DuplicateImages": ['Repeat Images 🎥🅥🅗🅢', short_desc('Append copies of a image to itself so it repeats'),
     {'Inputs': {
-        'images': 'The input images',
+        'IMAGES': 'The image to be repeated',
         },
      'Outputs': {
-         'count': 'The number of images in the input',
+         'IMAGE': 'The image with repeats',
+         'count': 'The number of image in the output. Equal to the length of the input image * multiply_by',
+        },
+     'Widgets': {
+        'multiply_by': 'Controls the number of times the mask should repeat. 1, the default, means no change.',
         },
     }],
-    "VHS_GetMaskCount": ['Get Mask Count 🎥🅥🅗🅢', short_desc('Return the number of masks in an input as an INT'),
+    "VHS_DuplicateMasks": ['Repeat Masks 🎥🅥🅗🅢', short_desc('Append copies of a mask to itself so it repeats'),
     {'Inputs': {
-        'masks': 'The input masks',
+        'masks': 'The masks to be repeated',
         },
      'Outputs': {
-         'count': 'The number of masks in the input',
+         'LATENT': 'The mask with repeats',
+         'count': 'The number of mask in the output. Equal to the length of the input mask * multiply_by',
+        },
+     'Widgets': {
+        'multiply_by': 'Controls the number of times the mask should repeat. 1, the default, means no change.',
         },
     }],
-    "VHS_DuplicateLatents": None,
-    "VHS_DuplicateImages": None,
-    "VHS_DuplicateMasks": None,
-    "VHS_SelectEveryNthLatent": None,
-    "VHS_SelectEveryNthImage": None,
-    "VHS_SelectEveryNthMask": None,
-    "VHS_SelectLatents": None,
-    "VHS_SelectImages": None,
-    "VHS_SelectMasks": None,
+    "VHS_SelectEveryNthLatent": format_type(common_descriptions['SelectEveryNth'], 'latent'),
+    "VHS_SelectEveryNthImage": format_type(common_descriptions['SelectEveryNth'], 'image'),
+    #TODO: fix discrepency of input being mask instead of masks?
+    "VHS_SelectEveryNthMask": format_type(common_descriptions['SelectEveryNth'], 'mask', lowers='mask'),
+    #TODO: port documentation for select nodes to new system
+    #"VHS_SelectLatents": None,
+    #"VHS_SelectImages": None,
+    #"VHS_SelectMasks": None,
 }
 
 sizes = ['1.4','1.2','1']

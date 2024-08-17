@@ -1287,6 +1287,7 @@ app.registerExtension({
                 }
                 chainCallback(nodeType.prototype, "onNodeCreated", function () {
                     helpDOM.addHelp(this, nodeType, description)
+                    this.setSize(this.computeSize())
                 })
             }
             chainCallback(nodeType.prototype, "onNodeCreated", function () {
