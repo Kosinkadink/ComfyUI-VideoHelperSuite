@@ -1141,8 +1141,8 @@ function searchBox(event, [x,y], node) {
                 input.value = last_path + options_element.firstChild.innerText;
                 e.preventDefault();
                 e.stopPropagation();
-            } else if (e.ctrlKey && e.keyCode == 87) {
-                //Ctrl+w
+            } else if (e.ctrlKey && (e.keyCode == 87 || e.keyCode == 66)) {
+                //Ctrl+w or Ctrl+b
                 //most browsers won't support, but it's good QOL for those that do
                 input.value = path_stem(input.value.slice(0,-1))[0]
                 e.preventDefault();
