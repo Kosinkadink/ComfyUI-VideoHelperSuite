@@ -192,7 +192,8 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
     if vae is not None:
         gen = batched_vae_encode(gen, vae, frames_per_batch)
         vw,vh = new_size[0]//downscale_ratio, new_size[1]//downscale_ratio
-        images = torch.from_numpy(np.fromiter(gen, np.dtype((np.float32, (4,vh,vw)))))
+        channels = getattr(vae, 'latent_channels', 4)
+        images = torch.from_numpy(np.fromiter(gen, np.dtype((np.float32, (channels,vh,vw)))))
     else:
         #Some minor wizardry to eliminate a copy and reduce max memory by a factor of ~2
         images = torch.from_numpy(np.fromiter(gen, np.dtype((np.float32, (new_size[1], new_size[0], 3)))))
