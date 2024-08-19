@@ -338,6 +338,7 @@ class VideoCombine:
 
         # save first frame as png to keep metadata
         file = f"{filename}_{counter:05}.png"
+        first_frame_path = file
         file_path = os.path.join(full_output_folder, file)
         Image.fromarray(tensor_to_bytes(first_image)).save(
             file_path,
@@ -560,10 +561,12 @@ class VideoCombine:
                 "frame_rate": frame_rate,
             }
         ]
+        first_frame = [{'filename': first_frame_path, 'subfolder': subfolder,
+                        'type': 'output' if save_output else "temp"}]
         if num_frames == 1 and 'png' in format and '%03d' in file:
             previews[0]['format'] = 'image/png'
             previews[0]['filename'] = file.replace('%03d', '001')
-        return {"ui": {"gifs": previews}, "result": ((save_output, output_files),)}
+        return {"ui": {"gifs": previews, "images": first_frame}, "result": ((save_output, output_files),)}
     @classmethod
     def VALIDATE_INPUTS(self, format, **kwargs):
         return True

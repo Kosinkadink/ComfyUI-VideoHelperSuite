@@ -1408,6 +1408,14 @@ app.registerExtension({
                         return this._outputs;
                     }
                 });
+                //Disable standard image display
+                Object.defineProperty(this, "imgs", {
+                    set : function(value) {},
+                    get : function() {
+                        return undefined
+                    }
+                })
+                this.setSizeForImage = undefined
                 //Display previews after reload/ loading workflow
                 requestAnimationFrame(() => {this.updateParameters({}, true);});
             });
