@@ -1518,6 +1518,11 @@ app.registerExtension({
             }
         }
     },
+    async beforeConfigureGraph(graphData, missingNodeTypes) {
+        if(helpDOM?.node) {
+            helpDOM.node = undefined
+        }
+    },
     async setup() {
         //cg-use-everywhere link workaround
         //particularly invasive, plan to remove

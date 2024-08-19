@@ -5,7 +5,7 @@ def image(src):
 def video(src):
     return f'<video src={src} autoplay muted loop controls controlslist="nodownload noremoteplayback noplaybackrate" style="width: 0px; min-width: 100%" class="VHS_loopedvideo">'
 def short_desc(desc):
-    return f'<div id=VHS_shortdesc style="font-size: .8em">{desc}</div>'
+    return f'<div id=VHS_shortdesc>{desc}</div>'
 
 def format_each(desc, **kwargs):
     if isinstance(desc, dict):
@@ -233,7 +233,7 @@ descriptions = {
          },
         }],
   "VHS_PruneOutputs": ['Prune Outputs 🎥🅥🅗🅢', short_desc('Automates deletion of undesired outputs from a Video Combine node.'),
-    'Video Combine produces a number of file outputs in addition to the final output. Some of these, such as a video file without audio included, are implementation limitations and are not feasible to solve. As an alternative, the Prune Outputs node is added to automate the deletion of these undesired file outputs if they are not desired',
+    'Video Combine produces a number of file outputs in addition to the final output. Some of these, such as a video file without audio included, are implementation limitations and are not feasible to solve. As an alternative, the Prune Outputs node is added to automate the deletion of these file outputs if they are not desired',
     {'Inputs': {
         'filenames': 'A connection from a Video Combine node to indicate which outputs should be pruned',
         },
