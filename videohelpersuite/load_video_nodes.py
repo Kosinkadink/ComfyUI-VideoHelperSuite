@@ -13,7 +13,7 @@ from .utils import BIGMAX, DIMMAX, calculate_file_hash, get_sorted_dir_files_fro
         lazy_get_audio, hash_path, validate_path, strip_path, try_download_video, is_url, imageOrLatent
 
 
-video_extensions = ['webm', 'mp4', 'mkv', 'gif']
+video_extensions = ['webm', 'mp4', 'mkv', 'gif', 'mov']
 
 
 def is_gif(filename) -> bool:
@@ -238,7 +238,7 @@ class LoadVideoUpload:
         for f in os.listdir(input_dir):
             if os.path.isfile(os.path.join(input_dir, f)):
                 file_parts = f.split('.')
-                if len(file_parts) > 1 and (file_parts[-1] in video_extensions):
+                if len(file_parts) > 1 and (file_parts[-1].lower() in video_extensions):
                     files.append(f)
         return {"required": {
                     "video": (sorted(files),),
