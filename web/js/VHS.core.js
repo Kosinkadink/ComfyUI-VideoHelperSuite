@@ -55,7 +55,7 @@ function useKVState(nodeType) {
             if (this.inputs) {
                 for (let i = 0; i < this.inputs.length; i++) {
                     let dt = this?.getInputDataType(i)
-                    if (dt && this.inputs[i]?.type != dt) {
+                    if (dt && this.inputs[i]?.type != dt && !(dt == "IMAGE" && this.inputs[i].type == "LATENT")) {
                         this.inputs[i].type = dt
                         console.warn("input type mismatch for " + this.title + " slot " + i)
 
