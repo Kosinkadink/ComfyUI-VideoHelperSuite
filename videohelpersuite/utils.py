@@ -41,7 +41,7 @@ def ffmpeg_suitability(path):
 
 class ImageOrLatent(str):
     def __ne__(self, other):
-        return not (other == "IMAGE" or other == "LATENT")
+        return not (other == "IMAGE" or other == "LATENT" or other == "*")
 imageOrLatent = ImageOrLatent("IMAGE")
 
 if "VHS_FORCE_FFMPEG_PATH" in os.environ:

@@ -518,6 +518,27 @@ function addVAEInputToggle(nodeType, nodeData) {
         }
     });
 }
+function cloneType(nodeType, nodeData) {
+    nodeData.output[0] = "VHS_DUMMY_NONE"
+    chainCallback(nodeType.prototype, "onConnectionsChange", function(contype, slot, iscon, linf) {
+        if (contype == LiteGraph.INPUT && slot == 0) {
+            if (iscon && linf) {
+                let new_type = app.graph.getNodeById(linf.origin_id).outputs[linf.origin_slot].type
+                if (this.linkTimeout) {
+                    clearTimeout(this.linkTimeout)
+                    this.linkTimeout = false
+                }
+                this.linkTimeout = setTimeout(() => {
+                    if (this.outputs[0].type != new_type) {
+                        this.outputs[0].type = new_type
+                        this.disconnectOutput(0);
+                    }
+                    this.linkTimeout = false
+                }, 50)
+            }
+        }
+    });
+}
 
 function addDateFormatting(nodeType, field, timestamp_widget = false) {
     chainCallback(nodeType.prototype, "onNodeCreated", function() {
@@ -1422,6 +1443,8 @@ app.registerExtension({
                     computeSize: () => {return [0,-4]},
                     afterQueued: function() {this.value++;}});
             });
+        } else if (nodeData?.name == "VHS_UnbatchAny") {
+            cloneType(nodeType, nodeData)
         }
     },
     async getCustomWidgets() {

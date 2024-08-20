@@ -12,6 +12,7 @@ from PIL.PngImagePlugin import PngInfo
 from pathlib import Path
 from string import Template
 import itertools
+import functools
 
 import folder_paths
 from .logger import logger
@@ -916,6 +917,22 @@ class SelectFilename:
 
     def select_filename(self, filenames, index):
         return (filenames[1][index],)
+class UnbatchAny:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"batched": ("*",)}}
+    RETURN_TYPES = ("*",)
+    INPUT_IS_LIST = True
+    RETURN_NAMES =("unbatched",)
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
+    FUNCTION = "unbatch"
+    def unbatch(self, batched):
+        if isinstance(batched[0], torch.Tensor):
+            return (torch.cat(batched),)
+        return (functools.reduce(lambda x,y: x+y, batched),)
+    @classmethod
+    def VALIDATE_INPUTS(cls, input_types):
+        return True
 
 NODE_CLASS_MAPPINGS = {
     "VHS_VideoCombine": VideoCombine,
@@ -955,6 +972,7 @@ NODE_CLASS_MAPPINGS = {
     "VHS_SelectLatents": SelectLatents,
     "VHS_SelectImages": SelectImages,
     "VHS_SelectMasks": SelectMasks,
+    "VHS_UnbatchAny": UnbatchAny,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_VideoCombine": "Video Combine 🎥🅥🅗🅢",
@@ -994,4 +1012,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_SelectLatents": "Select Latents 🎥🅥🅗🅢",
     "VHS_SelectImages": "Select Images 🎥🅥🅗🅢",
     "VHS_SelectMasks": "Select Masks 🎥🅥🅗🅢",
+    "VHS_UnbatchAny":  "Unbatch Any 🎥🅥🅗🅢",
 }
