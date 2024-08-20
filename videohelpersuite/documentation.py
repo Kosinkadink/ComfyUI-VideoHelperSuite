@@ -89,12 +89,13 @@ descriptions = {
                ]
         },
     'Widgets':{
-        'frame_rate': 'The frame rate which will be used for the output video. Consider converting this to an input and connecting this to a load Video with Video Info(Loaded)->fps. When including audio, failure to properly set this will result in audio desync',
-        'loop_count': 'The number of additional times the video should repeat.',
+        'frame_rate': 'The frame rate which will be used for the output video. Consider converting this to an input and connecting this to a Load Video with Video Info(Loaded)->fps. When including audio, failure to properly set this will result in audio desync',
+        'loop_count': 'The number of additional times the video should repeat. Can cause performance issues when used with long (100+ frames) sequences',
         'filename_prefix': 'A prefix to add to the name of the output filename. This can include subfolders or format strings.',
         'format': 'The output format to use. Formats starting with, \'image\' are saved with PIL, but formats starting with \'video\' utilize the video_formats system. \'video\' options require ffmpeg and selecting one frequently adds additional options to the node.',
         'pingpong': 'Play the video normally, then repeat the video in reverse so that it \'pingpongs\' back and forth. This is frequently used to minimize the appearance of skips on very short animations.',
         'save_output': 'Specifies if output files should be saved to the output folder, or the temporary output folder',
+         'videopreview': 'Displays a preview for the processed result. If advanced previews is enabled, the output is always converted to a format viewable from the browser. If the video has audio, it will also be previewed when moused over. Additional preview options can be accessed with right click.',
         },
     'Common Format Widgets': {
         'crf': 'Determines how much to prioritize quality over filesize. Numbers vary between formats, but on each format that includes it, the default value provides visually loss less output',
@@ -119,16 +120,16 @@ descriptions = {
          'frame_count': 'The length of images just returned',
          'audio': 'The audio from the loaded video',
          'video_info': 'Exposes additional info about the video such as the source frame rate, or the total length',
-         'LATENT': 'The loaded images converted pre-converted to latents. Only available when a vae is connected',
+         'LATENT': 'The loaded images pre-converted to latents. Only available when a vae is connected',
          },
      'Widgets': {
          'video': 'The video file to be loaded. Lists all files with a video extension in the ComfyUI/Input folder',
          'force_rate': 'Drops or duplicates frames so that the produced output has the target frame rate. Many motion models are trained on videos of a specific frame rate and will give better results if input matches that frame rate. If set to 0, all frames are returned. May give unusual results with inputs that have a variable frame rate like animated gifs. Reducing this value can also greatly reduce the execution time and memory requirements.',
-         'force_size': ['Allows for conveniently scaling the input without requiring an additional node. Provides options to maintain aspect ratio or conveniently target common training formats for Animate Diff', {'custom_width': 'Allows for an arbitrary width to be entered, cropping to maintain aspect ratio if possible',
-               'custom_height': 'Allows for an arbitrary height to be entered, cropping to maintain aspect ratio if possible'}],
+         'force_size': ['Allows for conveniently scaling the input without requiring an additional node. Provides options to maintain aspect ratio or conveniently target common training formats for Animate Diff', {'custom_width': 'Allows for an arbitrary width to be entered, cropping to maintain aspect ratio if both are set',
+               'custom_height': 'Allows for an arbitrary height to be entered, cropping to maintain aspect ratio if both are set'}],
          'frame_load_cap': 'The maximum number of frames to load. If 0, all frames are loaded.',
          'skip_first_frames': 'A number of frames which are discarded before producing output.',
-         'select_every_nth': 'Similar to frame rate. Keeps only the first of every n frames and discards the rest. Has better compatibility with variable frame rate inputs such as gifs. When combined with force_rate, select_every_nth_applies after force_rate so the resulting output has a frame rate equivalent to force_rate/select_every_nth. select_every_nth does not apply to skip_first_frames',
+         'select_every_nth': 'Similar to frame rate. Keeps only the first of every n frames and discard the rest. Has better compatibility with variable frame rate inputs such as gifs. When combined with force_rate, select_every_nth_applies after force_rate so the resulting output has a frame rate equivalent to force_rate/select_every_nth. select_every_nth does not apply to skip_first_frames',
          'choose video to upload': 'An upload button is provided to upload local files to the input folder',
          'videopreview': 'Displays a preview for the selected video input. If advanced previews is enabled, this preview will reflect the frame_load_cap, force_rate, skip_first_frames, and select_every_nth values chosen. If the video has audio, it will also be previewed when moused over. Additional preview options can be accessed with right click.',
          }
@@ -145,16 +146,16 @@ descriptions = {
          'frame_count': 'The length of images just returned',
          'audio': 'The audio from the loaded video',
          'video_info': 'Exposes additional info about the video such as the source frame rate, or the total length',
-         'LATENT': 'The loaded images converted pre-converted to latents. Only available when a vae is connected',
+         'LATENT': 'The loaded images pre-converted to latents. Only available when a vae is connected',
          },
      'Widgets': {
          'video': ['The video file to be loaded.', 'You can also select an image to load it as a single frame'] + common_descriptions['VHS_PATH'],
          'force_rate': 'Drops or duplicates frames so that the produced output has the target frame rate. Many motion models are trained on videos of a specific frame rate and will give better results if input matches that frame rate. If set to 0, all frames are returned. May give unusual results with inputs that have a variable frame rate like animated gifs. Reducing this value can also greatly reduce the execution time and memory requirements.',
-         'force_size': ['Allows for conveniently scaling the input without requiring an additional node. Provides options to maintain aspect ratio or conveniently target common training formats for Animate Diff', {'custom_width': 'Allows for an arbitrary width to be entered, cropping to maintain aspect ratio if possible',
-               'custom_height': 'Allows for an arbitrary height to be entered, cropping to maintain aspect ratio if possible'}],
+         'force_size': ['Allows for conveniently scaling the input without requiring an additional node. Provides options to maintain aspect ratio or conveniently target common training formats for Animate Diff', {'custom_width': 'Allows for an arbitrary width to be entered, cropping to maintain aspect ratio if both are set',
+               'custom_height': 'Allows for an arbitrary height to be entered, cropping to maintain aspect ratio if both are set'}],
          'frame_load_cap': 'The maximum number of frames to load. If 0, all frames are loaded.',
          'skip_first_frames': 'A number of frames which are discarded before producing output.',
-         'select_every_nth': 'Similar to frame rate. Keeps only the first of every n frames and discards the rest. Has better compatibility with variable frame rate inputs such as gifs. When combined with force_rate, select_every_nth_applies after force_rate so the resulting output has a frame rate equivalent to force_rate/select_every_nth. select_every_nth does not apply to skip_first_frames',
+         'select_every_nth': 'Similar to frame rate. Keeps only the first of every n frames and discard the rest. Has better compatibility with variable frame rate inputs such as gifs. When combined with force_rate, select_every_nth_applies after force_rate so the resulting output has a frame rate equivalent to force_rate/select_every_nth. select_every_nth does not apply to skip_first_frames',
          'videopreview': 'Displays a preview for the selected video input. Will only be shown if Advanced Previews is enabled. This preview will reflect the frame_load_cap, force_rate, skip_first_frames, and select_every_nth values chosen. If the video has audio, it will also be previewed when moused over. Additional preview options can be accessed with right click.',
          }
         }],
@@ -171,7 +172,7 @@ descriptions = {
          'directory': 'The directory images will be loaded from. Filtered to process jpg, png, ppm, bmp, tif, and webp files',
          'image_load_cap': 'The maximum number of images to load. If 0, all images are loaded.',
          'skip_first_images': 'A number of images which are discarded before producing output.',
-         'select_every_nth': 'Keeps only the first of every n frames and discards the rest.',
+         'select_every_nth': 'Keeps only the first of every n frames and discard the rest.',
          'choose folder to upload': 'An upload button is provided to upload a local folder containing images to the input folder',
          'videopreview': 'Displays a preview for the selected video input. Will only be shown if Advanced Previews is enabled. This preview will reflect the image_load_cap, skip_first_images, and select_every_nth values chosen. Additional preview options can be accessed with right click.',
          }
@@ -186,10 +187,10 @@ descriptions = {
          'frame_count': 'The length of images just returned',
          },
      'Widgets': {
-         'directory': 'The directory images will be loaded from. When edited, provides a list of suggested folders for completion. Filtered to process jpg, png, ppm, bmp, tif, and webp files',
+         'directory': ['The directory images will be loaded from. Filtered to process jpg, png, ppm, bmp, tif, and webp files'] + common_descriptions['VHS_PATH'],
          'image_load_cap': 'The maximum number of images to load. If 0, all images are loaded.',
          'skip_first_images': 'A number of images which are discarded before producing output.',
-         'select_every_nth': 'Keeps only the first of every n frames and discards the rest.',
+         'select_every_nth': 'Keeps only the first of every n frames and discard the rest.',
          'videopreview': 'Displays a preview for the selected video input. Will only be shown if Advanced Previews is enabled. This preview will reflect the image_load_cap, skip_first_images, and select_every_nth values chosen. Additional preview options can be accessed with right click.',
          }
         }],
@@ -198,11 +199,11 @@ descriptions = {
          'audio': 'The loaded audio',
          },
      'Widgets': {
-         'audio_file': 'The audio file to be loaded. When edited, provides a list of suggested files for completion',
+         'audio_file': ['The audio file to be loaded.'] + common_descriptions['VHS_PATH'],
          'seek_seconds': 'An offset from the start of the sound file that the audio should start from',
          }
         }],
-  "VHS_LoadAudioUpload": ['Load Audio (Upload) 🎥🅥🅗🅢', short_desc('Loads an audio file from an arbitrary path'),
+  "VHS_LoadAudioUpload": ['Load Audio (Upload) 🎥🅥🅗🅢', short_desc('Loads an audio file from the input directory'),
     "Very similar in functionality to the built-in LoadAudio. It was originally added before VHS swapped to use Comfy's internal AUDIO format, but provides the additional options for start time and duration",
     {'Outputs': {
          'audio': 'The loaded audio',
@@ -240,19 +241,20 @@ descriptions = {
      'Widgets': {
          'options': ['Which files should be deleted',
              {'Intermediate': 'Delete any files that were required for intermediate processing but are not that final output, like the no-audio output file when audio is included',
-              'Intermediate and Utility': 'Delete all produced files that aren\' the final output, including the first frame png',
+              'Intermediate and Utility': 'Delete all produced files that aren\'t the final output, including the first frame png',
          }]}
      }],
   "VHS_BatchManager": ['Meta Batch Manager 🎥🅥🅗🅢', short_desc('Split the processing of a very long video into sets of smaller Meta Batches'),
-    "The Meta Batch Manager allows for extremely long input videos to be processed when all other methods for fitting the content in RAM fail. It makes no difference on VRAM usage.",
+    "The Meta Batch Manager allows for extremely long input videos to be processed when all other methods for fitting the content in RAM fail. It does not effect VRAM usage.",
     "It must be connected to at least one Input (a Load Video or Load Images) AND at least one Video Combine",
+    image("https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite/assets/4284322/7cb3fb7e-59d8-4cb2-a09f-9c6698de8b1f"),
     "It functions by holding both the inputs and ouputs open between executions, and automatically requeue's the workflow until one of the inputs is unable to provide additional images.",
-    "Because each sub execution only contains a subset of the total frames, each sub execution creates a hard window which temporal smoothing can not be applied across, which results in jumps in the output.",
+    "Because each sub execution only contains a subset of the total frames, each sub execution creates a hard window which temporal smoothing can not be applied across. This results in jumps in the output.",
     {'Outputs': {
          'meta_batch': 'Add all connected nodes to this Meta Batch',
          },
      'Widgets': {
-         'frames_per_batch': 'How many frames to process for each sub execution. If loading as image, each frame will use about 50MB of RAM (not VRAM), and this can safely be set in the 100-1000 range, depending on available memory. When loading and combine from latent space (no blue image noodles exist), this value can be much higher, around the 2,000 to 20,000 range',
+         'frames_per_batch': 'How many frames to process for each sub execution. If loading as image, each frame will use about 50MB of RAM (not VRAM), and this can safely be set in the 100-1000 range, depending on available memory. When loading and combining from latent space (no blue image noodles exist), this value can be much higher, around the 2,000 to 20,000 range',
          }
         }],
   "VHS_VideoInfo": ['Video Info 🎥🅥🅗🅢', short_desc('Splits information on a video into a numerous outputs'),
@@ -297,7 +299,7 @@ descriptions = {
          }
      }],
   "VHS_SelectFilename": ['VAE Select Filename 🎥🅥🅗🅢', short_desc('Select a single filename from the VHS_FILENAMES output by a Video Combine and return it as a string'),
-    'Take care when combining this node with Prune Outputs. The VHS_FILENAMES object is immutable and will always contain the full list of output files, but execution order is undefined behavior (currently, Prune Outputs will always execute first) and SelectFilename may return a path to a file that no longer exists.',
+    'Take care when combining this node with Prune Outputs. The VHS_FILENAMES object is immutable and will always contain the full list of output files, but execution order is undefined behavior (currently, Prune Outputs will generally execute first) and SelectFilename may return a path to a file that no longer exists.',
     {'Inputs': {
         'filenames': 'A VHS_FILENAMES from a Video Combine node',
         },
