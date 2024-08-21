@@ -918,10 +918,13 @@ class SelectFilename:
     def select_filename(self, filenames, index):
         return (filenames[1][index],)
 class UnbatchAny:
+    class Any(str):
+        def __ne__(self, other):
+            return False
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"batched": ("*",)}}
-    RETURN_TYPES = ("*",)
+    RETURN_TYPES = (Any('*'),)
     INPUT_IS_LIST = True
     RETURN_NAMES =("unbatched",)
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
@@ -929,6 +932,11 @@ class UnbatchAny:
     def unbatch(self, batched):
         if isinstance(batched[0], torch.Tensor):
             return (torch.cat(batched),)
+        if isinstance(batched[0], dict):
+            out = batched[0].copy()
+            out['samples'] = torch.cat([x['samples'] for x in batched])
+            out.pop('batch_index', None)
+            return (out,)
         return (functools.reduce(lambda x,y: x+y, batched),)
     @classmethod
     def VALIDATE_INPUTS(cls, input_types):
