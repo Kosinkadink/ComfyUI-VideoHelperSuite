@@ -929,6 +929,7 @@ class UnbatchAny:
     RETURN_NAMES =("unbatched",)
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
     FUNCTION = "unbatch"
+    EXPERIMENTAL = True
     def unbatch(self, batched):
         if isinstance(batched[0], torch.Tensor):
             return (torch.cat(batched),)

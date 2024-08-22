@@ -41,10 +41,8 @@ common_descriptions = {
       }],
   'scale_method': [
     'Determines what method to use if scaling is required',
-    {'nearest-exact': 'Each pixel of the ouput is set to the closest matching pixel of the unscaled input. No blending is performed',
-    'bilinear': '',
-      }],
-  'crop_method': '',
+ ],
+  'crop_method': 'When sizes don\'t match, should the resized image have it\'s aspect ratio changed, or be cropped to maintain aspect ratio',
   'VHS_PATH': [
     'This is a VHS_PATH input. When edited, it provides a list of possible valid files or directories',
     video('https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite/assets/4284322/729b7185-1fca-41d8-bc8d-a770bb2a5ce6'),
@@ -240,7 +238,7 @@ descriptions = {
         },
      'Widgets': {
          'options': ['Which files should be deleted',
-             {'Intermediate': 'Delete any files that were required for intermediate processing but are not that final output, like the no-audio output file when audio is included',
+             {'Intermediate': 'Delete any files that were required for intermediate processing but are not the final output, like the no-audio output file when audio is included',
               'Intermediate and Utility': 'Delete all produced files that aren\'t the final output, including the first frame png',
          }]}
      }],
