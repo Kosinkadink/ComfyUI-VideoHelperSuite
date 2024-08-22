@@ -492,7 +492,6 @@ descriptions = {
     }],
 }
 
-sizes = ['1.4','1.2','1']
 def as_html(entry, depth=0):
     if isinstance(entry, dict):
         size = 0.8 if depth < 2 else 1
@@ -509,10 +508,15 @@ def as_html(entry, depth=0):
             html += f'<div vhs_title=\"{name}\" style=\"display: flex; font-size: {size}em\" class=\"VHS_collapse{collapse_flag}\"><div style=\"color: #AAA; height: 1.5em;\">[<span style=\"font-family: monospace\">-</span>]</div><div style=\"width: 100%\">{name}: {as_html(entry[k], depth=depth+1)}</div></div>'
         return html
     if isinstance(entry, list):
+        if depth == 0:
+            depth += 1
+            size = .8
+        else:
+            size = 1
         html = ''
         html += entry[0]
         for i in entry[1:]:
-            html += f'<div>{as_html(i, depth=depth)}</div>'
+            html += f'<div style=\"font-size: {size}em\">{as_html(i, depth=depth)}</div>'
         return html
     return str(entry)
 
