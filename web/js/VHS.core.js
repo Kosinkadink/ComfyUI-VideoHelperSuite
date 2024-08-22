@@ -1144,7 +1144,7 @@ function searchBox(event, [x,y], node) {
 
     var timeout = null;
     let last_path = null;
-    let extensions = pathWidget.options.extensions
+    let extensions = pathWidget.options.vhs_path_extensions
 
     input.addEventListener("keydown", (e) => {
         dialog.is_modified = true;
@@ -1516,10 +1516,6 @@ app.registerExtension({
                 };
                 if (inputData.length > 1) {
                     w.options = inputData[1]
-                    if (w.options.vhs_path_extensions) {
-                        w.options.extensions = w.options.vhs_path_extensions
-                        delete w.options.vhs_path_extensions
-                    }
                     if (inputData[1].default) {
                         w.value = inputData[1].default;
                     }
