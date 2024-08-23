@@ -917,7 +917,7 @@ class SelectFilename:
 
     def select_filename(self, filenames, index):
         return (filenames[1][index],)
-class UnbatchAny:
+class Unbatch:
     class Any(str):
         def __ne__(self, other):
             return False
@@ -981,7 +981,7 @@ NODE_CLASS_MAPPINGS = {
     "VHS_SelectLatents": SelectLatents,
     "VHS_SelectImages": SelectImages,
     "VHS_SelectMasks": SelectMasks,
-    "VHS_UnbatchAny": UnbatchAny,
+    "VHS_Unbatch": Unbatch,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_VideoCombine": "Video Combine 🎥🅥🅗🅢",
@@ -1021,5 +1021,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_SelectLatents": "Select Latents 🎥🅥🅗🅢",
     "VHS_SelectImages": "Select Images 🎥🅥🅗🅢",
     "VHS_SelectMasks": "Select Masks 🎥🅥🅗🅢",
-    "VHS_UnbatchAny":  "Unbatch Any 🎥🅥🅗🅢",
+    "VHS_Unbatch":  "Unbatch 🎥🅥🅗🅢",
 }

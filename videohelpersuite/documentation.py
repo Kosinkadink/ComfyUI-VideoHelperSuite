@@ -478,7 +478,7 @@ descriptions = {
     #"VHS_SelectLatents": None,
     #"VHS_SelectImages": None,
     #"VHS_SelectMasks": None,
-  "VHS_UnbatchAny": ['Unbatch Any 🎥🅥🅗🅢', short_desc('Experimental node to unbatch a list of items into a single concatenated item'),
+  "VHS_Unbatch": ['Unbatch 🎥🅥🅗🅢', short_desc('Experimental node to unbatch a list of items into a single concatenated item'),
     "Useful for when you want a single video output from a complex workflow",
     "Has no relation to the Meta Batch system of VHS",
     {'Inputs': {
