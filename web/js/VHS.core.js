@@ -293,7 +293,11 @@ function initHelpDOM() {
             collapseUnlessMatch(target, value)
         }
     }
-
+    let titleContext = document.createElement("canvas").getContext("2d")
+    titleContext.font = app.canvas.title_text_font;
+    helpDOM.calculateTitleLength = function(text) {
+        return titleContext.measureText(text).width
+    }
     helpDOM.addHelp = function(node, nodeType, description) {
         if (!description) {
             return
@@ -305,13 +309,16 @@ function initHelpDOM() {
             if (!this.title) {
                 return size
             }
-            let title_width = this.title.length * 0.6 * LiteGraph.NODE_TEXT_SIZE
-            size[0] = Math.max(size[0], title_width + LiteGraph.NODE_TITLE_HEIGHT)
+            let title_width = helpDOM.calculateTitleLength(this.title)
+            size[0] = Math.max(size[0], title_width + LiteGraph.NODE_TITLE_HEIGHT*2)
             return size
         }
 
         node.description = description
         chainCallback(node, "onDrawForeground", function (ctx) {
+            if (this?.flags?.collapsed) {
+                return
+            }
             //draw question mark
             ctx.save()
             ctx.font = 'bold 20px Arial'
@@ -319,6 +326,9 @@ function initHelpDOM() {
             ctx.restore()
         })
         chainCallback(node, "onMouseDown", function (e, pos, canvas) {
+            if (this?.flags?.collapsed) {
+                return
+            }
             //On click would be preferred, but this'll be good enough
             if (pos[1] < 0 && pos[0] + LiteGraph.NODE_TITLE_HEIGHT > this.size[0]) {
                 //corner question mark clicked
