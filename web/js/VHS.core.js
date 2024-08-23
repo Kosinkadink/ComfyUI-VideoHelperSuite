@@ -55,7 +55,7 @@ function useKVState(nodeType) {
             if (this.inputs) {
                 for (let i = 0; i < this.inputs.length; i++) {
                     let dt = this?.getInputDataType(i)
-                    if (dt && this.inputs[i]?.type != dt) {
+                    if (dt && this.inputs[i]?.type != dt && !(dt == "IMAGE" && this.inputs[i].type == "LATENT")) {
                         this.inputs[i].type = dt
                         console.warn("input type mismatch for " + this.title + " slot " + i)
 
@@ -177,6 +177,12 @@ function initHelpDOM() {
             ::-webkit-scrollbar-button {
                 display: none;
             }
+            .VHS_loopedvideo::-webkit-media-controls-mute-button {
+                display:none;
+            }
+            .VHS_loopedvideo::-webkit-media-controls-fullscreen-button {
+                display:none;
+            }
         </style>
     `
     parentDOM.appendChild(scrollbarStyle)
@@ -216,7 +222,7 @@ function initHelpDOM() {
     });
     function setCollapse(el, doCollapse) {
         if (doCollapse) {
-            el.children[0].innerHTML = '[+]'
+            el.children[0].children[0].innerHTML = '+'
             Object.assign(el.children[1].style, {
                 color: '#CCC',
                 overflowX: 'hidden',
@@ -232,7 +238,7 @@ function initHelpDOM() {
                 child.style.display = 'none'
             }
         } else {
-            el.children[0].innerHTML = '[-]'
+            el.children[0].children[0].innerHTML = '-'
             Object.assign(el.children[1].style, {
                 color: '',
                 overflowX: '',
@@ -247,7 +253,7 @@ function initHelpDOM() {
         }
     }
     helpDOM.collapseOnClick = function() {
-        let doCollapse = this.innerHTML[1] == '-'
+        let doCollapse = this.children[0].innerHTML == '-'
         setCollapse(this.parentElement, doCollapse)
     }
     helpDOM.selectHelp = function(name, value) {
@@ -265,7 +271,14 @@ function initHelpDOM() {
             if (!match) {
                 return null
             }
+            //For longer documentation items with fewer collapsable elements,
+            //scroll to make sure the entirety of the selected item is visible
+            //This has the unfortunate side effect of trying to scroll the main
+            //window if the documentation windows is forcibly offscreen,
+            //but it's easy to simply scroll the main window back and seems to
+            //have no visual side effects
             match.scrollIntoView(false)
+            window.scrollTo(0,0)
             for (let i of items.querySelectorAll('.VHS_collapse')) {
                 if (i.contains(match)) {
                     setCollapse(i, false)
@@ -321,6 +334,7 @@ function initHelpDOM() {
                     for (let e of helpDOM.querySelectorAll('.VHS_precollapse')) {
                         setCollapse(e, true)
                     }
+                    helpDOM.parentElement.scrollTo(0,0)
                 }
                 return true
             }
@@ -339,7 +353,7 @@ function initHelpDOM() {
                 if (pos[0] > 0 && pos[0] < n.size[0]
                     && pos[1] > 0 && pos[1] < n.size[1]) {
                     //TODO: provide help specific to element clicked
-                    let inputRows = Math.max(n.inputs.length, n.outputs.length)
+                    let inputRows = Math.max(n.inputs?.length || 0, n.outputs?.length || 0)
                     if (pos[1] < LiteGraph.NODE_SLOT_HEIGHT * inputRows) {
                         let row = Math.floor((pos[1] - 7) / LiteGraph.NODE_SLOT_HEIGHT)
                         if (pos[0] < n.size[0]/2) {
@@ -353,15 +367,20 @@ function initHelpDOM() {
                         }
                     } else {
                         //probably widget, but widgets have variable height.
+                        let basey = LiteGraph.NODE_SLOT_HEIGHT * inputRows + 6
                         for (let w of n.widgets) {
-                            let wheight = LiteGraph.NODE_WIDGET_HEIGHT
-                            if (w.computeSize) {
-                                wheight = w.computeSize(n.size[0])
+                            if (w.y) {
+                                basey = w.y
                             }
-                            if (pos[1] < w.y + wheight) {
+                            let wheight = LiteGraph.NODE_WIDGET_HEIGHT+4
+                            if (w.computeSize) {
+                                wheight = w.computeSize(n.size[0])[1]
+                            }
+                            if (pos[1] < basey + wheight) {
                                 helpDOM.selectHelp(w.name, w.value)
                                 break
                             }
+                            basey += wheight
                         }
                     }
                 }
@@ -471,16 +490,6 @@ function addVAEOutputToggle(nodeType, nodeData) {
             }
         }
     });
-    chainCallback(nodeType.prototype, "onNodeCreated", function(contype, slot, iscon, linf) {
-        this.updateLink = function(link) {
-            if (link.origin_slot == 0 && this.outputs[0].type=="LATENT") {
-                return {'origin_id': link.origin_id,
-                        'origin_slot': 4}
-            }
-            return link
-        }
-    });
-
 }
 function addVAEInputToggle(nodeType, nodeData) {
     delete nodeData.input.optional["latents"]
@@ -508,16 +517,26 @@ function addVAEInputToggle(nodeType, nodeData) {
             }
         }
     });
-    chainCallback(nodeType.prototype, "onNodeCreated", function(contype, slot, iscon, linf) {
-        this.original_getInputLink = this.getInputLink
-        this.getInputLink = function(slot) {
-            let link = this.original_getInputLink(slot)
-            if (slot == 0 && this.inputs[0].type=="LATENT") {
-                return {'origin_id': link.origin_id,
-                        'origin_slot': link.origin_slot,
-                        'target_slot': 4}
+}
+function cloneType(nodeType, nodeData) {
+    nodeData.output[0] = "VHS_DUMMY_NONE"
+    chainCallback(nodeType.prototype, "onConnectionsChange", function(contype, slot, iscon, linf) {
+        if (contype == LiteGraph.INPUT && slot == 0) {
+            let new_type = "VHS_DUMMY_NONE"
+            if (iscon && linf) {
+                new_type = app.graph.getNodeById(linf.origin_id).outputs[linf.origin_slot].type
             }
-            return link
+            if (this.linkTimeout) {
+                clearTimeout(this.linkTimeout)
+                this.linkTimeout = false
+            }
+            this.linkTimeout = setTimeout(() => {
+                if (this.outputs[0].type != new_type) {
+                    this.outputs[0].type = new_type
+                    this.disconnectOutput(0);
+                }
+                this.linkTimeout = false
+            }, 50)
         }
     });
 }
@@ -1126,7 +1145,7 @@ function searchBox(event, [x,y], node) {
 
     var timeout = null;
     let last_path = null;
-    let extensions = pathWidget.options.extensions
+    let extensions = pathWidget.options.vhs_path_extensions
 
     input.addEventListener("keydown", (e) => {
         dialog.is_modified = true;
@@ -1145,8 +1164,8 @@ function searchBox(event, [x,y], node) {
                 input.value = last_path + options_element.firstChild.innerText;
                 e.preventDefault();
                 e.stopPropagation();
-            } else if (e.ctrlKey && e.keyCode == 87) {
-                //Ctrl+w
+            } else if (e.ctrlKey && (e.keyCode == 87 || e.keyCode == 66)) {
+                //Ctrl+w or Ctrl+b
                 //most browsers won't support, but it's good QOL for those that do
                 input.value = path_stem(input.value.slice(0,-1))[0]
                 e.preventDefault();
@@ -1291,6 +1310,7 @@ app.registerExtension({
                 }
                 chainCallback(nodeType.prototype, "onNodeCreated", function () {
                     helpDOM.addHelp(this, nodeType, description)
+                    this.setSize(this.computeSize())
                 })
             }
             chainCallback(nodeType.prototype, "onNodeCreated", function () {
@@ -1424,6 +1444,8 @@ app.registerExtension({
                     computeSize: () => {return [0,-4]},
                     afterQueued: function() {this.value++;}});
             });
+        } else if (nodeData?.name == "VHS_Unbatch") {
+            cloneType(nodeType, nodeData)
         }
     },
     async getCustomWidgets() {
@@ -1462,9 +1484,9 @@ app.registerExtension({
                             if (label != null) {
                                 ctx.fillText(label, margin * 2, y + H * 0.7);
                             }
-                            ctx.fillStyle = text_color;
+                            ctx.fillStyle = this.value ? text_color : '#777';
                             ctx.textAlign = "right";
-                            let disp_text = this.format_path(String(this.value))
+                            let disp_text = this.format_path(String(this.value || this.options.placeholder))
                             ctx.fillText(disp_text, widget_width - margin * 2, y + H * 0.7); //30 chars max
                             ctx.restore();
                         }
@@ -1494,9 +1516,7 @@ app.registerExtension({
                     }
                 };
                 if (inputData.length > 1) {
-                    if (inputData[1].vhs_path_extensions) {
-                        w.options.extensions = inputData[1].vhs_path_extensions;
-                    }
+                    w.options = inputData[1]
                     if (inputData[1].default) {
                         w.value = inputData[1].default;
                     }
@@ -1517,6 +1537,11 @@ app.registerExtension({
             if (batchInput) {
                 batchInput.name = "meta_batch"
             }
+        }
+    },
+    async beforeConfigureGraph(graphData, missingNodeTypes) {
+        if(helpDOM?.node) {
+            helpDOM.node = undefined
         }
     },
     async setup() {

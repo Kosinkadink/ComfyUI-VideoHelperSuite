@@ -164,7 +164,7 @@ async def get_path(request):
             if item.is_dir():
                 valid_items.append(item.name + "/")
                 continue
-            if valid_extensions is None or item.name.split(".")[-1] in valid_extensions:
+            if valid_extensions is None or item.name.split(".")[-1].lower() in valid_extensions:
                 valid_items.append(item.name)
         except OSError:
             #Broken symlinks can throw a very unhelpful "Invalid argument"

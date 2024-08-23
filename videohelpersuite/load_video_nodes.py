@@ -9,10 +9,11 @@ import psutil
 import folder_paths
 from comfy.utils import common_upscale, ProgressBar
 from .logger import logger
-from .utils import BIGMAX, DIMMAX, calculate_file_hash, get_sorted_dir_files_from_directory, lazy_get_audio, hash_path, validate_path, strip_path, try_download_video, is_url
+from .utils import BIGMAX, DIMMAX, calculate_file_hash, get_sorted_dir_files_from_directory,\
+        lazy_get_audio, hash_path, validate_path, strip_path, try_download_video, is_url, imageOrLatent
 
 
-video_extensions = ['webm', 'mp4', 'mkv', 'gif']
+video_extensions = ['webm', 'mp4', 'mkv', 'gif', 'mov']
 
 
 def is_gif(filename) -> bool:
@@ -191,7 +192,8 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
     if vae is not None:
         gen = batched_vae_encode(gen, vae, frames_per_batch)
         vw,vh = new_size[0]//downscale_ratio, new_size[1]//downscale_ratio
-        images = torch.from_numpy(np.fromiter(gen, np.dtype((np.float32, (4,vh,vw)))))
+        channels = getattr(vae, 'latent_channels', 4)
+        images = torch.from_numpy(np.fromiter(gen, np.dtype((np.float32, (channels,vh,vw)))))
     else:
         #Some minor wizardry to eliminate a copy and reduce max memory by a factor of ~2
         images = torch.from_numpy(np.fromiter(gen, np.dtype((np.float32, (new_size[1], new_size[0], 3)))))
@@ -222,9 +224,9 @@ def load_video_cv(video: str, force_rate: int, force_size: str,
         "loaded_height": new_size[1],
     }
     if vae is None:
-        return (images, len(images), audio, video_info, None)
+        return (images, len(images), audio, video_info)
     else:
-        return (None, len(images), audio, video_info, {"samples": images})
+        return ({"samples": images}, len(images), audio, video_info)
 
 
 
@@ -236,7 +238,7 @@ class LoadVideoUpload:
         for f in os.listdir(input_dir):
             if os.path.isfile(os.path.join(input_dir, f)):
                 file_parts = f.split('.')
-                if len(file_parts) > 1 and (file_parts[-1] in video_extensions):
+                if len(file_parts) > 1 and (file_parts[-1].lower() in video_extensions):
                     files.append(f)
         return {"required": {
                     "video": (sorted(files),),
@@ -259,8 +261,8 @@ class LoadVideoUpload:
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
 
-    RETURN_TYPES = ("IMAGE", "INT", "AUDIO", "VHS_VIDEOINFO", "LATENT")
-    RETURN_NAMES = ("IMAGE", "frame_count", "audio", "video_info", "LATENT")
+    RETURN_TYPES = (imageOrLatent, "INT", "AUDIO", "VHS_VIDEOINFO")
+    RETURN_NAMES = ("IMAGE", "frame_count", "audio", "video_info")
 
     FUNCTION = "load_video"
 
@@ -285,7 +287,7 @@ class LoadVideoPath:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "video": ("STRING", {"default": "X://insert/path/here.mp4", "vhs_path_extensions": video_extensions}),
+                "video": ("STRING", {"placeholder": "X://insert/path/here.mp4", "vhs_path_extensions": video_extensions}),
                 "force_rate": ("INT", {"default": 0, "min": 0, "max": 60, "step": 1}),
                  "force_size": (["Disabled", "Custom Height", "Custom Width", "Custom", "256x?", "?x256", "256x256", "512x?", "?x512", "512x512"],),
                  "custom_width": ("INT", {"default": 512, "min": 0, "max": DIMMAX, "step": 8}),
@@ -305,8 +307,8 @@ class LoadVideoPath:
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
 
-    RETURN_TYPES = ("IMAGE", "INT", "AUDIO", "VHS_VIDEOINFO", "LATENT")
-    RETURN_NAMES = ("IMAGE", "frame_count", "audio", "video_info", "LATENT")
+    RETURN_TYPES = (imageOrLatent, "INT", "AUDIO", "VHS_VIDEOINFO")
+    RETURN_NAMES = ("IMAGE", "frame_count", "audio", "video_info")
 
     FUNCTION = "load_video"
 

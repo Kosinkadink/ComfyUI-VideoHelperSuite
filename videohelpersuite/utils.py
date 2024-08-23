@@ -39,6 +39,10 @@ def ffmpeg_suitability(path):
             score += int(copyright_year)
     return score
 
+class ImageOrLatent(str):
+    def __ne__(self, other):
+        return not (other == "IMAGE" or other == "LATENT" or other == "*")
+imageOrLatent = ImageOrLatent("IMAGE")
 
 if "VHS_FORCE_FFMPEG_PATH" in os.environ:
     ffmpeg_path = os.environ.get("VHS_FORCE_FFMPEG_PATH")

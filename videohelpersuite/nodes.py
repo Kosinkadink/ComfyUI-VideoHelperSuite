@@ -12,6 +12,7 @@ from PIL.PngImagePlugin import PngInfo
 from pathlib import Path
 from string import Template
 import itertools
+import functools
 
 import folder_paths
 from .logger import logger
@@ -19,7 +20,7 @@ from .image_latent_nodes import *
 from .load_video_nodes import LoadVideoUpload, LoadVideoPath
 from .load_images_nodes import LoadImagesFromDirectoryUpload, LoadImagesFromDirectoryPath
 from .batched_nodes import VAEEncodeBatched, VAEDecodeBatched
-from .utils import ffmpeg_path, get_audio, hash_path, validate_path, requeue_workflow, gifski_path, calculate_file_hash, strip_path, try_download_video, is_url
+from .utils import ffmpeg_path, get_audio, hash_path, validate_path, requeue_workflow, gifski_path, calculate_file_hash, strip_path, try_download_video, is_url, imageOrLatent
 from comfy.utils import ProgressBar
 
 folder_paths.folder_names_and_paths["VHS_video_formats"] = (
@@ -207,6 +208,7 @@ class VideoCombine:
         ffmpeg_formats = get_video_formats()
         return {
             "required": {
+                "images": (imageOrLatent,),
                 "frame_rate": (
                     "FLOAT",
                     {"default": 8, "min": 1, "step": 1},
@@ -218,11 +220,9 @@ class VideoCombine:
                 "save_output": ("BOOLEAN", {"default": True}),
             },
             "optional": {
-                "images": ("IMAGE",),
                 "audio": ("AUDIO",),
                 "meta_batch": ("VHS_BatchManager",),
                 "vae": ("VAE",),
-                "latents": ("LATENT",),
             },
             "hidden": {
                 "prompt": "PROMPT",
@@ -906,7 +906,42 @@ class VideoInfoLoaded:
 
         return (*loaded_info,)
 
+class SelectFilename:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"filenames": ("VHS_FILENAMES",), "index": ("INT", {"default": -1, "step": 1, "min": -1})}}
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES =("Filename",)
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
+    FUNCTION = "select_filename"
 
+    def select_filename(self, filenames, index):
+        return (filenames[1][index],)
+class Unbatch:
+    class Any(str):
+        def __ne__(self, other):
+            return False
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"batched": ("*",)}}
+    RETURN_TYPES = (Any('*'),)
+    INPUT_IS_LIST = True
+    RETURN_NAMES =("unbatched",)
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
+    FUNCTION = "unbatch"
+    EXPERIMENTAL = True
+    def unbatch(self, batched):
+        if isinstance(batched[0], torch.Tensor):
+            return (torch.cat(batched),)
+        if isinstance(batched[0], dict):
+            out = batched[0].copy()
+            out['samples'] = torch.cat([x['samples'] for x in batched])
+            out.pop('batch_index', None)
+            return (out,)
+        return (functools.reduce(lambda x,y: x+y, batched),)
+    @classmethod
+    def VALIDATE_INPUTS(cls, input_types):
+        return True
 
 NODE_CLASS_MAPPINGS = {
     "VHS_VideoCombine": VideoCombine,
@@ -923,6 +958,7 @@ NODE_CLASS_MAPPINGS = {
     "VHS_VideoInfo": VideoInfo,
     "VHS_VideoInfoSource": VideoInfoSource,
     "VHS_VideoInfoLoaded": VideoInfoLoaded,
+    "VHS_SelectFilename": SelectFilename,
     # Batched Nodes
     "VHS_VAEEncodeBatched": VAEEncodeBatched,
     "VHS_VAEDecodeBatched": VAEDecodeBatched,
@@ -945,6 +981,7 @@ NODE_CLASS_MAPPINGS = {
     "VHS_SelectLatents": SelectLatents,
     "VHS_SelectImages": SelectImages,
     "VHS_SelectMasks": SelectMasks,
+    "VHS_Unbatch": Unbatch,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_VideoCombine": "Video Combine 🎥🅥🅗🅢",
@@ -961,6 +998,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_VideoInfo": "Video Info 🎥🅥🅗🅢",
     "VHS_VideoInfoSource": "Video Info (Source) 🎥🅥🅗🅢",
     "VHS_VideoInfoLoaded": "Video Info (Loaded) 🎥🅥🅗🅢",
+    "VHS_SelectFilename": "Select Filename 🎥🅥🅗🅢",
     # Batched Nodes
     "VHS_VAEEncodeBatched": "VAE Encode Batched 🎥🅥🅗🅢",
     "VHS_VAEDecodeBatched": "VAE Decode Batched 🎥🅥🅗🅢",
@@ -983,4 +1021,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_SelectLatents": "Select Latents 🎥🅥🅗🅢",
     "VHS_SelectImages": "Select Images 🎥🅥🅗🅢",
     "VHS_SelectMasks": "Select Masks 🎥🅥🅗🅢",
+    "VHS_Unbatch":  "Unbatch 🎥🅥🅗🅢",
 }
