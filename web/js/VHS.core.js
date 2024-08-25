@@ -473,7 +473,6 @@ function applyVHSAudioLinksFix(nodeType, nodeData, audio_slot) {
     })
 }
 function addVAEOutputToggle(nodeType, nodeData) {
-    nodeData.output.pop()
     chainCallback(nodeType.prototype, "onConnectionsChange", function(contype, slot, iscon, linfo) {
         if (contype == LiteGraph.INPUT && slot == 1 && this.inputs[1].type == "VAE") {
             if (iscon && linfo) {
@@ -502,7 +501,6 @@ function addVAEOutputToggle(nodeType, nodeData) {
     });
 }
 function addVAEInputToggle(nodeType, nodeData) {
-    delete nodeData.input.optional["latents"]
     chainCallback(nodeType.prototype, "onConnectionsChange", function(contype, slot, iscon, linf) {
         if (contype == LiteGraph.INPUT && slot == 3 && this.inputs[3].type == "VAE") {
             if (iscon && linf) {
