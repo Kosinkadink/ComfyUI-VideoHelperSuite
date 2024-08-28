@@ -841,6 +841,7 @@ function addVideoPreview(nodeType) {
             }
             let params =  {}
             Object.assign(params, this.value.params);//shallow copy
+            params.timestamp = Date.now()
             this.parentEl.hidden = this.value.hidden;
             if (params.format?.split('/')[0] == 'video' ||
                 app.ui.settings.getSettingValue("VHS.AdvancedPreviews", false) &&
