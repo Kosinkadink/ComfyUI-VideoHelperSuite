@@ -1264,6 +1264,9 @@ function searchBox(event, [x,y], node) {
             try {
                 let resp = await fetch(optionsURL);
                 options = await resp.json();
+                options = options.map((o) => o.replace('.','\0'))
+                options = options.sort()
+                options = options.map((o) => o.replace('\0','.'))
             } catch(e) {
                 options = []
             }

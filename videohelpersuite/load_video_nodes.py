@@ -40,7 +40,7 @@ def target_size(width, height, force_size, custom_width, custom_height, downscal
 def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
                        select_every_nth, meta_batch=None, unique_id=None):
     video_cap = cv2.VideoCapture(strip_path(video))
-    if not video_cap.isOpened():
+    if not video_cap.isOpened() or not video_cap.grab():
         raise ValueError(f"{video} could not be loaded with cv.")
 
     # extract video metadata
@@ -49,6 +49,12 @@ def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
     height = int(video_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     total_frames = int(video_cap.get(cv2.CAP_PROP_FRAME_COUNT))
     duration = total_frames / fps
+
+    width = 0
+
+    if width <=0 or height <=0:
+        _, frame = video_cap.retrieve()
+        height, width, _ = frame.shape
 
     # set video_cap to look at start_index frame
     total_frame_count = 0
@@ -75,7 +81,7 @@ def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
     pbar = ProgressBar(yieldable_frames)
     if meta_batch is not None:
         yield yieldable_frames
-    time_offset=target_frame_time - base_frame_time
+    time_offset=target_frame_time
     while video_cap.isOpened():
         if time_offset < target_frame_time:
             is_returned = video_cap.grab()
