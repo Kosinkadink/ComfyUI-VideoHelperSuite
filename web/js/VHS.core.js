@@ -1065,6 +1065,7 @@ function addLoadVideoCommon(nodeType, nodeData) {
         const frameSkipWidget = this.widgets.find((w) => w.name === 'skip_first_frames');
         const rateWidget = this.widgets.find((w) => w.name === 'force_rate');
         const skipWidget = this.widgets.find((w) => w.name === 'select_every_nth');
+        const seekWidget = this.widgets.find((w) => w.name === 'start_time');
         const sizeWidget = this.widgets.find((w) => w.name === 'force_size');
         //widget.callback adds unused arguements which need culling
         let update = function (value, _, node) {
@@ -1072,10 +1073,17 @@ function addLoadVideoCommon(nodeType, nodeData) {
             param[this.name] = value
             node?.updateParameters(param);
         }
+        let widgets = [frameCapWidget, rateWidget, pathWidget]
         chainCallback(frameCapWidget, "callback", update);
-        chainCallback(frameSkipWidget, "callback", update);
+        if (frameSkipWidget) {
+            widgets.push(frameSkipWidget, skipWidget)
+            chainCallback(frameSkipWidget, "callback", update);
+            chainCallback(skipWidget, "callback", update);
+        } else {
+            widgets.push(seekWidget)
+            chainCallback(seekWidget, "callback", update);
+        }
         chainCallback(rateWidget, "callback", update);
-        chainCallback(skipWidget, "callback", update);
         let priorSize = sizeWidget.value;
         let updateSize = function(value, _, node) {
             if (sizeWidget.value == 'Custom' || priorSize != sizeWidget.value) {
@@ -1089,7 +1097,7 @@ function addLoadVideoCommon(nodeType, nodeData) {
 
         //do first load
         requestAnimationFrame(() => {
-            for (let w of [frameCapWidget, frameSkipWidget, rateWidget, pathWidget, skipWidget]) {
+            for (let w of widgets) {
                 w.callback(w.value, null, this);
             }
         });
@@ -1370,7 +1378,7 @@ app.registerExtension({
                 });
             });
             addLoadImagesCommon(nodeType, nodeData);
-        } else if (nodeData?.name == "VHS_LoadVideo") {
+        } else if (nodeData?.name == "VHS_LoadVideo" || nodeData?.name == "VHS_LoadVideoFFmpeg") {
             addUploadWidget(nodeType, nodeData, "video");
             chainCallback(nodeType.prototype, "onNodeCreated", function() {
                 const pathWidget = this.widgets.find((w) => w.name === "video");
@@ -1398,7 +1406,7 @@ app.registerExtension({
             applyVHSAudioLinksFix(nodeType, nodeData, 0)
         } else if (nodeData?.name == "VHS_LoadAudio"){
             applyVHSAudioLinksFix(nodeType, nodeData, 0)
-        } else if (nodeData?.name =="VHS_LoadVideoPath") {
+        } else if (nodeData?.name =="VHS_LoadVideoPath" || nodeData?.name == "VHS_LoadVideoFFmpegPath") {
             chainCallback(nodeType.prototype, "onNodeCreated", function() {
                 const pathWidget = this.widgets.find((w) => w.name === "video");
                 chainCallback(pathWidget, "callback", (value) => {
