@@ -10,6 +10,7 @@ import re
 
 import folder_paths
 from comfy.utils import common_upscale, ProgressBar
+from comfy.k_diffusion.utils import FolderOfImages
 from .logger import logger
 from .utils import BIGMAX, DIMMAX, calculate_file_hash, get_sorted_dir_files_from_directory,\
         lazy_get_audio, hash_path, validate_path, strip_path, try_download_video, is_url, imageOrLatent, ffmpeg_path
@@ -24,6 +25,8 @@ def is_gif(filename) -> bool:
 
 
 def target_size(width, height, force_size, custom_width, custom_height, downscale_ratio=8) -> tuple[int, int]:
+    if downscale_ratio is None:
+        downscale_ratio = 8
     if force_size == "Disabled":
         pass
     elif force_size == "Custom Width" or force_size.endswith('x?'):
@@ -181,10 +184,10 @@ def ffmpeg_frame_generator(video, force_rate, frame_load_cap, start_time,
         size = target_size(size_base[0], size_base[1], force_size, custom_width,
                            custom_height, downscale_ratio=downscale_ratio)
         ar = float(size[0])/float(size[1])
-        if abs(base_size[0]*ar-base_size[1]) >= 1:
+        if abs(size_base[0]*ar-size_base[1]) >= 1:
             #Aspect ratio is changed. Crop to new aspect ratio before scale
             vfilters.append(f"crop=if(gt({ar}\\,a)\\,iw\\,ih*{ar}):if(gt({ar}\\,a)\\,iw/{ar}\\,ih)")
-        size_arg = ':'.join(size)
+        size_arg = ':'.join(map(str,size))
         vfilters.append(f"scale={size_arg}")
     else:
         size = size_base
@@ -244,8 +247,6 @@ def resized_cv_frame_gen(custom_width, custom_height, force_size, downscale_rati
     width, height = info[0], info[1]
     frames_per_batch = (1920 * 1080 * 16) // (width * height) or 1
     if force_size != "Disabled" or downscale_ratio is not None:
-        if downscale_ratio is None:
-            downscale_ratio = 8
         new_size = target_size(width, height, force_size, custom_width, custom_height, downscale_ratio)
         yield (*info, new_size[0], new_size[1], False)
         if new_size[0] != width or new_size[1] != height:
@@ -304,7 +305,7 @@ def load_video(meta_batch=None, unique_id=None, memory_limit_mb=None, vae=None,
     frames_per_batch = (1920 * 1080 * 16) // (width * height) or 1
     if vae is not None:
         gen = batched_vae_encode(gen, vae, frames_per_batch)
-        vw,vh = new_size[0]//downscale_ratio, new_size[1]//downscale_ratio
+        vw,vh = new_width//downscale_ratio, new_height//downscale_ratio
         channels = getattr(vae, 'latent_channels', 4)
         images = torch.from_numpy(np.fromiter(gen, np.dtype((np.float32, (channels,vh,vw)))))
     else:
@@ -545,3 +546,45 @@ class LoadVideoFFmpegPath:
     @classmethod
     def VALIDATE_INPUTS(s, video, **kwargs):
         return validate_path(video, allow_none=True)
+
+class LoadImagePath:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "image": ("STRING", {"placeholder": "X://insert/path/here.png", "vhs_path_extensions": list(FolderOfImages.IMG_EXTENSIONS)}),
+                 "force_size": (["Disabled", "Custom Height", "Custom Width", "Custom", "256x?", "?x256", "256x256", "512x?", "?x512", "512x512"],),
+                 "custom_width": ("INT", {"default": 512, "min": 0, "max": DIMMAX, "step": 8}),
+                 "custom_height": ("INT", {"default": 512, "min": 0, "max": DIMMAX, "step": 8}),
+            },
+            "optional": {
+                "vae": ("VAE",),
+            },
+        }
+
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
+    EXPERIMENTAL=True
+
+    RETURN_TYPES = (imageOrLatent, "MASK")
+    RETURN_NAMES = ("IMAGE", "mask")
+
+    FUNCTION = "load_image"
+
+    def load_image(self, **kwargs):
+        if kwargs['image'] is None or validate_path(kwargs['image']) != True:
+            raise Exception("image is not a valid path: " + kwargs['image'])
+        kwargs.update({'video':  kwargs['image'], 'force_rate': 0, 'frame_load_cap': 0,
+                      'start_time': 0})
+        kwargs.pop('image')
+        image, _, _, _ =  load_video(**kwargs, generator=ffmpeg_frame_generator)
+        if image.size(3) == 4:
+            return (image[:,:,:,:3], 1-image[:,:,:,3])
+        return (image, torch.zeros(image.size(0), 64, 64, device="cpu"))
+
+    @classmethod
+    def IS_CHANGED(s, image, **kwargs):
+        return hash_path(image)
+
+    @classmethod
+    def VALIDATE_INPUTS(s, image, **kwargs):
+        return validate_path(image, allow_none=True)

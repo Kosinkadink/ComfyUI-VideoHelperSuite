@@ -1055,76 +1055,53 @@ function addFormatWidgets(nodeType) {
         });
     });
 }
-function addLoadVideoCommon(nodeType, nodeData) {
-    addCustomSize(nodeType, nodeData, "force_size")
+function sizeModifiesAspect(value) {
+    return ['Custom', '256x256', '512x512'].includes(value)
+}
+function addLoadCommon(nodeType, nodeData) {
+    if (nodeData?.input?.required?.force_size) {
+        addCustomSize(nodeType, nodeData, "force_size")
+    }
     addVideoPreview(nodeType);
     addPreviewOptions(nodeType);
     chainCallback(nodeType.prototype, "onNodeCreated", function() {
-        const pathWidget = this.widgets.find((w) => w.name === "video");
-        const frameCapWidget = this.widgets.find((w) => w.name === 'frame_load_cap');
-        const frameSkipWidget = this.widgets.find((w) => w.name === 'skip_first_frames');
-        const rateWidget = this.widgets.find((w) => w.name === 'force_rate');
-        const skipWidget = this.widgets.find((w) => w.name === 'select_every_nth');
-        const seekWidget = this.widgets.find((w) => w.name === 'start_time');
-        const sizeWidget = this.widgets.find((w) => w.name === 'force_size');
         //widget.callback adds unused arguements which need culling
-        let update = function (value, _, node) {
-            let param = {}
-            param[this.name] = value
-            node?.updateParameters(param);
+        function update(key) {
+            return (value, _, node) => {
+                let params = {}
+                params[key] = value
+                node?.updateParameters(params)
+            }
         }
-        let widgets = [frameCapWidget, rateWidget, pathWidget]
-        chainCallback(frameCapWidget, "callback", update);
-        if (frameSkipWidget) {
-            widgets.push(frameSkipWidget, skipWidget)
-            chainCallback(frameSkipWidget, "callback", update);
-            chainCallback(skipWidget, "callback", update);
-        } else {
-            widgets.push(seekWidget)
-            chainCallback(seekWidget, "callback", update);
-        }
-        chainCallback(rateWidget, "callback", update);
-        let priorSize = sizeWidget.value;
+        const sizeWidget = this.widgets.find((w) => w.name === "force_size");
+        let priorSize = null
         let updateSize = function(value, _, node) {
-            if (sizeWidget.value == 'Custom' || priorSize != sizeWidget.value) {
+            let size = sizeModifiesAspect(sizeWidget.value)
+            if (size || priorSize) {
                 node?.updateParameters({"force_size": sizeWidget.serializePreview()});
             }
-            priorSize = sizeWidget.value;
+            priorSize = size
         }
-        chainCallback(sizeWidget, "callback", updateSize);
-        chainCallback(this.widgets.find((w) => w.name === "custom_width"), "callback", updateSize);
-        chainCallback(this.widgets.find((w) => w.name === "custom_height"), "callback", updateSize);
-
-        //do first load
-        requestAnimationFrame(() => {
-            for (let w of widgets) {
-                w.callback(w.value, null, this);
+        let widgetMap = {'frame_load_cap': 'frame_load_cap',
+            'skip_first_frames': 'skip_first_frames', 'select_every_nth': 'select_every_nth',
+            'start_time': 'start_time', 'force_size': updateSize, 'force_rate': 'force_rate',
+            'custom_width': updateSize, 'custom_height': updateSize,
+            'image_load_cap': 'frame_load_cap', 'skip_first_images': 'skip_first_frames'
+        }
+        let updated = []
+        for (let widget of this.widgets) {
+            if (widget.name in widgetMap) {
+                if (typeof(widgetMap[widget.name]) == 'function') {
+                    chainCallback(widget, "callback", widgetMap[widget.name]);
+                } else {
+                    chainCallback(widget, "callback", update(widgetMap[widget.name]))
+                }
+                updated.push(widget)
             }
-        });
-    });
-}
-function addLoadImagesCommon(nodeType, nodeData) {
-    addVideoPreview(nodeType);
-    addPreviewOptions(nodeType);
-    chainCallback(nodeType.prototype, "onNodeCreated", function() {
-        const pathWidget = this.widgets.find((w) => w.name === "directory");
-        const frameCapWidget = this.widgets.find((w) => w.name === 'image_load_cap');
-        const frameSkipWidget = this.widgets.find((w) => w.name === 'skip_first_images');
-        const skipWidget = this.widgets.find((w) => w.name === 'select_every_nth');
-        //widget.callback adds unused arguements which need culling
-        let update = function (value, _, node) {
-            let param = {}
-            param[this.name] = value
-            node.updateParameters(param);
         }
-        chainCallback(frameCapWidget, "callback", (value, _, node) => {
-            node.updateParameters({frame_load_cap: value})
-        });
-        chainCallback(frameSkipWidget, "callback", update);
-        chainCallback(skipWidget, "callback", update);
         //do first load
         requestAnimationFrame(() => {
-            for (let w of [frameCapWidget, frameSkipWidget, pathWidget, skipWidget]) {
+            for (let w of updated) {
                 w.callback(w.value, null, this);
             }
         });
@@ -1364,7 +1341,7 @@ app.registerExtension({
                     this.updateParameters(params, true);
                 });
             });
-            addLoadImagesCommon(nodeType, nodeData);
+            addLoadCommon(nodeType, nodeData);
         } else if (nodeData?.name == "VHS_LoadImagesPath") {
             addUploadWidget(nodeType, nodeData, "directory", "folder");
             chainCallback(nodeType.prototype, "onNodeCreated", function() {
@@ -1377,7 +1354,7 @@ app.registerExtension({
                     this.updateParameters(params, true);
                 });
             });
-            addLoadImagesCommon(nodeType, nodeData);
+            addLoadCommon(nodeType, nodeData);
         } else if (nodeData?.name == "VHS_LoadVideo" || nodeData?.name == "VHS_LoadVideoFFmpeg") {
             addUploadWidget(nodeType, nodeData, "video");
             chainCallback(nodeType.prototype, "onNodeCreated", function() {
@@ -1398,7 +1375,7 @@ app.registerExtension({
                     this.updateParameters(params, true);
                 });
             });
-            addLoadVideoCommon(nodeType, nodeData);
+            addLoadCommon(nodeType, nodeData);
             addVAEOutputToggle(nodeType, nodeData);
             applyVHSAudioLinksFix(nodeType, nodeData, 2)
         } else if (nodeData?.name == "VHS_LoadAudioUpload") {
@@ -1406,7 +1383,7 @@ app.registerExtension({
             applyVHSAudioLinksFix(nodeType, nodeData, 0)
         } else if (nodeData?.name == "VHS_LoadAudio"){
             applyVHSAudioLinksFix(nodeType, nodeData, 0)
-        } else if (nodeData?.name =="VHS_LoadVideoPath" || nodeData?.name == "VHS_LoadVideoFFmpegPath") {
+        } else if (nodeData?.name == "VHS_LoadVideoPath" || nodeData?.name == "VHS_LoadVideoFFmpegPath") {
             chainCallback(nodeType.prototype, "onNodeCreated", function() {
                 const pathWidget = this.widgets.find((w) => w.name === "video");
                 chainCallback(pathWidget, "callback", (value) => {
@@ -1421,9 +1398,22 @@ app.registerExtension({
                     this?.updateParameters(params, true);
                 });
             });
-            addLoadVideoCommon(nodeType, nodeData);
+            addLoadCommon(nodeType, nodeData);
             addVAEOutputToggle(nodeType, nodeData);
             applyVHSAudioLinksFix(nodeType, nodeData, 2)
+        } else if (nodeData?.name == "VHS_LoadImagePath") {
+            chainCallback(nodeType.prototype, "onNodeCreated", function() {
+                const pathWidget = this.widgets.find((w) => w.name === "image");
+                chainCallback(pathWidget, "callback", (value) => {
+                    let extension_index = value.lastIndexOf(".");
+                    let extension = value.slice(extension_index+1);
+                    let format = "video" +  "/" + extension;
+                    let params = {filename : value, type: "path", format: format};
+                    this?.updateParameters(params, true);
+                });
+            });
+            addLoadCommon(nodeType, nodeData);
+            addVAEOutputToggle(nodeType, nodeData);
         } else if (nodeData?.name == "VHS_VideoCombine") {
             addDateFormatting(nodeType, "filename_prefix");
             chainCallback(nodeType.prototype, "onExecuted", function(message) {

@@ -86,16 +86,28 @@ async def view_video(request):
     except subprocess.CalledProcessError as e:
         print("An error occurred in the ffmpeg prepass:\n" \
                 + e.stderr.decode("utf-8"))
-    args = [ffmpeg_path, "-v", "error"] + in_args
     vfilters = []
     target_rate = float(query.get('force_rate', 0)) or base_fps
     modified_rate = target_rate / float(query.get('select_every_nth',1))
-    if int(query.get('skip_first_frames', 0)) > 0:
-        skip = float(query.get('skip_first_frames'))/target_rate
-        if skip > 1/modified_rate:
-            skip += 1/modified_rate
-            pass
-        args += ["-ss", str(skip)]
+    start_time = 0
+    if 'start_time' in query:
+        start_time = float(query['start_time'])
+    elif int(query.get('skip_first_frames', 0)) > 0:
+        start_time = float(query.get('skip_first_frames'))/target_rate
+        if start_time > 1/modified_rate:
+            start_time += 1/modified_rate
+    if start_time > 0:
+        if start_time > 4:
+            post_seek = ['-ss', '4']
+            pre_seek = ['-ss', str(start_time - 4)]
+        else:
+            post_seek = ['-ss', str(start_time)]
+            pre_seek = []
+    else:
+        pre_seek = []
+        post_seek = []
+
+    args = [ffmpeg_path, "-v", "error"] + pre_seek + in_args + post_seek
     if int(query.get('force_rate',0)) != 0:
         args += ['-r', str(modified_rate)]
     if query.get('force_size','Disabled') != "Disabled":

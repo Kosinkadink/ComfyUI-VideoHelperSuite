@@ -17,7 +17,7 @@ import functools
 import folder_paths
 from .logger import logger
 from .image_latent_nodes import *
-from .load_video_nodes import LoadVideoUpload, LoadVideoPath, LoadVideoFFmpegUpload, LoadVideoFFmpegPath
+from .load_video_nodes import LoadVideoUpload, LoadVideoPath, LoadVideoFFmpegUpload, LoadVideoFFmpegPath, LoadImagePath
 from .load_images_nodes import LoadImagesFromDirectoryUpload, LoadImagesFromDirectoryPath
 from .batched_nodes import VAEEncodeBatched, VAEDecodeBatched
 from .utils import ffmpeg_path, get_audio, hash_path, validate_path, requeue_workflow, gifski_path, calculate_file_hash, strip_path, try_download_video, is_url, imageOrLatent
@@ -949,6 +949,7 @@ NODE_CLASS_MAPPINGS = {
     "VHS_LoadVideoPath": LoadVideoPath,
     "VHS_LoadVideoFFmpeg": LoadVideoFFmpegUpload,
     "VHS_LoadVideoFFmpegPath": LoadVideoFFmpegPath,
+    "VHS_LoadImagePath": LoadImagePath,
     "VHS_LoadImages": LoadImagesFromDirectoryUpload,
     "VHS_LoadImagesPath": LoadImagesFromDirectoryPath,
     "VHS_LoadAudio": LoadAudio,
@@ -991,6 +992,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_LoadVideoPath": "Load Video (Path) 🎥🅥🅗🅢",
     "VHS_LoadVideoFFmpeg": "Load Video FFmpeg (Upload) 🎥🅥🅗🅢",
     "VHS_LoadVideoFFmpegPath": "Load Video FFmpeg (Path) 🎥🅥🅗🅢",
+    "VHS_LoadImagePath": "Load Image (Path) 🎥🅥🅗🅢",
     "VHS_LoadImages": "Load Images (Upload) 🎥🅥🅗🅢",
     "VHS_LoadImagesPath": "Load Images (Path) 🎥🅥🅗🅢",
     "VHS_LoadAudio": "Load Audio (Path)🎥🅥🅗🅢",
