@@ -621,8 +621,8 @@ class LoadAudioUpload:
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢/audio"
 
-    RETURN_TYPES = ("AUDIO", )
-    RETURN_NAMES = ("audio",)
+    RETURN_TYPES = ("AUDIO", "STRING")
+    RETURN_NAMES = ("audio", "audio_path")
     FUNCTION = "load_audio"
 
     def load_audio(self, start_time, duration, **kwargs):
@@ -630,7 +630,7 @@ class LoadAudioUpload:
         if audio_file is None or validate_path(audio_file) != True:
             raise Exception("audio_file is not a valid path: " + audio_file)
         
-        return (get_audio(audio_file, start_time, duration),)
+        return (get_audio(audio_file, start_time, duration), audio_file)
 
     @classmethod
     def IS_CHANGED(s, audio, start_time, duration):
