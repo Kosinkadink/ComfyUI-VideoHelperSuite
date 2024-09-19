@@ -161,7 +161,6 @@ function initHelpDOM() {
     helpDOM.className = "litegraph";
     let scrollbarStyle = document.createElement('style');
     scrollbarStyle.innerHTML = `
-    <style id="scroll-properties">
             * {
                 scrollbar-width: 6px;
                 scrollbar-color: #0003  #0000;
@@ -183,8 +182,8 @@ function initHelpDOM() {
             .VHS_loopedvideo::-webkit-media-controls-fullscreen-button {
                 display:none;
             }
-        </style>
     `
+    scrollbarStyle.id = 'scroll-properties'
     parentDOM.appendChild(scrollbarStyle)
     chainCallback(app.canvas, "onDrawForeground", function (ctx, visible_rect){
         let n = helpDOM.node

@@ -73,7 +73,6 @@ def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
     else:
         target_frame_time = 1/force_rate
 
-    yield (width, height, fps, duration, total_frames, target_frame_time)
     if total_frames > 0:
         if force_rate != 0:
             yieldable_frames = int(total_frames / fps * force_rate)
@@ -83,9 +82,8 @@ def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
             yieldable_frames =  min(frame_load_cap, yieldable_frames)
     else:
         yieldable_frames = 0
+    yield (width, height, fps, duration, total_frames, target_frame_time, yieldable_frames)
     pbar = ProgressBar(yieldable_frames)
-    if meta_batch is not None:
-        yield yieldable_frames
     time_offset=target_frame_time
     while video_cap.isOpened():
         if time_offset < target_frame_time:
@@ -191,14 +189,14 @@ def ffmpeg_frame_generator(video, force_rate, frame_load_cap, start_time,
         vfilters.append(f"scale={size_arg}")
     else:
         size = size_base
-    yield (size_base[0], size_base[1], fps_base, duration, fps_base * duration,
-           1/(force_rate or fps_base), size[0], size[1], alpha)
     if len(vfilters) > 0:
         args_all_frames += ["-vf", ",".join(vfilters)]
     yieldable_frames = (force_rate or fps_base)*duration
     if frame_load_cap > 0:
         args_all_frames += ["-frames:v", str(frame_load_cap)]
         yieldable_frames = min(yieldable_frames, frame_load_cap)
+    yield (size_base[0], size_base[1], fps_base, duration, fps_base * duration,
+           1/(force_rate or fps_base), yieldable_frames, size[0], size[1], alpha)
 
     args_all_frames += ["-f", "rawvideo", "-"]
     pbar = ProgressBar(yieldable_frames)
@@ -246,6 +244,8 @@ def resized_cv_frame_gen(custom_width, custom_height, force_size, downscale_rati
     info =  next(gen)
     width, height = info[0], info[1]
     frames_per_batch = (1920 * 1080 * 16) // (width * height) or 1
+    if 'meta_batch' in kwargs:
+        frames_per_batch = min(frames_per_batch, kwargs['meta_batch'].frames_per_batch)
     if force_size != "Disabled" or downscale_ratio is not None:
         new_size = target_size(width, height, force_size, custom_width, custom_height, downscale_ratio)
         yield (*info, new_size[0], new_size[1], False)
@@ -266,16 +266,15 @@ def load_video(meta_batch=None, unique_id=None, memory_limit_mb=None, vae=None,
     downscale_ratio = getattr(vae, "downscale_ratio", 8) if vae is not None else None
     if meta_batch is None or unique_id not in meta_batch.inputs:
         gen = generator(meta_batch=meta_batch, unique_id=unique_id, downscale_ratio=downscale_ratio, **kwargs)
-        (width, height, fps, duration, total_frames, target_frame_time, new_width, new_height, alpha) = next(gen)
+        (width, height, fps, duration, total_frames, target_frame_time, yieldable_frames, new_width, new_height, alpha) = next(gen)
 
         if meta_batch is not None:
-            meta_batch.inputs[unique_id] = (gen, width, height, fps, duration, total_frames, target_frame_time, new_width, new_height, alpha)
-            yieldable_frames = next(gen)
+            meta_batch.inputs[unique_id] = (gen, width, height, fps, duration, total_frames, target_frame_time, yieldable_frames, new_width, new_height, alpha)
             if yieldable_frames:
                 meta_batch.total_frames = min(meta_batch.total_frames, yieldable_frames)
 
     else:
-        (gen, width, height, fps, duration, total_frames, target_frame_time, new_width, new_height, alpha) = meta_batch.inputs[unique_id]
+        (gen, width, height, fps, duration, total_frames, target_frame_time, yieldable_frames, new_width, new_height, alpha) = meta_batch.inputs[unique_id]
 
     memory_limit = None
     if memory_limit_mb is not None:
