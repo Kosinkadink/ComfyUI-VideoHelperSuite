@@ -244,7 +244,7 @@ def resized_cv_frame_gen(custom_width, custom_height, force_size, downscale_rati
     info =  next(gen)
     width, height = info[0], info[1]
     frames_per_batch = (1920 * 1080 * 16) // (width * height) or 1
-    if 'meta_batch' in kwargs:
+    if kwargs.get('meta_batch', None) is not None:
         frames_per_batch = min(frames_per_batch, kwargs['meta_batch'].frames_per_batch)
     if force_size != "Disabled" or downscale_ratio is not None:
         new_size = target_size(width, height, force_size, custom_width, custom_height, downscale_ratio)
