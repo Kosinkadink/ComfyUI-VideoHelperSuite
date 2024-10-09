@@ -88,7 +88,6 @@ let fileInput = document.getElementById("comfy-file-input")
 fileInput.accept += ",video/webm,video/mp4";
 
 async function handleFile(file) {
-    fileInput.value=""
     if (file?.type?.startsWith("video/") || isVideoFile(file)) {
         const videoInfo = await getVideoMetadata(file);
         if (videoInfo) {
