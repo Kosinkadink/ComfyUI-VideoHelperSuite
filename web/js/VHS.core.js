@@ -480,6 +480,9 @@ function addVAEOutputToggle(nodeType, nodeData) {
                     this.linkTimeout = false
                 } else if (this.outputs[0].type == "IMAGE") {
                     this.linkTimeout = setTimeout(() => {
+                        if (this.outputs[0].type != "IMAGE") {
+                            return
+                        }
                         this.linkTimeout = false
                         this.disconnectOutput(0);
                     }, 50)
@@ -508,6 +511,10 @@ function addVAEInputToggle(nodeType, nodeData) {
                     this.linkTimeout = false
                 } else if (this.inputs[0].type == "IMAGE") {
                     this.linkTimeout = setTimeout(() => {
+                        //workaround for out of order loading
+                        if (this.inputs[0].type != "IMAGE") {
+                            return
+                        }
                         this.linkTimeout = false
                         this.disconnectInput(0);
                     }, 50)
