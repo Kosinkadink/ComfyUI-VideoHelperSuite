@@ -777,8 +777,10 @@ function addVideoPreview(nodeType) {
             e.preventDefault()
             return app.canvas._mousewheel_callback(e)
         }, true);
-        previewWidget.value = {hidden: false, paused: false, params: {},
-            muted: app.ui.settings.getSettingValue("VHS.DefaultMute", false)}
+        previewWidget.value = {
+            hidden: false, paused: app.ui.settings.getSettingValue("VHS.DefaultParameters.Pause", false),
+            params: {}, muted: app.ui.settings.getSettingValue("VHS.DefaultParameters.Mute", false)
+        }
         previewWidget.parentEl = document.createElement("div");
         previewWidget.parentEl.className = "vhs_preview";
         previewWidget.parentEl.style['width'] = "100%"
@@ -788,6 +790,12 @@ function addVideoPreview(nodeType) {
         previewWidget.videoEl.loop = true;
         previewWidget.videoEl.muted = true;
         previewWidget.videoEl.style['width'] = "100%"
+        previewWidget.videoEl.addEventListener('play', () => {
+            previewWidget.value.paused = false;
+        });
+        previewWidget.videoEl.addEventListener('pause', () => {
+            previewWidget.value.paused = true;
+        });
         previewWidget.videoEl.addEventListener("loadedmetadata", () => {
 
             previewWidget.aspectRatio = previewWidget.videoEl.videoWidth / previewWidget.videoEl.videoHeight;
@@ -798,13 +806,24 @@ function addVideoPreview(nodeType) {
             previewWidget.parentEl.hidden = true;
             fitHeight(this);
         });
-        previewWidget.videoEl.onmouseenter =  () => {
-            previewWidget.videoEl.muted = previewWidget.value.muted
-        };
-        previewWidget.videoEl.onmouseleave = () => {
-            previewWidget.videoEl.muted = true;
-        };
-
+        if (app.ui.settings.getSettingValue("VHS.DefaultParameters.Controls", false)) {
+            previewWidget.videoEl.muted = previewWidget.value.muted;
+            previewWidget.videoEl.addEventListener('loadedmetadata', () => {
+                previewWidget.videoEl.onmouseenter = () => {
+                    previewWidget.videoEl.controls = true;
+                };
+                previewWidget.videoEl.onmouseleave = () => {
+                    previewWidget.videoEl.controls = false;
+                };
+            });
+        } else {
+            previewWidget.videoEl.onmouseenter = () => {
+                previewWidget.videoEl.muted = previewWidget.value.muted
+            };
+            previewWidget.videoEl.onmouseleave = () => {
+                previewWidget.videoEl.muted = true;
+            };
+        }
         previewWidget.imgEl = document.createElement("img");
         previewWidget.imgEl.style['width'] = "100%"
         previewWidget.imgEl.hidden = true;
@@ -915,19 +934,25 @@ function addPreviewOptions(nodeType) {
                 }
             );
         }
-        const PauseDesc = (previewWidget.value.paused ? "Resume" : "Pause") + " preview";
-        if(previewWidget.videoEl.hidden == false) {
-            optNew.push({content: PauseDesc, callback: () => {
-                //animated images can't be paused and are more likely to cause performance issues.
-                //changing src to a single keyframe is possible,
-                //For now, the option is disabled if an animated image is being displayed
-                if(previewWidget.value.paused) {
-                    previewWidget.videoEl?.play();
-                } else {
-                    previewWidget.videoEl?.pause();
-                }
-                previewWidget.value.paused = !previewWidget.value.paused;
-            }});
+        if (!app.ui.settings.getSettingValue("VHS.DefaultParameters.Controls", false)) {
+            const PauseDesc = (previewWidget.value.paused ? "Resume" : "Pause") + " preview";
+            if(previewWidget.videoEl.hidden == false) {
+                optNew.push({content: PauseDesc, callback: () => {
+                    //animated images can't be paused and are more likely to cause performance issues.
+                    //changing src to a single keyframe is possible,
+                    //For now, the option is disabled if an animated image is being displayed
+                    if(previewWidget.value.paused) {
+                        previewWidget.videoEl?.play();
+                    } else {
+                        previewWidget.videoEl?.pause();
+                    }
+                    previewWidget.value.paused = !previewWidget.value.paused;
+                }});
+            }
+            const muteDesc = (previewWidget.value.muted ? "Unmute" : "Mute") + " Preview"
+            optNew.push({content: muteDesc, callback: () => {
+                previewWidget.value.muted = !previewWidget.value.muted
+            }})
         }
         //TODO: Consider hiding elements if no video preview is available yet.
         //It would reduce confusion at the cost of functionality
@@ -957,10 +982,6 @@ function addPreviewOptions(nodeType) {
                 }
             }
         }});
-        const muteDesc = (previewWidget.value.muted ? "Unmute" : "Mute") + " Preview"
-        optNew.push({content: muteDesc, callback: () => {
-            previewWidget.value.muted = !previewWidget.value.muted
-        }})
         if(options.length > 0 && options[0] != null && optNew.length > 0) {
             optNew.push(null);
         }
@@ -1293,8 +1314,20 @@ app.ui.settings.addSetting({
     defaultValue: false,
 });
 app.ui.settings.addSetting({
-    id: "VHS.DefaultMute",
+    id: "VHS.DefaultParameters.Mute",
     name: "🎥🅥🅗🅢 Mute videos by default",
+    type: "boolean",
+    defaultValue: false,
+});
+app.ui.settings.addSetting({
+    id: "VHS.DefaultParameters.Pause",
+    name: "🎥🅥🅗🅢 Pause videos by default",
+    type: "boolean",
+    defaultValue: false,
+});
+app.ui.settings.addSetting({
+    id: "VHS.DefaultParameters.Controls",
+    name: "🎥🅥🅗🅢 Show video controls on mouse enter",
     type: "boolean",
     defaultValue: false,
 });
