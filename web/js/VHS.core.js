@@ -787,8 +787,8 @@ function addVideoPreview(nodeType) {
         element.appendChild(previewWidget.parentEl);
         previewWidget.videoEl = document.createElement("video");
         previewWidget.videoEl.controls = false;
-        previewWidget.videoEl.loop = true;
-        previewWidget.videoEl.muted = true;
+        previewWidget.videoEl.loop = app.ui.settings.getSettingValue("VHS.DefaultParameters.loop", true);
+        previewWidget.videoEl.muted = previewWidget.value.muted;
         previewWidget.videoEl.style['width'] = "100%"
         previewWidget.videoEl.addEventListener('play', () => {
             previewWidget.value.paused = false;
@@ -807,7 +807,6 @@ function addVideoPreview(nodeType) {
             fitHeight(this);
         });
         if (app.ui.settings.getSettingValue("VHS.DefaultParameters.Controls", false)) {
-            previewWidget.videoEl.muted = previewWidget.value.muted;
             previewWidget.videoEl.addEventListener('loadedmetadata', () => {
                 previewWidget.videoEl.onmouseenter = () => {
                     previewWidget.videoEl.controls = true;
@@ -817,6 +816,7 @@ function addVideoPreview(nodeType) {
                 };
             });
         } else {
+            previewWidget.videoEl.muted = true;
             previewWidget.videoEl.onmouseenter = () => {
                 previewWidget.videoEl.muted = previewWidget.value.muted
             };
@@ -864,7 +864,9 @@ function addVideoPreview(nodeType) {
             if (params.format?.split('/')[0] == 'video' ||
                 app.ui.settings.getSettingValue("VHS.AdvancedPreviews", false) &&
                 (params.format?.split('/')[1] == 'gif') || params.format == 'folder') {
-                this.videoEl.autoplay = !this.value.paused && !this.value.hidden;
+                this.videoEl.autoplay = (!this.value.hidden) && (
+                    this.videoEl.loop ? !this.value.paused : !app.ui.settings.getSettingValue("VHS.DefaultParameters.Pause", false)
+                )
                 let target_width = 256
                 if (element.style?.width) {
                     //overscale to allow scrolling. Endpoint won't return higher than native
@@ -1326,10 +1328,16 @@ app.ui.settings.addSetting({
     defaultValue: false,
 });
 app.ui.settings.addSetting({
+    id: "VHS.DefaultParameters.loop",
+    name: "🎥🅥🅗🅢 loop videos by default",
+    type: "boolean",
+    defaultValue: true,
+});
+app.ui.settings.addSetting({
     id: "VHS.DefaultParameters.Controls",
     name: "🎥🅥🅗🅢 Show video controls on mouse enter",
     type: "boolean",
-    defaultValue: false,
+    defaultValue: true,
 });
 
 app.registerExtension({
