@@ -335,13 +335,16 @@ function initHelpDOM() {
                     helpDOM.node = undefined
                 } else {
                     helpDOM.node = this;
-                    helpDOM.innerHTML = this.description || "no help provided ".repeat(20)
+                    helpDOM.innerHTML = this.description || "no help provided "
                     for (let e of helpDOM.querySelectorAll('.VHS_collapse')) {
                         e.children[0].onclick = helpDOM.collapseOnClick
                         e.children[0].style.cursor = 'pointer'
                     }
                     for (let e of helpDOM.querySelectorAll('.VHS_precollapse')) {
                         setCollapse(e, true)
+                    }
+                    for (let e of helpDOM.querySelectorAll('.VHS_loopedvideo')) {
+                        e?.play()
                     }
                     helpDOM.parentElement.scrollTo(0,0)
                 }
