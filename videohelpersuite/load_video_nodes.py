@@ -44,7 +44,7 @@ def target_size(width, height, force_size, custom_width, custom_height, downscal
 
 def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
                        select_every_nth, meta_batch=None, unique_id=None):
-    video_cap = cv2.VideoCapture(strip_path(video))
+    video_cap = cv2.VideoCapture(video)
     if not video_cap.isOpened() or not video_cap.grab():
         raise ValueError(f"{video} could not be loaded with cv.")
 
@@ -263,6 +263,7 @@ def resized_cv_frame_gen(custom_width, custom_height, force_size, downscale_rati
 
 def load_video(meta_batch=None, unique_id=None, memory_limit_mb=None, vae=None,
                generator=resized_cv_frame_gen, **kwargs):
+    kwargs['video'] = strip_path(kwargs['video'])
     downscale_ratio = getattr(vae, "downscale_ratio", 8) if vae is not None else None
     if meta_batch is None or unique_id not in meta_batch.inputs:
         gen = generator(meta_batch=meta_batch, unique_id=unique_id, downscale_ratio=downscale_ratio, **kwargs)
