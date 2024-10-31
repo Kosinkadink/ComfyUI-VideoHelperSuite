@@ -78,6 +78,8 @@ def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
             yieldable_frames = int(total_frames / fps * force_rate)
         else:
             yieldable_frames = total_frames
+        if select_every_nth:
+            yieldable_frames //= select_every_nth
         if frame_load_cap != 0:
             yieldable_frames =  min(frame_load_cap, yieldable_frames)
     else:
