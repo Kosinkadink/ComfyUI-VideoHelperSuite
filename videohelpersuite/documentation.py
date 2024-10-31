@@ -3,7 +3,7 @@ from .logger import logger
 def image(src):
     return f'<img src={src} style="width: 0px; min-width: 100%">'
 def video(src):
-    return f'<video src={src} autoplay muted loop controls controlslist="nodownload noremoteplayback noplaybackrate" style="width: 0px; min-width: 100%" class="VHS_loopedvideo">'
+    return f'<video preload="none" src={src} muted loop controls controlslist="nodownload noremoteplayback noplaybackrate" style="width: 0px; min-width: 100%" class="VHS_loopedvideo">'
 def short_desc(desc):
     return f'<div id=VHS_shortdesc>{desc}</div>'
 
@@ -132,6 +132,32 @@ descriptions = {
          'videopreview': 'Displays a preview for the selected video input. If advanced previews is enabled, this preview will reflect the frame_load_cap, force_rate, skip_first_frames, and select_every_nth values chosen. If the video has audio, it will also be previewed when moused over. Additional preview options can be accessed with right click.',
          }
         }],
+  'VHS_LoadVideoFFmpeg': ['Load Video FFmpeg 🎥🅥🅗🅢', short_desc('Loads a video from the input folder using ffmpeg instead of opencv'),
+    'Provides faster execution speed, transparency support, and allows specifying start time in seconds',
+    {'Inputs': {
+        'meta_batch': '(optional) Connect to a Meta Batch manager to divide extremely long sequences into sub batches. See the documentation for Meta Batch Manager',
+        'vae': ['(optional) If provided the node will output latents instead of images. This drastically reduces the required RAM (not VRAM) when working with long (100+ frames) sequences',
+                'Using this is strongly encouraged unless connecting to a node that requires a blue image connection such as Apply Controllnet',
+                ],
+        },
+     'Outputs': {
+         'IMAGE': 'The loaded images',
+         'mask': 'Transparency data from the loaded video',
+         'audio': 'The audio from the loaded video',
+         'video_info': 'Exposes additional info about the video such as the source frame rate, or the total length',
+         'LATENT': 'The loaded images pre-converted to latents. Only available when a vae is connected',
+         },
+     'Widgets': {
+         'video': 'The video file to be loaded. Lists all files with a video extension in the ComfyUI/Input folder',
+         'force_rate': 'Drops or duplicates frames so that the produced output has the target frame rate. Many motion models are trained on videos of a specific frame rate and will give better results if input matches that frame rate. If set to 0, all frames are returned. May give unusual results with inputs that have a variable frame rate like animated gifs. Reducing this value can also greatly reduce the execution time and memory requirements.',
+         'force_size': ['Allows for conveniently scaling the input without requiring an additional node. Provides options to maintain aspect ratio or conveniently target common training formats for Animate Diff', {'custom_width': 'Allows for an arbitrary width to be entered, cropping to maintain aspect ratio if both are set',
+               'custom_height': 'Allows for an arbitrary height to be entered, cropping to maintain aspect ratio if both are set'}],
+         'frame_load_cap': 'The maximum number of frames to load. If 0, all frames are loaded.',
+         'start_time': 'A timestamp, in seconds from the start of the video, to start loading frames from. ',
+         'choose video to upload': 'An upload button is provided to upload local files to the input folder',
+         'videopreview': 'Displays a preview for the selected video input. If advanced previews is enabled, this preview will reflect the frame_load_cap, force_rate, skip_first_frames, and select_every_nth values chosen. If the video has audio, it will also be previewed when moused over. Additional preview options can be accessed with right click.',
+         }
+        }],
   'VHS_LoadVideoPath': ['Load Video (Path) 🎥🅥🅗🅢', short_desc('Loads a video from an arbitrary path'),
     {'Inputs': {
         'meta_batch': '(optional) Connect to a Meta Batch manager to divide extremely long sequences into sub batches. See the documentation for Meta Batch Manager',
@@ -142,6 +168,32 @@ descriptions = {
      'Outputs': {
          'IMAGE': 'The loaded images',
          'frame_count': 'The length of images just returned',
+         'audio': 'The audio from the loaded video',
+         'video_info': 'Exposes additional info about the video such as the source frame rate, or the total length',
+         'LATENT': 'The loaded images pre-converted to latents. Only available when a vae is connected',
+         },
+     'Widgets': {
+         'video': ['The video file to be loaded.', 'You can also select an image to load it as a single frame'] + common_descriptions['VHS_PATH'],
+         'force_rate': 'Drops or duplicates frames so that the produced output has the target frame rate. Many motion models are trained on videos of a specific frame rate and will give better results if input matches that frame rate. If set to 0, all frames are returned. May give unusual results with inputs that have a variable frame rate like animated gifs. Reducing this value can also greatly reduce the execution time and memory requirements.',
+         'force_size': ['Allows for conveniently scaling the input without requiring an additional node. Provides options to maintain aspect ratio or conveniently target common training formats for Animate Diff', {'custom_width': 'Allows for an arbitrary width to be entered, cropping to maintain aspect ratio if both are set',
+               'custom_height': 'Allows for an arbitrary height to be entered, cropping to maintain aspect ratio if both are set'}],
+         'frame_load_cap': 'The maximum number of frames to load. If 0, all frames are loaded.',
+         'skip_first_frames': 'A number of frames which are discarded before producing output.',
+         'select_every_nth': 'Similar to frame rate. Keeps only the first of every n frames and discard the rest. Has better compatibility with variable frame rate inputs such as gifs. When combined with force_rate, select_every_nth_applies after force_rate so the resulting output has a frame rate equivalent to force_rate/select_every_nth. select_every_nth does not apply to skip_first_frames',
+         'videopreview': 'Displays a preview for the selected video input. Will only be shown if Advanced Previews is enabled. This preview will reflect the frame_load_cap, force_rate, skip_first_frames, and select_every_nth values chosen. If the video has audio, it will also be previewed when moused over. Additional preview options can be accessed with right click.',
+         }
+        }],
+  'VHS_LoadVideoFFmpegPath': ['Load Video FFmpeg (Path) 🎥🅥🅗🅢', short_desc('Loads a video from an arbitrary path using ffmpeg instead of opencv'),
+    'Provides faster execution speed, transparency support, and allows specifying start time in seconds',
+    {'Inputs': {
+        'meta_batch': '(optional) Connect to a Meta Batch manager to divide extremely long sequences into sub batches. See the documentation for Meta Batch Manager',
+        'vae': ['(optional) If provided the node will output latents instead of images. This drastically reduces the required RAM (not VRAM) when working with long (100+ frames) sequences',
+                'Using this is strongly encouraged unless connecting to a node that requires a blue image connection such as Apply Controllnet',
+                ],
+        },
+     'Outputs': {
+         'IMAGE': 'The loaded images',
+         'mask': 'Transparency data from the loaded video',
          'audio': 'The audio from the loaded video',
          'video_info': 'Exposes additional info about the video such as the source frame rate, or the total length',
          'LATENT': 'The loaded images pre-converted to latents. Only available when a vae is connected',
@@ -169,13 +221,12 @@ descriptions = {
      'Widgets': {
          'directory': 'The directory images will be loaded from. Filtered to process jpg, png, ppm, bmp, tif, and webp files',
          'image_load_cap': 'The maximum number of images to load. If 0, all images are loaded.',
-         'skip_first_images': 'A number of images which are discarded before producing output.',
-         'select_every_nth': 'Keeps only the first of every n frames and discard the rest.',
+         'start_time': 'A timestamp, in seconds from the start of the video, to start loading frames from. ',
          'choose folder to upload': 'An upload button is provided to upload a local folder containing images to the input folder',
          'videopreview': 'Displays a preview for the selected video input. Will only be shown if Advanced Previews is enabled. This preview will reflect the image_load_cap, skip_first_images, and select_every_nth values chosen. Additional preview options can be accessed with right click.',
          }
         }],
-  'VHS_LoadImagesPath': ['Load Images (Path) 🎥🅥🅗🅢', short_desc('Loads a sequence of images from a subdirectory of the input folder'),
+  'VHS_LoadImagesPath': ['Load Images (Path) 🎥🅥🅗🅢', short_desc('Loads a sequence of images from an arbitrary path'),
     {'Inputs': {
         'meta_batch': '(optional) Connect to a Meta Batch manager to divide extremely long sequences into sub batches. See the documentation for Meta Batch Manager',
         },
@@ -189,6 +240,21 @@ descriptions = {
          'image_load_cap': 'The maximum number of images to load. If 0, all images are loaded.',
          'skip_first_images': 'A number of images which are discarded before producing output.',
          'select_every_nth': 'Keeps only the first of every n frames and discard the rest.',
+         'videopreview': 'Displays a preview for the selected video input. Will only be shown if Advanced Previews is enabled. This preview will reflect the image_load_cap, skip_first_images, and select_every_nth values chosen. Additional preview options can be accessed with right click.',
+         }
+        }],
+  'VHS_LoadImagePath': ['Load Image (Path) 🎥🅥🅗🅢', short_desc('Load a single image from a given path'),
+    {'Inputs': {
+        'vae': '(optional) If provided the node will output latents instead of images.',
+        },
+     'Outputs': {
+         'IMAGE': 'The loaded images',
+         'MASK': 'The alpha channel of the loaded images.',
+         },
+     'Widgets': {
+         'image': ['The image file to be loaded.'] + common_descriptions['VHS_PATH'],
+         'force_size': ['Allows for conveniently scaling the input without requiring an additional node. Provides options to maintain aspect ratio or conveniently target common training formats for Animate Diff', {'custom_width': 'Allows for an arbitrary width to be entered, cropping to maintain aspect ratio if both are set',
+               'custom_height': 'Allows for an arbitrary height to be entered, cropping to maintain aspect ratio if both are set'}],
          'videopreview': 'Displays a preview for the selected video input. Will only be shown if Advanced Previews is enabled. This preview will reflect the image_load_cap, skip_first_images, and select_every_nth values chosen. Additional preview options can be accessed with right click.',
          }
         }],

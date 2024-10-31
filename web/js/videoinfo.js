@@ -83,6 +83,10 @@ function isVideoFile(file) {
 
 let originalHandleFile = app.handleFile;
 app.handleFile = handleFile;
+let fileInput = document.getElementById("comfy-file-input")
+//hijack comfy-file-input to allow webm/mp4
+fileInput.accept += ",video/webm,video/mp4";
+
 async function handleFile(file) {
     if (file?.type?.startsWith("video/") || isVideoFile(file)) {
         const videoInfo = await getVideoMetadata(file);
@@ -97,6 +101,3 @@ async function handleFile(file) {
         return await originalHandleFile.apply(this, arguments);
     }
 }
-
-//hijack comfy-file-input to allow webm/mp4
-document.getElementById("comfy-file-input").accept += ",video/webm,video/mp4";

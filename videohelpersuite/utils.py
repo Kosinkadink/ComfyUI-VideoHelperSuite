@@ -231,7 +231,7 @@ class LazyAudioMap(Mapping):
         if self._dict is None:
             self._dict = get_audio(self.file, self.start_time, self.duration)
         return len(self._dict)
-def lazy_get_audio(file, start_time=0, duration=0):
+def lazy_get_audio(file, start_time=0, duration=0, **kwargs):
     return LazyAudioMap(file, start_time, duration)
 
 def is_url(url):
