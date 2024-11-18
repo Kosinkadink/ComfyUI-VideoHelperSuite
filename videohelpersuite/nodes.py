@@ -733,7 +733,8 @@ class PruneOutputs:
         if options in ["All"]:
             delete_list.append(filenames[1][-1])
 
-        output_dirs = [os.path.abspath("output"), os.path.abspath("temp")]
+        output_dirs = [folder_paths.get_output_directory(),
+                       folder_paths.get_temp_directory()]
         for file in delete_list:
             #Check that path is actually an output directory
             if (os.path.commonpath([output_dirs[0], file]) != output_dirs[0]) \
