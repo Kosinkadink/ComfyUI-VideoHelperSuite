@@ -365,6 +365,20 @@ def select_indexes(input_obj: Union[Tensor, list], idxs: list):
     else:
         return [input_obj[i] for i in idxs]
 
+def merge_filter_args(args, ftype="-vf"):
+    #TODO This doesn't account for filter_complex
+    #Will likely need to convert all filters to filter complex in the future
+    #But that requires source/output deduplication
+    try:
+        start_index = args.index(ftype)+1
+        index = start_index
+        while True:
+            index = args.index(ftype, index)
+            args[start_index] += ',' + args[index+1]
+            args.pop(index)
+            args.pop(index)
+    except ValueError:
+        pass
 
 def select_indexes_from_str(input_obj: Union[Tensor, list], indexes: str, err_if_missing=True, err_if_empty=True):
     real_idxs = convert_str_to_indexes(indexes, len(input_obj), allow_missing=not err_if_missing)
