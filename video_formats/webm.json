@@ -4,7 +4,9 @@
         "-n",
         "-pix_fmt", ["pix_fmt",["yuv420p","yuva420p"]],
         "-crf", ["crf","INT", {"default": 20, "min": 0, "max": 100, "step": 1}],
-        "-b:v", "0"
+        "-b:v", "0",
+        "-vf", "colorspace=all=bt709:iall=bt601-6-625:fast=1",
+        "-colorspace", "1", "-color_primaries", "1", "-color_trc", "1"
     ],
     "audio_pass": ["-c:a", "libvorbis"],
     "save_metadata": ["save_metadata", "BOOLEAN", {"default": true}],
