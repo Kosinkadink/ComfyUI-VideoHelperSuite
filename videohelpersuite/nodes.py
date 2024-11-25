@@ -271,8 +271,8 @@ class VideoCombine:
         pbar = ProgressBar(num_frames)
         if vae is not None:
             downscale_ratio = getattr(vae, "downscale_ratio", 8)
-            width = images.size(3)*downscale_ratio
-            height = images.size(2)*downscale_ratio
+            width = images.size(-1)*downscale_ratio
+            height = images.size(-2)*downscale_ratio
             frames_per_batch = (1920 * 1080 * 16) // (width * height) or 1
             #Python 3.12 adds an itertools.batched, but it's easily replicated for legacy support
             def batched(it, n):
@@ -286,6 +286,8 @@ class VideoCombine:
             first_image = next(images)
             #repush first_image
             images = itertools.chain([first_image], images)
+            #A single image has 3 dimensions. Discard higher dimensions
+            first_image = first_image[*([0]*(len(first_image.shape)-3))]
         else:
             first_image = images[0]
             images = iter(images)
