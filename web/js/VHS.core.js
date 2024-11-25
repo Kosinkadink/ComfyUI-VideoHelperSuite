@@ -157,25 +157,26 @@ if (!app.helpDOM) {
 }
 function initHelpDOM() {
     let parentDOM = document.createElement("div");
+    parentDOM.className = "VHS_floatinghelp"
     document.body.appendChild(parentDOM)
     parentDOM.appendChild(helpDOM)
     helpDOM.className = "litegraph";
     let scrollbarStyle = document.createElement('style');
     scrollbarStyle.innerHTML = `
-            * {
+            .VHS_floatinghelp {
                 scrollbar-width: 6px;
                 scrollbar-color: #0003  #0000;
-            }
-            ::-webkit-scrollbar {
-                background: transparent;
-                width: 6px;
-            }
-            ::-webkit-scrollbar-thumb {
-                background: #0005;
-                border-radius: 20px
-            }
-            ::-webkit-scrollbar-button {
-                display: none;
+                &::-webkit-scrollbar {
+                    background: transparent;
+                    width: 6px;
+                }
+                &::-webkit-scrollbar-thumb {
+                    background: #0005;
+                    border-radius: 20px
+                }
+                &::-webkit-scrollbar-button {
+                    display: none;
+                }
             }
             .VHS_loopedvideo::-webkit-media-controls-mute-button {
                 display:none;
