@@ -20,7 +20,7 @@ from .image_latent_nodes import *
 from .load_video_nodes import LoadVideoUpload, LoadVideoPath, LoadVideoFFmpegUpload, LoadVideoFFmpegPath, LoadImagePath
 from .load_images_nodes import LoadImagesFromDirectoryUpload, LoadImagesFromDirectoryPath
 from .batched_nodes import VAEEncodeBatched, VAEDecodeBatched
-from .utils import ffmpeg_path, get_audio, hash_path, validate_path, requeue_workflow, gifski_path, calculate_file_hash, strip_path, try_download_video, is_url, imageOrLatent, BIGMAX
+from .utils import ffmpeg_path, get_audio, hash_path, validate_path, requeue_workflow, gifski_path, calculate_file_hash, strip_path, try_download_video, is_url, imageOrLatent, BIGMAX, merge_filter_args
 from comfy.utils import ProgressBar
 
 folder_paths.folder_names_and_paths["VHS_video_formats"] = (
@@ -271,8 +271,8 @@ class VideoCombine:
         pbar = ProgressBar(num_frames)
         if vae is not None:
             downscale_ratio = getattr(vae, "downscale_ratio", 8)
-            width = images.size(3)*downscale_ratio
-            height = images.size(2)*downscale_ratio
+            width = images.size(-1)*downscale_ratio
+            height = images.size(-2)*downscale_ratio
             frames_per_batch = (1920 * 1080 * 16) // (width * height) or 1
             #Python 3.12 adds an itertools.batched, but it's easily replicated for legacy support
             def batched(it, n):
@@ -286,6 +286,8 @@ class VideoCombine:
             first_image = next(images)
             #repush first_image
             images = itertools.chain([first_image], images)
+            #A single image has 3 dimensions. Discard higher dimensions
+            first_image = first_image[*([0]*(len(first_image.shape)-3))]
         else:
             first_image = images[0]
             images = iter(images)
@@ -465,6 +467,7 @@ class VideoCombine:
                 images = [b''.join(images)]
                 os.makedirs(folder_paths.get_temp_directory(), exist_ok=True)
                 pre_pass_args = args[:13] + video_format['pre_pass']
+                merge_filter_args(pre_pass_args)
                 try:
                     subprocess.run(pre_pass_args, input=images[0], env=env,
                                    capture_output=True, check=True)
@@ -479,6 +482,7 @@ class VideoCombine:
                     output_process = gifski_process(args, video_format, file_path, env)
                 else:
                     args += video_format['main_pass'] + bitrate_arg
+                    merge_filter_args(args)
                     output_process = ffmpeg_process(args, video_format, video_metadata, file_path, env)
                 #Proceed to first yield
                 output_process.send(None)
@@ -539,6 +543,7 @@ class VideoCombine:
 
                 audio_data = audio['waveform'].squeeze(0).transpose(0,1) \
                         .numpy().tobytes()
+                merge_filter_args(mux_args, '-af')
                 try:
                     res = subprocess.run(mux_args, input=audio_data,
                                          env=env, capture_output=True, check=True)

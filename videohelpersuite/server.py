@@ -9,6 +9,7 @@ from comfy.k_diffusion.utils import FolderOfImages
 
 web = server.web
 
+@server.PromptServer.instance.routes.get("/vhs/viewvideo")
 @server.PromptServer.instance.routes.get("/viewvideo")
 async def view_video(request):
     query = request.rel_url.query
@@ -157,6 +158,7 @@ async def view_video(request):
         pass
     return resp
 
+@server.PromptServer.instance.routes.get("/vhs/getpath")
 @server.PromptServer.instance.routes.get("/getpath")
 async def get_path(request):
     query = request.rel_url.query

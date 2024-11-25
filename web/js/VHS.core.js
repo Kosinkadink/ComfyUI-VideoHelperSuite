@@ -1,3 +1,4 @@
+"🍡"
 import { app } from '../../../scripts/app.js'
 import { api } from '../../../scripts/api.js'
 import { applyTextReplacements } from "../../../scripts/utils.js";
@@ -156,25 +157,26 @@ if (!app.helpDOM) {
 }
 function initHelpDOM() {
     let parentDOM = document.createElement("div");
+    parentDOM.className = "VHS_floatinghelp"
     document.body.appendChild(parentDOM)
     parentDOM.appendChild(helpDOM)
     helpDOM.className = "litegraph";
     let scrollbarStyle = document.createElement('style');
     scrollbarStyle.innerHTML = `
-            * {
+            .VHS_floatinghelp {
                 scrollbar-width: 6px;
                 scrollbar-color: #0003  #0000;
-            }
-            ::-webkit-scrollbar {
-                background: transparent;
-                width: 6px;
-            }
-            ::-webkit-scrollbar-thumb {
-                background: #0005;
-                border-radius: 20px
-            }
-            ::-webkit-scrollbar-button {
-                display: none;
+                &::-webkit-scrollbar {
+                    background: transparent;
+                    width: 6px;
+                }
+                &::-webkit-scrollbar-thumb {
+                    background: #0005;
+                    border-radius: 20px
+                }
+                &::-webkit-scrollbar-button {
+                    display: none;
+                }
             }
             .VHS_loopedvideo::-webkit-media-controls-mute-button {
                 display:none;
@@ -869,7 +871,7 @@ function addVideoPreview(nodeType) {
                     params.force_size = target_width+"x"+(target_width/ar)
                 }
                 if (app.ui.settings.getSettingValue("VHS.AdvancedPreviews", false)) {
-                    this.videoEl.src = api.apiURL('/viewvideo?' + new URLSearchParams(params));
+                    this.videoEl.src = api.apiURL('/vhs/viewvideo?' + new URLSearchParams(params));
                 } else {
                     previewWidget.videoEl.src = api.apiURL('/view?' + new URLSearchParams(params));
                 }
@@ -1254,7 +1256,7 @@ function searchBox(event, [x,y], node) {
             if (extensions) {
                 params.extensions = extensions
             }
-            let optionsURL = api.apiURL('/getpath?' + new URLSearchParams(params));
+            let optionsURL = api.apiURL('/vhs/getpath?' + new URLSearchParams(params));
             try {
                 let resp = await fetch(optionsURL);
                 options = await resp.json();
