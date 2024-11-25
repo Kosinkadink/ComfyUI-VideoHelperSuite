@@ -287,7 +287,8 @@ class VideoCombine:
             #repush first_image
             images = itertools.chain([first_image], images)
             #A single image has 3 dimensions. Discard higher dimensions
-            first_image = first_image[*([0]*(len(first_image.shape)-3))]
+            while len(first_image.shape) > 3:
+                first_image = first_image[0]
         else:
             first_image = images[0]
             images = iter(images)
