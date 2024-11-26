@@ -200,8 +200,8 @@ def get_audio(file, start_time=0, duration=0):
         audio = torch.frombuffer(bytearray(res.stdout), dtype=torch.float32)
         match = re.search(', (\\d+) Hz, (\\w+), ',res.stderr.decode('utf-8'))
     except subprocess.CalledProcessError as e:
-        raise Exception(f"VHS failed to extract audio from {file}:\n" \
-                + e.stderr.decode("utf-8"))
+        logger.warning(f"VHS failed to extract audio from {file}:\n{e.stderr.decode('utf-8')}")
+        return {'waveform': torch.zeros((1, 2, 1)), 'sample_rate': 44100}
     if match:
         ar = int(match.group(1))
         #NOTE: Just throwing an error for other channel types right now
