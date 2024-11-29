@@ -18,10 +18,12 @@ BIGMAX = (2**53-1)
 
 DIMMAX = 8192
 
+ENCODE_ARGS = ("utf-8", 'backslashreplace')
+
 def ffmpeg_suitability(path):
     try:
         version = subprocess.run([path, "-version"], check=True,
-                                 capture_output=True).stdout.decode("utf-8")
+                                 capture_output=True).stdout.decode(*ENCODE_ARGS)
     except:
         return 0
     score = 0
@@ -98,10 +100,10 @@ def try_download_video(url):
                               "-P", folder_paths.get_temp_directory(), url],
                              capture_output=True, check=True)
         #strip newline
-        file = res.stdout.decode('utf-8')[:-1]
+        file = res.stdout.decode(*ENCODE_ARGS)[:-1]
     except subprocess.CalledProcessError as e:
         raise Exception("An error occurred in the yt-dl process:\n" \
-                + e.stderr.decode("utf-8"))
+                + e.stderr.decode(*ENCODE_ARGS))
         file = None
     download_history[url] = file
     return file
@@ -198,10 +200,10 @@ def get_audio(file, start_time=0, duration=0):
         res =  subprocess.run(args + ["-f", "f32le", "-"],
                               capture_output=True, check=True)
         audio = torch.frombuffer(bytearray(res.stdout), dtype=torch.float32)
-        match = re.search(', (\\d+) Hz, (\\w+), ',res.stderr.decode('utf-8'))
+        match = re.search(', (\\d+) Hz, (\\w+), ',res.stderr.decode(*ENCODE_ARGS))
     except subprocess.CalledProcessError as e:
         raise Exception(f"VHS failed to extract audio from {file}:\n" \
-                + e.stderr.decode("utf-8"))
+                + e.stderr.decode(*ENCODE_ARGS))
     if match:
         ar = int(match.group(1))
         #NOTE: Just throwing an error for other channel types right now

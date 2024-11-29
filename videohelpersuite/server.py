@@ -4,7 +4,8 @@ import os
 import time
 import subprocess
 import re
-from .utils import is_url, get_sorted_dir_files_from_directory, ffmpeg_path, validate_sequence, is_safe_path, strip_path, try_download_video
+from .utils import is_url, get_sorted_dir_files_from_directory, ffmpeg_path, \
+        validate_sequence, is_safe_path, strip_path, try_download_video, ENCODE_ARGS
 from comfy.k_diffusion.utils import FolderOfImages
 
 web = server.web
@@ -78,7 +79,7 @@ async def view_video(request):
     try:
         res = subprocess.run([ffmpeg_path] + in_args + ['-t', '0', '-f', 'null', '-'],
                              capture_output=True, check=True)
-        match = re.search(': Video: (\\w+) .+, (\\d+) fps,', res.stderr.decode('utf-8'))
+        match = re.search(': Video: (\\w+) .+, (\\d+) fps,', res.stderr.decode(*ENCODE_ARGS))
         if match:
             base_fps = float(match.group(2))
             if match.group(1) == 'vp9':
@@ -86,7 +87,7 @@ async def view_video(request):
                 in_args = ['-c:v', 'libvpx-vp9'] + in_args
     except subprocess.CalledProcessError as e:
         print("An error occurred in the ffmpeg prepass:\n" \
-                + e.stderr.decode("utf-8"))
+                + e.stderr.decode(*ENCODE_ARGS))
     vfilters = []
     target_rate = float(query.get('force_rate', 0)) or base_fps
     modified_rate = target_rate / float(query.get('select_every_nth',1))
