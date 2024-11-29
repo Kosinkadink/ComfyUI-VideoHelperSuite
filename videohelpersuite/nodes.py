@@ -20,7 +20,9 @@ from .image_latent_nodes import *
 from .load_video_nodes import LoadVideoUpload, LoadVideoPath, LoadVideoFFmpegUpload, LoadVideoFFmpegPath, LoadImagePath
 from .load_images_nodes import LoadImagesFromDirectoryUpload, LoadImagesFromDirectoryPath
 from .batched_nodes import VAEEncodeBatched, VAEDecodeBatched
-from .utils import ffmpeg_path, get_audio, hash_path, validate_path, requeue_workflow, gifski_path, calculate_file_hash, strip_path, try_download_video, is_url, imageOrLatent, BIGMAX, merge_filter_args
+from .utils import ffmpeg_path, get_audio, hash_path, validate_path, requeue_workflow, \
+        gifski_path, calculate_file_hash, strip_path, try_download_video, is_url, \
+        imageOrLatent, BIGMAX, merge_filter_args, ENCODE_ARGS
 from comfy.utils import ProgressBar
 
 folder_paths.folder_names_and_paths["VHS_video_formats"] = (
@@ -139,9 +141,9 @@ def ffmpeg_process(args, video_format, video_metadata, file_path, env):
                 #and seems to never occur concurrent to the metadata issue
                 if os.path.exists(file_path):
                     raise Exception("An error occurred in the ffmpeg subprocess:\n" \
-                            + err.decode("utf-8"))
+                            + err.decode(*ENCODE_ARGS))
                 #Res was not set
-                print(err.decode("utf-8"), end="", file=sys.stderr)
+                print(err.decode(*ENCODE_ARGS), end="", file=sys.stderr)
                 logger.warn("An error occurred when saving with metadata")
     if res != b'':
         with subprocess.Popen(args + [file_path], stderr=subprocess.PIPE,
@@ -157,10 +159,10 @@ def ffmpeg_process(args, video_format, video_metadata, file_path, env):
             except BrokenPipeError as e:
                 res = proc.stderr.read()
                 raise Exception("An error occurred in the ffmpeg subprocess:\n" \
-                        + res.decode("utf-8"))
+                        + res.decode(*ENCODE_ARGS))
     yield total_frames_output
     if len(res) > 0:
-        print(res.decode("utf-8"), end="", file=sys.stderr)
+        print(res.decode(*ENCODE_ARGS), end="", file=sys.stderr)
 
 def gifski_process(args, video_format, file_path, env):
     frame_data = yield
@@ -186,14 +188,14 @@ def gifski_process(args, video_format, file_path, env):
                 resgs = procgs.stderr.read()
                 raise Exception("An error occurred while creating gifski output\n" \
                         + "Make sure you are using gifski --version >=1.32.0\nffmpeg: " \
-                        + resff.decode("utf-8") + '\ngifski: ' + resgs.decode("utf-8"))
+                        + resff.decode(*ENCODE_ARGS) + '\ngifski: ' + resgs.decode(*ENCODE_ARGS))
     if len(resff) > 0:
-        print(resff.decode("utf-8"), end="", file=sys.stderr)
+        print(resff.decode(*ENCODE_ARGS), end="", file=sys.stderr)
     if len(resgs) > 0:
-        print(resgs.decode("utf-8"), end="", file=sys.stderr)
+        print(resgs.decode(*ENCODE_ARGS), end="", file=sys.stderr)
     #should always be empty as the quiet flag is passed
     if len(outgs) > 0:
-        print(outgs.decode("utf-8"))
+        print(outgs.decode(*ENCODE_ARGS))
 
 def to_pingpong(inp):
     if not hasattr(inp, "__getitem__"):
@@ -474,7 +476,7 @@ class VideoCombine:
                                    capture_output=True, check=True)
                 except subprocess.CalledProcessError as e:
                     raise Exception("An error occurred in the ffmpeg prepass:\n" \
-                            + e.stderr.decode("utf-8"))
+                            + e.stderr.decode(*ENCODE_ARGS))
             if "inputs_main_pass" in video_format:
                 args = args[:13] + video_format['inputs_main_pass'] + args[13:]
 
@@ -550,9 +552,9 @@ class VideoCombine:
                                          env=env, capture_output=True, check=True)
                 except subprocess.CalledProcessError as e:
                     raise Exception("An error occured in the ffmpeg subprocess:\n" \
-                            + e.stderr.decode("utf-8"))
+                            + e.stderr.decode(*ENCODE_ARGS))
                 if res.stderr:
-                    print(res.stderr.decode("utf-8"), end="", file=sys.stderr)
+                    print(res.stderr.decode(*ENCODE_ARGS), end="", file=sys.stderr)
                 output_files.append(output_file_with_audio_path)
                 #Return this file with audio to the webui.
                 #It will be muted unless opened or saved with right click
@@ -672,9 +674,9 @@ class AudioToVHSAudio:
                                  capture_output=True, check=True)
         except subprocess.CalledProcessError as e:
             raise Exception("An error occured in the ffmpeg subprocess:\n" \
-                    + e.stderr.decode("utf-8"))
+                    + e.stderr.decode(*ENCODE_ARGS))
         if res.stderr:
-            print(res.stderr.decode("utf-8"), end="", file=sys.stderr)
+            print(res.stderr.decode(*ENCODE_ARGS), end="", file=sys.stderr)
         return (lambda: res.stdout,)
 
 class VHSAudioToAudio:
@@ -699,8 +701,8 @@ class VHSAudioToAudio:
             audio = torch.frombuffer(bytearray(res.stdout), dtype=torch.float32)
         except subprocess.CalledProcessError as e:
             raise Exception("An error occured in the ffmpeg subprocess:\n" \
-                    + e.stderr.decode("utf-8"))
-        match = re.search(', (\\d+) Hz, (\\w+), ',res.stderr.decode('utf-8'))
+                    + e.stderr.decode(*ENCODE_ARGS))
+        match = re.search(', (\\d+) Hz, (\\w+), ',res.stderr.decode(*ENCODE_ARGS))
         if match:
             ar = int(match.group(1))
             #NOTE: Just throwing an error for other channel types right now

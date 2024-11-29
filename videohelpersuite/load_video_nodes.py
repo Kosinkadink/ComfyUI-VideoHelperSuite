@@ -13,7 +13,8 @@ from comfy.utils import common_upscale, ProgressBar
 from comfy.k_diffusion.utils import FolderOfImages
 from .logger import logger
 from .utils import BIGMAX, DIMMAX, calculate_file_hash, get_sorted_dir_files_from_directory,\
-        lazy_get_audio, hash_path, validate_path, strip_path, try_download_video, is_url, imageOrLatent, ffmpeg_path
+        lazy_get_audio, hash_path, validate_path, strip_path, try_download_video,  \
+        is_url, imageOrLatent, ffmpeg_path, ENCODE_ARGS
 
 
 video_extensions = ['webm', 'mp4', 'mkv', 'gif', 'mov']
@@ -146,8 +147,8 @@ def ffmpeg_frame_generator(video, force_rate, frame_load_cap, start_time,
                                     stderr=subprocess.PIPE,check=True)
     except subprocess.CalledProcessError as e:
         raise Exception("An error occurred in the ffmepg subprocess:\n" \
-                + e.stderr.decode("utf-8"))
-    lines = dummy_res.stderr.decode("utf-8")
+                + e.stderr.decode(*ENCODE_ARGS))
+    lines = dummy_res.stderr.decode(*ENCODE_ARGS)
     for line in lines.split('\n'):
         match = re.search(", ([1-9]|\\d{2,})x(\\d+).*, ([\\d\\.]+) fps", line)
         if match is not None:
@@ -226,7 +227,7 @@ def ffmpeg_frame_generator(video, force_rate, frame_load_cap, start_time,
                     current_offset = 0
     except BrokenPipeError as e:
         raise Exception("An error occured in the ffmpeg subprocess:\n" \
-                + proc.stderr.read().decode("utf-8"))
+                + proc.stderr.read().decode(*ENCODE_ARGS))
     if meta_batch is not None:
         meta_batch.inputs.pop(unique_id)
         meta_batch.has_closed_inputs = True
