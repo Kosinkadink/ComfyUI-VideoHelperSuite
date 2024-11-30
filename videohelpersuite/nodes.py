@@ -255,7 +255,8 @@ class VideoCombine:
         unique_id=None,
         manual_format_widgets=None,
         meta_batch=None,
-        vae=None
+        vae=None,
+        **kwargs
     ):
         if latents is not None:
             images = latents
@@ -387,10 +388,10 @@ class VideoCombine:
                 raise ProcessLookupError(f"ffmpeg is required for video outputs and could not be found.\nIn order to use video outputs, you must either:\n- Install imageio-ffmpeg with pip,\n- Place a ffmpeg executable in {os.path.abspath('')}, or\n- Install ffmpeg and add it to the system path.")
 
             #Acquire additional format_widget values
-            kwargs = None
             if manual_format_widgets is None:
                 if prompt is not None:
-                    kwargs = prompt[unique_id]['inputs']
+                    kwargs, passed_kwargs = prompt[unique_id]['inputs'], kwargs
+                    kwargs.update(passed_kwargs)
                 else:
                     manual_format_widgets = {}
             if kwargs is None:
