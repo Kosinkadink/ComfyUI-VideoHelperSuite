@@ -1,6 +1,7 @@
 "🍡"
 import { app } from '../../../scripts/app.js'
 import { api } from '../../../scripts/api.js'
+import { setWidgetConfig } from '../../../extensions/core/widgetInputs.js'
 import { applyTextReplacements } from "../../../scripts/utils.js";
 
 function chainCallback(object, property, callback) {
@@ -53,16 +54,6 @@ const renameDict  = {VHS_VideoCombine : {save_output : "save_image"}}
 function useKVState(nodeType) {
     chainCallback(nodeType.prototype, "onNodeCreated", function () {
         chainCallback(this, "onConfigure", function(info) {
-            if (this.inputs) {
-                for (let i = 0; i < this.inputs.length; i++) {
-                    let dt = this?.getInputDataType(i)
-                    if (dt && this.inputs[i]?.type != dt && !(dt == "IMAGE" && this.inputs[i].type == "LATENT")) {
-                        this.inputs[i].type = dt
-                        console.warn("input type mismatch for " + this.title + " slot " + i)
-
-                    }
-                }
-            }
             if (!this.widgets) {
                 //Node has no widgets, there is nothing to restore
                 return
@@ -92,6 +83,10 @@ function useKVState(nodeType) {
                         //let it fall through to failure state
                     }
                 }
+            }
+            let inputs = {}
+            for (let i of this.inputs) {
+                inputs[i.name] = i
             }
             if (widgetDict.length == undefined) {
                 for (let w of this.widgets) {
@@ -124,6 +119,9 @@ function useKVState(nodeType) {
                         if (initialValue) {
                             w.value = initialValue;
                         }
+                    }
+                    if (w.name in inputs && w.config) {
+                        setWidgetConfig(inputs[w.name], w.config.slice(1), w)
                     }
                 }
             } else {
@@ -1031,6 +1029,7 @@ function addFormatWidgets(nodeType) {
                         //TODO: consider letting this happen and just removing from list?
                         let w = {};
                         w.name = wDef[0];
+                        w.config = wDef;
                         let inputData = wDef.slice(1);
                         w.type = inputData[0];
                         w.options = inputData[1] ? inputData[1] : {};
@@ -1064,6 +1063,19 @@ function addFormatWidgets(nodeType) {
                 return formatWidget._value;
             }
         });
+        const originalAddInput = this.addInput;
+        this.addInput = function(name, type, options) {
+            if (options.widget) {
+                const widget = this.widgets.find((w) => w.name == name)
+                if (widget.config) {
+                    //Is converted format widget
+                    type = widget.config[1]
+                    const symbol = Object.getOwnPropertySymbols(options.widget)[0]
+                    options.widget[symbol] = () => widget.config.slice(1)
+                }
+            }
+            return originalAddInput.apply(this, [name, type, options])
+        }
     });
 }
 function sizeModifiesAspect(value) {
