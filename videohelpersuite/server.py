@@ -1,12 +1,15 @@
 import server
 import folder_paths
 import os
-import time
 import subprocess
 import re
+
+import asyncio
+
 from .utils import is_url, get_sorted_dir_files_from_directory, ffmpeg_path, \
         validate_sequence, is_safe_path, strip_path, try_download_video, ENCODE_ARGS
 from comfy.k_diffusion.utils import FolderOfImages
+
 
 web = server.web
 
@@ -139,20 +142,23 @@ async def view_video(request):
                 resp.content_type = 'video/webm'
                 resp.headers["Content-Disposition"] = f"filename=\"{filename}\""
                 await resp.prepare(request)
+                await asyncio.sleep(.1)
                 while True:
-                    bytes_read = proc.stdout.read(2**13)
+                    bytes_read = proc.stdout.read(2**20)
+                    delay = asyncio.create_task(asyncio.sleep(.1))
                     if bytes_read is None:
                         #TODO: check for timeout here
-                        time.sleep(.1)
+                        await delay
                         continue
                     if len(bytes_read) == 0:
                         break
-                    await resp.write(bytes_read)
-            except ConnectionResetError as e:
-                #Kill ffmpeg before stdout closes
-                proc.kill()
-            except ConnectionError as e:
-                #Kill ffmpeg before stdout closes
+                    await asyncio.gather(resp.write(bytes_read), delay)
+                #Of dubious value given frequency of kill calls, but more correct
+                proc.wait()
+            except (ConnectionResetError, ConnectionError) as e:
+                pass
+            finally:
+                #Kill ffmpeg before the pipe is closed
                 proc.kill()
 
     except BrokenPipeError as e:
