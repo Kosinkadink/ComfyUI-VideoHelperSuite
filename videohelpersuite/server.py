@@ -140,7 +140,7 @@ async def view_video(request):
                 resp.headers["Content-Disposition"] = f"filename=\"{filename}\""
                 await resp.prepare(request)
                 while True:
-                    bytes_read = proc.stdout.read()
+                    bytes_read = proc.stdout.read(2**13)
                     if bytes_read is None:
                         #TODO: check for timeout here
                         time.sleep(.1)
