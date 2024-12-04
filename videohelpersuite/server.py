@@ -5,10 +5,12 @@ import subprocess
 import re
 
 import asyncio
+from PIL import Image
 
 from .utils import is_url, get_sorted_dir_files_from_directory, ffmpeg_path, \
         validate_sequence, is_safe_path, strip_path, try_download_video, ENCODE_ARGS
 from comfy.k_diffusion.utils import FolderOfImages
+import latent_preview
 
 
 web = server.web
@@ -192,3 +194,72 @@ async def get_path(request):
             pass
 
     return web.json_response(valid_items)
+
+has_preview_data = asyncio.Event()
+preview_at = 0
+preview_data = []
+
+@server.PromptServer.instance.routes.get("/vhs/latentvideopreview")
+async def latent_video_preview(request):
+    rate = 8.0
+    args = ['ffmpeg','-v', 'error', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', '512x512', '-r', str(rate), '-i', '-']
+    args += ['-c:v', 'libvpx-vp9','-deadline', 'realtime', '-cpu-used', '8', '-f', 'webm', '-']
+    try:
+        proc = await asyncio.create_subprocess_exec(*args, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
+        try:
+            resp = web.StreamResponse()
+            resp.content_type = 'video/webm'
+            await resp.prepare(request)
+            async def read_loop():
+                delay = asyncio.sleep(.1)
+                while data := await proc.stdout.read(2**20):
+                    await asyncio.gather(delay, resp.write(data))
+                    delay = asyncio.sleep(.1)
+            async def write_loop():
+                await has_preview_data.wait()
+                preview_at = 0
+                delay = asyncio.create_task(asyncio.sleep(1/rate))
+                frame_at = 0
+                while True:
+                    proc.stdin.write(preview_data[frame_at])
+                    frame_at = (frame_at + 1) % len(preview_data)
+                    if frame_at == preview_at:
+                        await has_preview_data.wait()
+                        has_preview_data.clear()
+                    await asyncio.gather(proc.stdin.drain(), delay)
+                    delay = asyncio.create_task(asyncio.sleep(1/rate))
+
+            await asyncio.gather(read_loop(), write_loop())
+            await proc.wait()
+        except (ConnectionResetError, ConnectionError) as e:
+            pass
+        finally:
+            print('ded')
+            #Kill ffmpeg before the pipe is closed
+            proc.kill()
+
+    except BrokenPipeError as e:
+        pass
+    return resp
+
+orig_get_previewer = latent_preview.get_previewer
+def get_latent_video_previewer(device, latent_format):
+    previewer = orig_get_previewer(device, latent_format)
+    original_decode = previewer.decode_latent_to_preview
+    def wrapped_decode(x0):
+        global preview_data
+        num_images = x0.size(0)
+        if len(preview_data) != num_images:
+            preview_data = [b''] * num_images
+        for i in range(num_images):
+            sub_image = original_decode(x0[i:i+1])
+            if sub_image.size[0] != 512 or sub_image.size[1] != 512:
+                sub_image = sub_image.resize((512, 512),
+                                             Image.Resampling.NEAREST)
+            preview_data[i] = sub_image.tobytes()
+
+        has_preview_data.set()
+        return sub_image
+    previewer.decode_latent_to_preview = wrapped_decode
+    return previewer
+latent_preview.get_previewer = get_latent_video_previewer
