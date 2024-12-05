@@ -1315,6 +1315,17 @@ app.ui.settings.addSetting({
     type: "boolean",
     defaultValue: false,
 });
+app.ui.settings.addSetting({
+    id: "VHS.LatentPreview",
+    name: "🎥🅥🅗🅢 Display animated previews when sampling",
+    type: "combo",
+    defaultValue: 'Disabled',
+    options: (value) => [
+        {value: 'Disabled', text: 'Disabled', selected: value == 'Disabled'},
+        {value: 'Blocking', text: 'Blocking', selected: value == 'Blocking'},
+        {value: 'Continuous', text: 'Continuous', selected: value == 'Continuous'}
+    ]
+});
 
 app.registerExtension({
     name: "VideoHelperSuite.Core",
@@ -1615,10 +1626,15 @@ app.registerExtension({
             }
         }
         api.addEventListener('VHS_latentpreview', ({detail}) => {
+            let setting = app.ui.settings.getSettingValue("VHS.LatentPreview", 'Disabled')
+            if (setting == 'Disabled') {
+                return
+            }
+            let repeat = setting == 'Continuous'
             let node = app.graph.getNodeById(detail)
             let previewWidget = node.widgets.find((w) => w.name == 'videopreview') ??
                 _addVideoPreview(node)
-            previewWidget.videoEl.src = api.apiURL('/vhs/latentvideopreview?node_id=' + detail)
+            previewWidget.videoEl.src = api.apiURL('/vhs/latentvideopreview?repeat_stale=' + repeat + '&node_id=' + detail)
             previewWidget.videoEl.autoplay = true
         });
     },

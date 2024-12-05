@@ -59,8 +59,9 @@ async def latent_video_preview(request):
                             proc.stdin.close()
                             delay.close()
                             return
-                        await instance.has_data.wait()
-                        instance.has_data.clear()
+                        if not query.get('repeat_stale', False):
+                            await instance.has_data.wait()
+                            instance.has_data.clear()
                     await asyncio.gather(proc.stdin.drain(), delay)
                     delay = asyncio.create_task(asyncio.sleep(1/rate))
 
@@ -87,6 +88,10 @@ def get_latent_video_previewer(device, latent_format):
     original_decode = previewer.decode_latent_to_preview
     def wrapped_decode(_, x0):
         inst = get_instance(node_id)
+        if x0.ndim == 5:
+            #Keep batch major
+            x0 = x0.movedim(2,1)
+            x0 = x0.reshape((-1,)+x0.shape[-3:])
         num_images = x0.size(0)
         if len(inst.data) != num_images:
             inst.data = [b''] * num_images
