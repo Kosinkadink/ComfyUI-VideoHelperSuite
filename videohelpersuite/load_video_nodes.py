@@ -7,6 +7,7 @@ import cv2
 import psutil
 import subprocess
 import re
+import time
 
 import folder_paths
 from comfy.utils import common_upscale, ProgressBar
