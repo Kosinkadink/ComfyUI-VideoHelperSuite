@@ -896,10 +896,12 @@ function addPreviewOptions(nodeType) {
 
         let url = null
         if (previewWidget.videoEl?.hidden == false && previewWidget.videoEl.src) {
-            //Use full quality video
-            url = api.apiURL('/view?' + new URLSearchParams(previewWidget.value.params));
-            //Workaround for 16bit png: Just do first frame
-            url = url.replace('%2503d', '001')
+            if (['input', 'output', 'temp'].includes(previewWidget.value.params.type)) {
+                //Use full quality video
+                url = api.apiURL('/view?' + new URLSearchParams(previewWidget.value.params));
+                //Workaround for 16bit png: Just do first frame
+                url = url.replace('%2503d', '001')
+            }
         } else if (previewWidget.imgEl?.hidden == false && previewWidget.imgEl.src) {
             url = previewWidget.imgEl.src;
             url = new URL(url);
@@ -917,13 +919,29 @@ function addPreviewOptions(nodeType) {
                     callback: () => {
                         const a = document.createElement("a");
                         a.href = url;
-                        a.setAttribute("download", new URLSearchParams(previewWidget.value.params).get("filename"));
+                        a.setAttribute("download", previewWidget.value.params.filename);
                         document.body.append(a);
                         a.click();
                         requestAnimationFrame(() => a.remove());
                     },
                 }
             );
+            if (previewWidget.value.params.workflow) {
+                let wParams = {...previewWidget.value.params,
+                    filename: previewWidget.value.params.workflow}
+                let wUrl = api.apiURL('/view?' + new URLSearchParams(wParams));
+                optNew.push({
+                    content: "Save workflow image",
+                    callback: () => {
+                        const a = document.createElement("a");
+                        a.href = wUrl;
+                        a.setAttribute("download", previewWidget.value.params.workflow);
+                        document.body.append(a);
+                        a.click();
+                        requestAnimationFrame(() => a.remove());
+                    }
+                });
+            }
         }
         const PauseDesc = (previewWidget.value.paused ? "Resume" : "Pause") + " preview";
         if(previewWidget.videoEl.hidden == false) {
