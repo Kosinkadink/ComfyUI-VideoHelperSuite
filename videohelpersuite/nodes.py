@@ -344,8 +344,8 @@ class VideoCombine:
             output_process = None
 
         # save first frame as png to keep metadata
-        file = f"{filename}_{counter:05}.png"
-        file_path = os.path.join(full_output_folder, file)
+        first_image_file = f"{filename}_{counter:05}.png"
+        file_path = os.path.join(full_output_folder, first_image_file)
         Image.fromarray(tensor_to_bytes(first_image)).save(
             file_path,
             pnginfo=metadata,
@@ -561,19 +561,18 @@ class VideoCombine:
                 #It will be muted unless opened or saved with right click
                 file = output_file_with_audio
 
-        previews = [
-            {
+        preview = {
                 "filename": file,
                 "subfolder": subfolder,
                 "type": "output" if save_output else "temp",
                 "format": format,
                 "frame_rate": frame_rate,
+                "workflow": first_image_file
             }
-        ]
         if num_frames == 1 and 'png' in format and '%03d' in file:
             previews[0]['format'] = 'image/png'
             previews[0]['filename'] = file.replace('%03d', '001')
-        return {"ui": {"gifs": previews}, "result": ((save_output, output_files),)}
+        return {"ui": {"gifs": [preview]}, "result": ((save_output, output_files),)}
     @classmethod
     def VALIDATE_INPUTS(self, format, **kwargs):
         return True
