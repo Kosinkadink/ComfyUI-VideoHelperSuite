@@ -567,7 +567,8 @@ class VideoCombine:
                 "type": "output" if save_output else "temp",
                 "format": format,
                 "frame_rate": frame_rate,
-                "workflow": first_image_file
+                "workflow": first_image_file,
+                "fullpath": output_files[-1],
             }
         if num_frames == 1 and 'png' in format and '%03d' in file:
             previews[0]['format'] = 'image/png'

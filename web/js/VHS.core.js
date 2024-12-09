@@ -886,6 +886,7 @@ function addVideoPreview(nodeType) {
         previewWidget.parentEl.appendChild(previewWidget.imgEl)
     });
 }
+let copiedPath = undefined
 function addPreviewOptions(nodeType) {
     chainCallback(nodeType.prototype, "getExtraMenuOptions", function(_, options) {
         // The intended way of appending options is returning a list of extra options,
@@ -926,6 +927,19 @@ function addPreviewOptions(nodeType) {
                     },
                 }
             );
+            if (previewWidget.value.params.fullpath) {
+                copiedPath = previewWidget.value.params.fullpath
+                const blob = new Blob([previewWidget.value.params.fullpath],
+                    { type: 'text/plain'})
+                optNew.push({
+                    content: "Copy output filepath",
+                    callback: async () => {
+                        await navigator.clipboard.write([
+                            new ClipboardItem({
+                                'text/plain': blob
+                            })])}
+                });
+            }
             if (previewWidget.value.params.workflow) {
                 let wParams = {...previewWidget.value.params,
                     filename: previewWidget.value.params.workflow}
@@ -1611,6 +1625,55 @@ app.registerExtension({
             return res
         }
         app.graphToPrompt = graphToPrompt
+        //Add a handler for pasting video data
+        document.addEventListener('paste', async (e) => {
+            if (!e.target.classList.contains('litegraph') &&
+                !e.target.classList.contains('graph-canvas-container')) {
+                    return
+                }
+            let data = e.clipboardData || window.clipboardData
+            let filepath = data.getData('text/plain')
+            let video
+            for (const item of data.items) {
+                if (item.type.startsWith('video/')) {
+                    video = item
+                    break
+                }
+            }
+            if (filepath && copiedPath == filepath) {
+                //Add a Load Video (Path) and populate filepath
+                const pastedNode = LiteGraph.createNode('VHS_LoadVideoPath')
+                app.graph.add(pastedNode)
+                pastedNode.pos[0] = app.canvas.graph_mouse[0]
+                pastedNode.pos[1] = app.canvas.graph_mouse[1]
+                pastedNode.widgets[0].value = filepath
+                pastedNode.widgets[0].callback?.(filepath)
+            } else if (video && false) {
+                //Disabled due to lack of testing
+                //Add a Load Video (Upload), then upload the file, then select the file
+                const pastedNode = LiteGraph.createNode('VHS_LoadVideo')
+                app.graph.add(pastedNode)
+                pastedNode.pos[0] = app.canvas.graph_mouse[0]
+                pastedNode.pos[1] = app.canvas.graph_mouse[1]
+                const pathWidget = pastedNode.widgets[0]
+                //TODO: upload to pasted dir?
+                const blob = video.getAsFile()
+                const resp = await uploadFile(blob)
+                if (resp.status != 200) {
+                    //upload failed and file can not be added to options
+                    return;
+                }
+                const filename = (await resp.json()).name;
+                pathWidget.options.values.push(filename);
+                pathWidget.value = filename;
+                pathWidget.callback?.(filename)
+            } else {
+                return
+            }
+            e.preventDefault()
+            e.stopImmediatePropagation()
+            return false
+        }, true)
     },
     async init() {
         if (app.VHSHelp != helpDOM) {
