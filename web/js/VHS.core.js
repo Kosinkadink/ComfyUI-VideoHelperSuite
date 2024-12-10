@@ -1625,41 +1625,54 @@ app.registerExtension({
                 }
             }
         }
-        let previewImages = []
-        let animateInterval
-        api.addEventListener('VHS_latentpreview', ({ detail }) => {
-            let setting = app.ui.settings.getSettingValue("VHS.LatentPreview", 'Disabled')
-            if (setting == 'Disabled') {
-                return
-            }
-            let repeat = setting == 'Continuous'
-            let id = app.runningNodeId
-            if (id == null) {
-                return
-            }
-            //let previewNode = app.graph.getNodeById(id)
-            previewImages = []
-            previewImages.length = detail
-            let displayIndex = 0
-            if (animateInterval) {
-                clearTimeout(animateInterval)
-            }
-            animateInterval = setInterval(() => {
-                if (app.runningNodeId != id || !previewImages[displayIndex]) {
-                    return
-                }
-                app.nodePreviewImages[id] = [previewImages[displayIndex]]
-                displayIndex = (displayIndex + 1) % previewImages.length
-                app.canvas.setDirty(true)
-            }, 1000/8);
-        });
-        api.addEventListener('b_preview', async (e) => {
-            const ab = await e.detail.slice(0,8).arrayBuffer()
-            const index = new DataView(ab).getUint32(4)
-            previewImages[index] = URL.createObjectURL(e.detail.slice(8))
-            e.preventDefault()
-            e.stopImmediatePropagation()
-            return false
-        }, true);
     },
 });
+let previewImages = []
+let animateInterval
+api.addEventListener('VHS_latentpreview', ({ detail }) => {
+    let setting = app.ui.settings.getSettingValue("VHS.LatentPreview", 'Disabled')
+    if (setting == 'Disabled') {
+        return
+    }
+    let repeat = setting == 'Continuous'
+    let id = app.runningNodeId
+    if (id == null) {
+        return
+    }
+    let previewNode = app.graph.getNodeById(id)
+    let previewWidget = previewNode.widgets.find((w) => w.name == 'videopreview') ??
+        _addVideoPreview(previewNode)
+    previewWidget.videoEl.hidden = true
+    previewWidget.imgEl.hidden = false
+    previewImages = []
+    previewImages.length = detail
+    let displayIndex = 0
+    if (animateInterval) {
+        clearTimeout(animateInterval)
+    }
+    animateInterval = setInterval(() => {
+        if (app.runningNodeId != id) {
+            clearTimeout(animateInterval)
+            animateInterval = undefined
+            return
+        }
+        if (!previewImages[displayIndex]) {
+            return
+        }
+        previewWidget.imgEl.src = previewImages[displayIndex]
+        displayIndex = (displayIndex + 1) % previewImages.length
+    }, 1000/8);
+});
+api.addEventListener('b_preview', async (e) => {
+    if (!animateInterval) {
+        return
+    }
+    e.preventDefault()
+    e.stopImmediatePropagation()
+    e.stopPropagation()
+    const ab = await e.detail.slice(0,8).arrayBuffer()
+    const index = new DataView(ab).getUint32(4)
+    URL.revokeObjectURL(previewImages[index])
+    previewImages[index] = URL.createObjectURL(e.detail.slice(8))
+    return false
+}, true);
