@@ -1625,17 +1625,41 @@ app.registerExtension({
                 }
             }
         }
-        api.addEventListener('VHS_latentpreview', ({detail}) => {
+        let previewImages = []
+        let animateInterval
+        api.addEventListener('VHS_latentpreview', ({ detail }) => {
             let setting = app.ui.settings.getSettingValue("VHS.LatentPreview", 'Disabled')
             if (setting == 'Disabled') {
                 return
             }
             let repeat = setting == 'Continuous'
-            let node = app.graph.getNodeById(detail)
-            let previewWidget = node.widgets.find((w) => w.name == 'videopreview') ??
-                _addVideoPreview(node)
-            previewWidget.videoEl.src = api.apiURL('/vhs/latentvideopreview?repeat_stale=' + repeat + '&node_id=' + detail)
-            previewWidget.videoEl.autoplay = true
+            let id = app.runningNodeId
+            if (id == null) {
+                return
+            }
+            //let previewNode = app.graph.getNodeById(id)
+            previewImages = []
+            previewImages.length = detail
+            let displayIndex = 0
+            if (animateInterval) {
+                clearTimeout(animateInterval)
+            }
+            animateInterval = setInterval(() => {
+                if (app.runningNodeId != id || !previewImages[displayIndex]) {
+                    return
+                }
+                app.nodePreviewImages[id] = [previewImages[displayIndex]]
+                displayIndex = (displayIndex + 1) % previewImages.length
+                app.canvas.setDirty(true)
+            }, 1000/8);
         });
+        api.addEventListener('b_preview', async (e) => {
+            const ab = await e.detail.slice(0,8).arrayBuffer()
+            const index = new DataView(ab).getUint32(4)
+            previewImages[index] = URL.createObjectURL(e.detail.slice(8))
+            e.preventDefault()
+            e.stopImmediatePropagation()
+            return false
+        }, true);
     },
 });
