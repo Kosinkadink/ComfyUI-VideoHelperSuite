@@ -17,30 +17,35 @@ def get_latent_video_previewer(device, latent_format):
         return None
     first_preview = True
     serv.send_sync('VHS_latentpreview', node_id)
-    last_time = time.time()
+    last_time = 0
     c_index = 0
     original_decode = previewer.decode_latent_to_preview
     def wrapped_decode(_, x0):
         nonlocal first_preview, last_time, c_index
-        #inst = get_instance(node_id)
         if x0.ndim == 5:
             #Keep batch major
             x0 = x0.movedim(2,1)
             x0 = x0.reshape((-1,)+x0.shape[-3:])
         num_images = x0.size(0)
         new_time = time.time()
-        num_previews = min(math.ceil((new_time - last_time) * 8), num_images)
+        num_previews = int((new_time - last_time) * 8)
+        last_time = last_time + num_previews/8
+        if num_previews > num_images:
+            num_previews = num_images
         if first_preview:
             first_preview = False
             serv.send_sync('VHS_latentpreview', num_images)
-        last_time = new_time
         for _ in range(num_previews):
             sub_image = original_decode(x0[c_index:c_index+1])
             message = io.BytesIO()
             message.write(b'\x00\x00\x00\x01\x00\x00\x00\x01')
             message.write(c_index.to_bytes(length=4))
-            if sub_image.size[0] != 512 or sub_image.size[1] != 512:
-                sub_image = sub_image.resize((512, 512),
+            if sub_image.size[0] > 512 or sub_image.size[1] > 512:
+                if sub_image.size[0] > sub_image.size[1]:
+                    resize = (512, int(sub_image.size[1]*512/sub_image.size[0]))
+                else:
+                    resize = (int(sub_image.size[0]*512/sub_image.size[1]), 512)
+                sub_image = sub_image.resize(resize,
                                              Image.Resampling.NEAREST)
             sub_image.save(message, format="JPEG", quality=95, compress_level=1)
             serv.send_sync(server.BinaryEventTypes.PREVIEW_IMAGE,

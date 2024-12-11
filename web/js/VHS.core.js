@@ -1644,6 +1644,11 @@ api.addEventListener('VHS_latentpreview', ({ detail }) => {
         _addVideoPreview(previewNode)
     previewWidget.videoEl.hidden = true
     previewWidget.imgEl.hidden = false
+    for (let im of previewImages) {
+        if (im) {
+            URL.revokeObjectURL(im)
+        }
+    }
     previewImages = []
     previewImages.length = detail
     let displayIndex = 0
