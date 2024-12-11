@@ -1318,13 +1318,8 @@ app.ui.settings.addSetting({
 app.ui.settings.addSetting({
     id: "VHS.LatentPreview",
     name: "🎥🅥🅗🅢 Display animated previews when sampling",
-    type: "combo",
-    defaultValue: 'Disabled',
-    options: (value) => [
-        {value: 'Disabled', text: 'Disabled', selected: value == 'Disabled'},
-        {value: 'Blocking', text: 'Blocking', selected: value == 'Blocking'},
-        {value: 'Continuous', text: 'Continuous', selected: value == 'Continuous'}
-    ]
+    type: "boolean",
+    defaultValue: false,
 });
 
 app.registerExtension({
@@ -1606,6 +1601,7 @@ app.registerExtension({
                     }
                 }
             }
+            res.workflow.extra['VHS_latentpreview'] = app.ui.settings.getSettingValue("VHS.LatentPreview", false)
             return res
         }
         app.graphToPrompt = graphToPrompt
@@ -1630,11 +1626,10 @@ app.registerExtension({
 let previewImages = []
 let animateInterval
 api.addEventListener('VHS_latentpreview', ({ detail }) => {
-    let setting = app.ui.settings.getSettingValue("VHS.LatentPreview", 'Disabled')
-    if (setting == 'Disabled') {
+    let setting = app.ui.settings.getSettingValue("VHS.LatentPreview", false)
+    if (!setting) {
         return
     }
-    let repeat = setting == 'Continuous'
     let id = app.runningNodeId
     if (id == null) {
         return
