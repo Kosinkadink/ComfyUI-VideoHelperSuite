@@ -538,7 +538,7 @@ class VideoCombine:
                 #Reconsider forcing apad/shortest
                 channels = audio['waveform'].size(1)
                 min_audio_dur = total_frames_output / frame_rate + 1
-                if video_format.get('trim_to_audio', False):
+                if video_format.get('trim_to_audio', 'False') != 'False':
                     apad = []
                 else:
                     apad = ["-af", "apad=whole_dur="+str(min_audio_dur)]

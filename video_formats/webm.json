@@ -10,5 +10,6 @@
     ],
     "audio_pass": ["-c:a", "libvorbis"],
     "save_metadata": ["save_metadata", "BOOLEAN", {"default": true}],
+    "trim_to_audio": ["trim_to_audio", "BOOLEAN", {"default": false}],
     "extension": "webm"
 }
