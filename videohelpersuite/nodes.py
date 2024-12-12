@@ -538,12 +538,15 @@ class VideoCombine:
                 #Reconsider forcing apad/shortest
                 channels = audio['waveform'].size(1)
                 min_audio_dur = total_frames_output / frame_rate + 1
+                if video_format.get('trim_to_audio', False):
+                    apad = []
+                else:
+                    apad = ["-af", "apad=whole_dur="+str(min_audio_dur)]
                 mux_args = [ffmpeg_path, "-v", "error", "-n", "-i", file_path,
                             "-ar", str(audio['sample_rate']), "-ac", str(channels),
                             "-f", "f32le", "-i", "-", "-c:v", "copy"] \
                             + video_format["audio_pass"] \
-                            + ["-af", "apad=whole_dur="+str(min_audio_dur),
-                               "-shortest", output_file_with_audio_path]
+                            + apad + ["-shortest", output_file_with_audio_path]
 
                 audio_data = audio['waveform'].squeeze(0).transpose(0,1) \
                         .numpy().tobytes()
