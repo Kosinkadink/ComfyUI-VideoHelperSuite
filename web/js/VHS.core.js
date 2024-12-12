@@ -1315,11 +1315,24 @@ app.ui.settings.addSetting({
     type: "boolean",
     defaultValue: false,
 });
+let latentPreviewNodes = new Set()
 app.ui.settings.addSetting({
     id: "VHS.LatentPreview",
     name: "🎥🅥🅗🅢 Display animated previews when sampling",
     type: "boolean",
     defaultValue: false,
+    onChange(value) {
+        if (!value) {
+            //Remove any previewWidgets
+            for (let n of latentPreviewNodes) {
+                let i = n?.widgets?.findIndex((w) => w.name == 'videopreview')
+                if (i >= 0) {
+                    n.widgets.splice(i,1)[0].onRemove()
+                }
+            }
+            latentPreviewNodes = new Set()
+        }
+    },
 });
 
 app.registerExtension({
@@ -1637,6 +1650,7 @@ api.addEventListener('VHS_latentpreview', ({ detail }) => {
     let previewNode = app.graph.getNodeById(id)
     let previewWidget = previewNode.widgets.find((w) => w.name == 'videopreview') ??
         _addVideoPreview(previewNode)
+    latentPreviewNodes.add(previewNode)
     previewWidget.videoEl.hidden = true
     previewWidget.imgEl.hidden = false
     for (let im of previewImages) {
