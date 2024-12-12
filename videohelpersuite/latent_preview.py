@@ -9,6 +9,7 @@ import latent_preview
 import server
 serv = server.PromptServer.instance
 
+from .utils import hook
 
 class WrappedPreviewer(latent_preview.LatentPreviewer):
     def __init__(self, dltp):
@@ -33,7 +34,7 @@ class WrappedPreviewer(latent_preview.LatentPreviewer):
         for _ in range(num_previews):
             sub_image = self.decode_latent_to_preview(x0[self.c_index:self.c_index+1])
             message = io.BytesIO()
-            message.write(b'\x00\x00\x00\x01\x00\x00\x00\x01')
+            message.write((1).to_bytes(length=4)*2)
             message.write(self.c_index.to_bytes(length=4))
             if sub_image.size[0] > 512 or sub_image.size[1] > 512:
                 if sub_image.size[0] > sub_image.size[1]:
@@ -46,11 +47,12 @@ class WrappedPreviewer(latent_preview.LatentPreviewer):
             serv.send_sync(server.BinaryEventTypes.PREVIEW_IMAGE,
                            message.getvalue(), serv.client_id)
             self.c_index = (self.c_index +1) % num_images
+        return None
 
-orig_get_previewer = latent_preview.get_previewer
-def get_latent_video_previewer(device, latent_format):
+@hook(latent_preview, 'get_previewer')
+def get_latent_video_previewer(device, latent_format, *args, **kwargs):
     node_id = serv.last_node_id
-    previewer = orig_get_previewer(device, latent_format)
+    previewer = get_latent_video_previewer.__wrapped__(device, latent_format, *args, **kwargs)
     try:
         prev_setting = next(serv.prompt_queue.currently_running.values().__iter__())[3] \
                 ['extra_pnginfo']['workflow']['extra'].get('VHS_latentpreview', False)
@@ -60,4 +62,3 @@ def get_latent_video_previewer(device, latent_format):
     if not prev_setting or not hasattr(previewer, "decode_latent_to_preview"):
         return previewer
     return WrappedPreviewer(previewer.decode_latent_to_preview)
-latent_preview.get_previewer = get_latent_video_previewer
