@@ -1070,7 +1070,7 @@ function addFormatWidgets(nodeType) {
                             w.options.values = w.type;
                             w.type = "combo";
                         }
-                        if(inputData[1]?.default) {
+                        if(inputData[1]?.default != undefined) {
                             w.value = inputData[1].default;
                         }
                         if (w.type == "INT") {

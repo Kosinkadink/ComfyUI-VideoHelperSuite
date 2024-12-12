@@ -9,5 +9,6 @@
     ],
     "audio_pass": ["-c:a", "aac"],
     "save_metadata": ["save_metadata", "BOOLEAN", {"default": true}],
+    "trim_to_audio": ["trim_to_audio", "BOOLEAN", {"default": false}],
     "extension": "mp4"
 }
