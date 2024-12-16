@@ -1334,6 +1334,20 @@ app.ui.settings.addSetting({
         }
     },
 });
+app.ui.settings.addSetting({
+    id: "VHS.LatentPreviewRate",
+    name: "🎥🅥🅗🅢 Playback keyframe rate.",
+    type: "boolean",
+      type: 'number',
+      attrs: {
+        min: 1,
+        step: 1,
+        max: 60
+      },
+      tooltip:
+        'When dragging and resizing nodes while holding shift they will be aligned to the grid, this controls the size of that grid.',
+    defaultValue: 8,
+});
 
 app.registerExtension({
     name: "VideoHelperSuite.Core",
@@ -1615,6 +1629,7 @@ app.registerExtension({
                 }
             }
             res.workflow.extra['VHS_latentpreview'] = app.ui.settings.getSettingValue("VHS.LatentPreview", false)
+            res.workflow.extra['VHS_latentpreviewrate'] = app.ui.settings.getSettingValue("VHS.LatentPreviewRate", 8)
             return res
         }
         app.graphToPrompt = graphToPrompt
