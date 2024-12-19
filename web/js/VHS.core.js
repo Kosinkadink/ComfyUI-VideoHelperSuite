@@ -1325,7 +1325,7 @@ app.ui.settings.addSetting({
         if (!value) {
             //Remove any previewWidgets
             for (let n of latentPreviewNodes) {
-                let i = n?.widgets?.findIndex((w) => w.name == 'videopreview')
+                let i = n?.widgets?.findIndex((w) => w.name == 'vhslatentpreview')
                 if (i >= 0) {
                     n.widgets.splice(i,1)[0].onRemove()
                 }
@@ -1663,16 +1663,28 @@ api.addEventListener('VHS_latentpreview', ({ detail }) => {
         return
     }
     let previewNode = app.graph.getNodeById(id)
-    let previewWidget = previewNode.widgets.find((w) => w.name == 'videopreview') ??
-        _addVideoPreview(previewNode)
     latentPreviewNodes.add(previewNode)
-    previewWidget.videoEl.hidden = true
-    previewWidget.imgEl.hidden = false
-    for (let im of previewImages) {
-        if (im) {
-            URL.revokeObjectURL(im)
+    let previewWidget = previewNode.widgets.find((w) => w.name == "vhslatentpreview")
+    if (!previewWidget) {
+        let canvasEl = document.createElement("canvas")
+        previewWidget = previewNode.addDOMWidget("vhslatentpreview", "vhscanvas", canvasEl, {
+            serialize: false,
+            hideOnZoom: false,
+        });
+        previewWidget.computeSize = function(width) {
+            if (this.aspectRatio) {
+                let height = (previewNode.size[0]-20)/ this.aspectRatio + 10;
+                if (!(height > 0)) {
+                    height = 0;
+                }
+                this.computedHeight = height + 10;
+                return [width, height];
+            }
+            return [width, -4];//no loaded src, widget should not display
         }
     }
+    let firstPreview = true
+    let ctx
     previewImages = []
     previewImages.length = detail
     let displayIndex = 0
@@ -1688,9 +1700,17 @@ api.addEventListener('VHS_latentpreview', ({ detail }) => {
         if (!previewImages[displayIndex]) {
             return
         }
-        previewWidget.imgEl.src = previewImages[displayIndex]
+        let canvasEl = previewWidget.element
+        if (!ctx) {
+            previewWidget.aspectRatio = previewImages[displayIndex].width / previewImages[displayIndex].height
+            canvasEl.width = previewNode.size[0]
+            canvasEl.height = previewNode.size[0] / previewWidget.aspectRatio
+            ctx = canvasEl.getContext("2d")
+            fitHeight(previewNode)
+        }
+        ctx.drawImage(previewImages[displayIndex],0,0, canvasEl.width, canvasEl.height)
         displayIndex = (displayIndex + 1) % previewImages.length
-    }, 1000/8);
+    }, 1000/app.ui.settings.getSettingValue("VHS.LatentPreviewRate", 8));
 });
 api.addEventListener('b_preview', async (e) => {
     if (!animateInterval) {
@@ -1701,7 +1721,6 @@ api.addEventListener('b_preview', async (e) => {
     e.stopPropagation()
     const ab = await e.detail.slice(0,8).arrayBuffer()
     const index = new DataView(ab).getUint32(4)
-    URL.revokeObjectURL(previewImages[index])
-    previewImages[index] = URL.createObjectURL(e.detail.slice(8))
+    previewImages[index] = await window.createImageBitmap(e.detail.slice(8))
     return false
 }, true);
