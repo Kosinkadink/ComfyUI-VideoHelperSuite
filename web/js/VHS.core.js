@@ -1703,12 +1703,12 @@ api.addEventListener('VHS_latentpreview', ({ detail }) => {
         let canvasEl = previewWidget.element
         if (!ctx) {
             previewWidget.aspectRatio = previewImages[displayIndex].width / previewImages[displayIndex].height
-            canvasEl.width = previewNode.size[0]
-            canvasEl.height = previewNode.size[0] / previewWidget.aspectRatio
+            canvasEl.width = previewImages[displayIndex].width
+            canvasEl.height = previewImages[displayIndex].height
             ctx = canvasEl.getContext("2d")
             fitHeight(previewNode)
         }
-        ctx.drawImage(previewImages[displayIndex],0,0, canvasEl.width, canvasEl.height)
+        ctx.drawImage(previewImages[displayIndex],0,0)
         displayIndex = (displayIndex + 1) % previewImages.length
     }, 1000/app.ui.settings.getSettingValue("VHS.LatentPreviewRate", 8));
 });
