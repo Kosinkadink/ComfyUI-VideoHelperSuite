@@ -6,6 +6,7 @@ import subprocess
 import re
 from collections.abc import Mapping
 from typing import Union
+import functools
 import torch
 from torch import Tensor
 
@@ -387,3 +388,11 @@ def select_indexes_from_str(input_obj: Union[Tensor, list], indexes: str, err_if
     if err_if_empty and len(real_idxs) == 0:
         raise Exception(f"Nothing was selected based on indexes found in '{indexes}'.")
     return select_indexes(input_obj, real_idxs)
+
+def hook(obj, attr):
+    def dec(f):
+        f = functools.update_wrapper(f, getattr(obj,attr))
+        setattr(obj,attr,f)
+        return f
+    return dec
+
