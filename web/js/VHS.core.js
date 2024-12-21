@@ -748,80 +748,85 @@ function addUploadWidget(nodeType, nodeData, widgetName, type="video") {
         uploadWidget.options.serialize = false;
     });
 }
+function _addVideoPreview(node) {
+    var element = document.createElement("div");
+    const previewNode = node;
+    var previewWidget = node.addDOMWidget("videopreview", "preview", element, {
+        serialize: false,
+        hideOnZoom: false,
+        getValue() {
+            return element.value;
+        },
+        setValue(v) {
+            element.value = v;
+        },
+    });
+    previewWidget.computeSize = function(width) {
+        if (this.aspectRatio && !this.parentEl.hidden) {
+            let height = (previewNode.size[0]-20)/ this.aspectRatio + 10;
+            if (!(height > 0)) {
+                height = 0;
+            }
+            this.computedHeight = height + 10;
+            return [width, height];
+        }
+        return [width, -4];//no loaded src, widget should not display
+    }
+    element.addEventListener('contextmenu', (e)  => {
+        e.preventDefault()
+        return app.canvas._mousedown_callback(e)
+    }, true);
+    element.addEventListener('pointerdown', (e)  => {
+        e.preventDefault()
+        return app.canvas._mousedown_callback(e)
+    }, true);
+    element.addEventListener('mousewheel', (e)  => {
+        e.preventDefault()
+        return app.canvas._mousewheel_callback(e)
+    }, true);
+    previewWidget.value = {hidden: false, paused: false, params: {},
+        muted: app.ui.settings.getSettingValue("VHS.DefaultMute", false)}
+    previewWidget.parentEl = document.createElement("div");
+    previewWidget.parentEl.className = "vhs_preview";
+    previewWidget.parentEl.style['width'] = "100%"
+    element.appendChild(previewWidget.parentEl);
+    previewWidget.videoEl = document.createElement("video");
+    previewWidget.videoEl.controls = false;
+    previewWidget.videoEl.loop = true;
+    previewWidget.videoEl.muted = true;
+    previewWidget.videoEl.style['width'] = "100%"
+    previewWidget.videoEl.addEventListener("loadedmetadata", () => {
+
+        previewWidget.aspectRatio = previewWidget.videoEl.videoWidth / previewWidget.videoEl.videoHeight;
+        fitHeight(node);
+    });
+    previewWidget.videoEl.addEventListener("error", () => {
+        //TODO: consider a way to properly notify the user why a preview isn't shown.
+        previewWidget.parentEl.hidden = true;
+        fitHeight(node);
+    });
+    previewWidget.videoEl.onmouseenter =  () => {
+        previewWidget.videoEl.muted = previewWidget.value.muted
+    };
+    previewWidget.videoEl.onmouseleave = () => {
+        previewWidget.videoEl.muted = true;
+    };
+
+    previewWidget.imgEl = document.createElement("img");
+    previewWidget.imgEl.style['width'] = "100%"
+    previewWidget.imgEl.hidden = true;
+    previewWidget.imgEl.onload = () => {
+        previewWidget.aspectRatio = previewWidget.imgEl.naturalWidth / previewWidget.imgEl.naturalHeight;
+        fitHeight(node);
+    };
+    previewWidget.parentEl.appendChild(previewWidget.videoEl)
+    previewWidget.parentEl.appendChild(previewWidget.imgEl)
+    return previewWidget
+}
 
 function addVideoPreview(nodeType) {
     chainCallback(nodeType.prototype, "onNodeCreated", function() {
-        var element = document.createElement("div");
-        const previewNode = this;
-        var previewWidget = this.addDOMWidget("videopreview", "preview", element, {
-            serialize: false,
-            hideOnZoom: false,
-            getValue() {
-                return element.value;
-            },
-            setValue(v) {
-                element.value = v;
-            },
-        });
-        previewWidget.computeSize = function(width) {
-            if (this.aspectRatio && !this.parentEl.hidden) {
-                let height = (previewNode.size[0]-20)/ this.aspectRatio + 10;
-                if (!(height > 0)) {
-                    height = 0;
-                }
-                this.computedHeight = height + 10;
-                return [width, height];
-            }
-            return [width, -4];//no loaded src, widget should not display
-        }
-        element.addEventListener('contextmenu', (e)  => {
-            e.preventDefault()
-            return app.canvas._mousedown_callback(e)
-        }, true);
-        element.addEventListener('pointerdown', (e)  => {
-            e.preventDefault()
-            return app.canvas._mousedown_callback(e)
-        }, true);
-        element.addEventListener('mousewheel', (e)  => {
-            e.preventDefault()
-            return app.canvas._mousewheel_callback(e)
-        }, true);
-        previewWidget.value = {hidden: false, paused: false, params: {},
-            muted: app.ui.settings.getSettingValue("VHS.DefaultMute", false)}
-        previewWidget.parentEl = document.createElement("div");
-        previewWidget.parentEl.className = "vhs_preview";
-        previewWidget.parentEl.style['width'] = "100%"
-        element.appendChild(previewWidget.parentEl);
-        previewWidget.videoEl = document.createElement("video");
-        previewWidget.videoEl.controls = false;
-        previewWidget.videoEl.loop = true;
-        previewWidget.videoEl.muted = true;
-        previewWidget.videoEl.style['width'] = "100%"
-        previewWidget.videoEl.addEventListener("loadedmetadata", () => {
-
-            previewWidget.aspectRatio = previewWidget.videoEl.videoWidth / previewWidget.videoEl.videoHeight;
-            fitHeight(this);
-        });
-        previewWidget.videoEl.addEventListener("error", () => {
-            //TODO: consider a way to properly notify the user why a preview isn't shown.
-            previewWidget.parentEl.hidden = true;
-            fitHeight(this);
-        });
-        previewWidget.videoEl.onmouseenter =  () => {
-            previewWidget.videoEl.muted = previewWidget.value.muted
-        };
-        previewWidget.videoEl.onmouseleave = () => {
-            previewWidget.videoEl.muted = true;
-        };
-
-        previewWidget.imgEl = document.createElement("img");
-        previewWidget.imgEl.style['width'] = "100%"
-        previewWidget.imgEl.hidden = true;
-        previewWidget.imgEl.onload = () => {
-            previewWidget.aspectRatio = previewWidget.imgEl.naturalWidth / previewWidget.imgEl.naturalHeight;
-            fitHeight(this);
-        };
-
+        let previewWidget = _addVideoPreview(this)
         var timeout = null;
         this.updateParameters = (params, force_update) => {
             if (!previewWidget.value.params) {
@@ -857,9 +862,9 @@ function addVideoPreview(nodeType) {
                 (params.format?.split('/')[1] == 'gif') || params.format == 'folder') {
                 this.videoEl.autoplay = !this.value.paused && !this.value.hidden;
                 let target_width = 256
-                if (element.style?.width) {
+                if (previewWidget.element?.style?.width) {
                     //overscale to allow scrolling. Endpoint won't return higher than native
-                    target_width = element.style.width.slice(0,-2)*2;
+                    target_width = previewWidget.element.style.width.slice(0,-2)*2;
                 }
                 if (!params.force_size || params.force_size.includes("?") || params.force_size == "Disabled") {
                     params.force_size = target_width+"x?"
@@ -1342,6 +1347,39 @@ app.ui.settings.addSetting({
     type: "boolean",
     defaultValue: false,
 });
+let latentPreviewNodes = new Set()
+app.ui.settings.addSetting({
+    id: "VHS.LatentPreview",
+    name: "🎥🅥🅗🅢 Display animated previews when sampling",
+    type: "boolean",
+    defaultValue: false,
+    onChange(value) {
+        if (!value) {
+            //Remove any previewWidgets
+            for (let n of latentPreviewNodes) {
+                let i = n?.widgets?.findIndex((w) => w.name == 'vhslatentpreview')
+                if (i >= 0) {
+                    n.widgets.splice(i,1)[0].onRemove()
+                }
+            }
+            latentPreviewNodes = new Set()
+        }
+    },
+});
+app.ui.settings.addSetting({
+    id: "VHS.LatentPreviewRate",
+    name: "🎥🅥🅗🅢 Playback rate override.",
+    type: "boolean",
+      type: 'number',
+      attrs: {
+        min: 0,
+        step: 1,
+        max: 60
+      },
+      tooltip:
+        'Force a specific frame rate for the playback of latent frames. This should not be confused with the outptu frame rate and will not match for video models.',
+    defaultValue: 0,
+});
 
 app.registerExtension({
     name: "VideoHelperSuite.Core",
@@ -1622,6 +1660,8 @@ app.registerExtension({
                     }
                 }
             }
+            res.workflow.extra['VHS_latentpreview'] = app.ui.settings.getSettingValue("VHS.LatentPreview", false)
+            res.workflow.extra['VHS_latentpreviewrate'] = app.ui.settings.getSettingValue("VHS.LatentPreviewRate", 0)
             return res
         }
         app.graphToPrompt = graphToPrompt
@@ -1690,6 +1730,78 @@ app.registerExtension({
                 }
             }
         }
-
     },
 });
+let previewImages = []
+let animateInterval
+api.addEventListener('VHS_latentpreview', ({ detail }) => {
+    let setting = app.ui.settings.getSettingValue("VHS.LatentPreview", false)
+    if (!setting) {
+        return
+    }
+    let id = app.runningNodeId
+    if (id == null) {
+        return
+    }
+    let previewNode = app.graph.getNodeById(id)
+    latentPreviewNodes.add(previewNode)
+    let previewWidget = previewNode.widgets.find((w) => w.name == "vhslatentpreview")
+    if (!previewWidget) {
+        let canvasEl = document.createElement("canvas")
+        previewWidget = previewNode.addDOMWidget("vhslatentpreview", "vhscanvas", canvasEl, {
+            serialize: false,
+            hideOnZoom: false,
+        });
+        previewWidget.computeSize = function(width) {
+            if (this.aspectRatio) {
+                let height = (previewNode.size[0]-20)/ this.aspectRatio + 10;
+                if (!(height > 0)) {
+                    height = 0;
+                }
+                this.computedHeight = height + 10;
+                return [width, height];
+            }
+            return [width, -4];//no loaded src, widget should not display
+        }
+    }
+    let firstPreview = true
+    let ctx
+    previewImages = []
+    previewImages.length = detail.length
+    let displayIndex = 0
+    if (animateInterval) {
+        clearTimeout(animateInterval)
+    }
+    animateInterval = setInterval(() => {
+        if (app.runningNodeId != id) {
+            clearTimeout(animateInterval)
+            animateInterval = undefined
+            return
+        }
+        if (!previewImages[displayIndex]) {
+            return
+        }
+        let canvasEl = previewWidget.element
+        if (!ctx) {
+            previewWidget.aspectRatio = previewImages[displayIndex].width / previewImages[displayIndex].height
+            canvasEl.width = previewImages[displayIndex].width
+            canvasEl.height = previewImages[displayIndex].height
+            ctx = canvasEl.getContext("2d")
+            fitHeight(previewNode)
+        }
+        ctx.drawImage(previewImages[displayIndex],0,0)
+        displayIndex = (displayIndex + 1) % previewImages.length
+    }, 1000/detail.rate);
+});
+api.addEventListener('b_preview', async (e) => {
+    if (!animateInterval) {
+        return
+    }
+    e.preventDefault()
+    e.stopImmediatePropagation()
+    e.stopPropagation()
+    const ab = await e.detail.slice(0,8).arrayBuffer()
+    const index = new DataView(ab).getUint32(4)
+    previewImages[index] = await window.createImageBitmap(e.detail.slice(8))
+    return false
+}, true);

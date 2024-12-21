@@ -64,30 +64,22 @@ def get_video_formats():
             formats.append("video/" + format_name)
     return formats
 
-def get_format_widget_defaults(format_name):
-    video_format_path = folder_paths.get_full_path("VHS_video_formats", format_name + ".json")
-    with open(video_format_path, 'r') as stream:
-        video_format = json.load(stream)
-    results = {}
-    for w in gen_format_widgets(video_format):
-        if len(w[0]) > 2 and 'default' in w[0][2]:
-            default = w[0][2]['default']
-        else:
-            if type(w[0][1]) is list:
-                default = w[0][1][0]
-            else:
-                #NOTE: This doesn't respect max/min, but should be good enough as a fallback to a fallback to a fallback
-                default = {"BOOLEAN": False, "INT": 0, "FLOAT": 0, "STRING": ""}[w[0][1]]
-        results[w[0][0]] = default
-    return results
-
-
 def apply_format_widgets(format_name, kwargs):
     video_format_path = folder_paths.get_full_path("VHS_video_formats", format_name + ".json")
     with open(video_format_path, 'r') as stream:
         video_format = json.load(stream)
     for w in gen_format_widgets(video_format):
-        assert(w[0][0] in kwargs)
+        if w[0][0] not in kwargs:
+            if len(w[0]) > 2 and 'default' in w[0][2]:
+                default = w[0][2]['default']
+            else:
+                if type(w[0][1]) is list:
+                    default = w[0][1][0]
+                else:
+                    #NOTE: This doesn't respect max/min, but should be good enough as a fallback to a fallback to a fallback
+                    default = {"BOOLEAN": False, "INT": 0, "FLOAT": 0, "STRING": ""}[w[0][1]]
+            kwargs[w[0][0]] = default
+            logger.warn(f"Missing input for {w[0][0]} has been set to {default}")
         if len(w[0]) > 3:
             w[0] = Template(w[0][3]).substitute(val=kwargs[w[0][0]])
         else:
@@ -395,7 +387,6 @@ class VideoCombine:
                 else:
                     manual_format_widgets = {}
             if kwargs is None:
-                kwargs = get_format_widget_defaults(format_ext)
                 missing = {}
                 for k in kwargs.keys():
                     if k in manual_format_widgets:
