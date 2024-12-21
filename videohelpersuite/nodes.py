@@ -336,8 +336,8 @@ class VideoCombine:
             output_process = None
 
         # save first frame as png to keep metadata
-        file = f"{filename}_{counter:05}.png"
-        file_path = os.path.join(full_output_folder, file)
+        first_image_file = f"{filename}_{counter:05}.png"
+        file_path = os.path.join(full_output_folder, first_image_file)
         Image.fromarray(tensor_to_bytes(first_image)).save(
             file_path,
             pnginfo=metadata,
@@ -529,12 +529,15 @@ class VideoCombine:
                 #Reconsider forcing apad/shortest
                 channels = audio['waveform'].size(1)
                 min_audio_dur = total_frames_output / frame_rate + 1
+                if video_format.get('trim_to_audio', 'False') != 'False':
+                    apad = []
+                else:
+                    apad = ["-af", "apad=whole_dur="+str(min_audio_dur)]
                 mux_args = [ffmpeg_path, "-v", "error", "-n", "-i", file_path,
                             "-ar", str(audio['sample_rate']), "-ac", str(channels),
                             "-f", "f32le", "-i", "-", "-c:v", "copy"] \
                             + video_format["audio_pass"] \
-                            + ["-af", "apad=whole_dur="+str(min_audio_dur),
-                               "-shortest", output_file_with_audio_path]
+                            + apad + ["-shortest", output_file_with_audio_path]
 
                 audio_data = audio['waveform'].squeeze(0).transpose(0,1) \
                         .numpy().tobytes()
@@ -552,19 +555,19 @@ class VideoCombine:
                 #It will be muted unless opened or saved with right click
                 file = output_file_with_audio
 
-        previews = [
-            {
+        preview = {
                 "filename": file,
                 "subfolder": subfolder,
                 "type": "output" if save_output else "temp",
                 "format": format,
                 "frame_rate": frame_rate,
+                "workflow": first_image_file,
+                "fullpath": output_files[-1],
             }
-        ]
         if num_frames == 1 and 'png' in format and '%03d' in file:
             previews[0]['format'] = 'image/png'
             previews[0]['filename'] = file.replace('%03d', '001')
-        return {"ui": {"gifs": previews}, "result": ((save_output, output_files),)}
+        return {"ui": {"gifs": [preview]}, "result": ((save_output, output_files),)}
     @classmethod
     def VALIDATE_INPUTS(self, format, **kwargs):
         return True
