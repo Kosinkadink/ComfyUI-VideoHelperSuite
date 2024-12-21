@@ -1336,17 +1336,17 @@ app.ui.settings.addSetting({
 });
 app.ui.settings.addSetting({
     id: "VHS.LatentPreviewRate",
-    name: "🎥🅥🅗🅢 Playback keyframe rate.",
+    name: "🎥🅥🅗🅢 Playback rate override.",
     type: "boolean",
       type: 'number',
       attrs: {
-        min: 1,
+        min: 0,
         step: 1,
         max: 60
       },
       tooltip:
-        'When dragging and resizing nodes while holding shift they will be aligned to the grid, this controls the size of that grid.',
-    defaultValue: 8,
+        'Force a specific frame rate for the playback of latent frames. This should not be confused with the outptu frame rate and will not match for video models.',
+    defaultValue: 0,
 });
 
 app.registerExtension({
@@ -1629,7 +1629,7 @@ app.registerExtension({
                 }
             }
             res.workflow.extra['VHS_latentpreview'] = app.ui.settings.getSettingValue("VHS.LatentPreview", false)
-            res.workflow.extra['VHS_latentpreviewrate'] = app.ui.settings.getSettingValue("VHS.LatentPreviewRate", 8)
+            res.workflow.extra['VHS_latentpreviewrate'] = app.ui.settings.getSettingValue("VHS.LatentPreviewRate", 0)
             return res
         }
         app.graphToPrompt = graphToPrompt
@@ -1686,7 +1686,7 @@ api.addEventListener('VHS_latentpreview', ({ detail }) => {
     let firstPreview = true
     let ctx
     previewImages = []
-    previewImages.length = detail
+    previewImages.length = detail.length
     let displayIndex = 0
     if (animateInterval) {
         clearTimeout(animateInterval)
@@ -1710,7 +1710,7 @@ api.addEventListener('VHS_latentpreview', ({ detail }) => {
         }
         ctx.drawImage(previewImages[displayIndex],0,0)
         displayIndex = (displayIndex + 1) % previewImages.length
-    }, 1000/app.ui.settings.getSettingValue("VHS.LatentPreviewRate", 8));
+    }, 1000/detail.rate);
 });
 api.addEventListener('b_preview', async (e) => {
     if (!animateInterval) {

@@ -11,6 +11,7 @@ serv = server.PromptServer.instance
 
 from .utils import hook
 
+rates_table = {'Mochi': 24//6, 'LTXV': 24//8, 'HunyuanVideo': 24//4}
 
 class WrappedPreviewer(latent_preview.LatentPreviewer):
     def __init__(self, previewer, rate=8):
@@ -39,7 +40,8 @@ class WrappedPreviewer(latent_preview.LatentPreviewer):
             num_previews = num_images
         if self.first_preview:
             self.first_preview = False
-            serv.send_sync('VHS_latentpreview', num_images)
+            serv.send_sync('VHS_latentpreview', {'length':num_images, 'rate': self.rate})
+            self.last_time = new_time + 1/self.rate
         if self.c_index + num_previews > num_images:
             x0 = x0.roll(-self.c_index, 0)[:num_previews]
         else:
@@ -92,7 +94,10 @@ def get_latent_video_previewer(device, latent_format, *args, **kwargs):
         extra_info = next(serv.prompt_queue.currently_running.values().__iter__()) \
                 [3]['extra_pnginfo']['workflow']['extra']
         prev_setting = extra_info.get('VHS_latentpreview', False)
-        rate_setting = extra_info.get('VHS_latentpreviewrate', 8)
+        if extra_info.get('VHS_latentpreviewrate', 0) != 0:
+            rate_setting = extra_info['VHS_latentpreviewrate']
+        else:
+            rate_setting = rates_table.get(latent_format.__class__.__name__, 8)
     except:
         #For safety since there's lots of keys, any of which can fail
         prev_setting = False
