@@ -1734,6 +1734,7 @@ app.registerExtension({
 });
 let previewImages = []
 let animateInterval
+let index = 0
 api.addEventListener('VHS_latentpreview', ({ detail }) => {
     let setting = app.ui.settings.getSettingValue("VHS.LatentPreview", false)
     if (!setting) {
@@ -1763,6 +1764,16 @@ api.addEventListener('VHS_latentpreview', ({ detail }) => {
             }
             return [width, -4];//no loaded src, widget should not display
         }
+        Object.defineProperty(previewNode, 'preview', {
+            set : function(value) {
+                if(!animateInterval) {
+                    this._preview = value
+                }
+            },
+            get : function() {
+                return this._preview
+            }
+        })
     }
     let firstPreview = true
     let ctx
@@ -1797,11 +1808,12 @@ api.addEventListener('b_preview', async (e) => {
     if (!animateInterval) {
         return
     }
-    e.preventDefault()
-    e.stopImmediatePropagation()
-    e.stopPropagation()
-    const ab = await e.detail.slice(0,8).arrayBuffer()
-    const index = new DataView(ab).getUint32(4)
-    previewImages[index] = await window.createImageBitmap(e.detail.slice(8))
+    if (index != 0) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        e.stopPropagation()
+    }
+    previewImages[index] = await window.createImageBitmap(e.detail)
+    index = (index + 1) % previewImages.length
     return false
 }, true);

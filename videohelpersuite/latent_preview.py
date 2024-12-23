@@ -65,13 +65,8 @@ class WrappedPreviewer(latent_preview.LatentPreviewer):
                          ).to(device="cpu", dtype=torch.uint8)
         for preview in previews_ubyte:
             i = Image.fromarray(preview.numpy())
-            message = io.BytesIO()
-            message.write((1).to_bytes(length=4)*2)
-            message.write(ind.to_bytes(length=4))
-            i.save(message, format="JPEG", quality=95, compress_level=1)
-            #NOTE: send sync already uses call_soon_threadsafe
-            serv.send_sync(server.BinaryEventTypes.PREVIEW_IMAGE,
-                           message.getvalue(), serv.client_id)
+            serv.send_sync(server.BinaryEventTypes.UNENCODED_PREVIEW_IMAGE,
+                           ("JPEG", i, 512), serv.client_id)
             ind = (ind + 1) % leng
     def decode_latent_to_preview(self, x0):
         if hasattr(self, 'taesd'):
