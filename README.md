@@ -36,7 +36,7 @@ Returns: a `VHS_FILENAMES` which consists of a boolean indicating if save_output
  
 Depending on the format chosen, additional options may become available, including
 - crf: Describes the quality of the output video. A lower number gives a higher quality video and a larger file size, while a higher number gives a lower quality video with a smaller size. Scaling varies by codec, but visually lossless output generally occurs around 20.
-- save_metadata: Includes a copy of the workflow in the ouput video which can be loaded by dragging and dropping the video, just like with images.
+- save_metadata: Includes a copy of the workflow in the output video which can be loaded by dragging and dropping the video, just like with images.
 - pix_fmt: Changes how the pixel data is stored. `yuv420p10le` has higher color quality, but won't work on all devices
 ### Load Audio
 Provides a way to load standalone audio files.
@@ -45,7 +45,7 @@ Provides a way to load standalone audio files.
 ## Latent/Image Nodes
 A number of utility nodes exist for managing latents. For each, there is an equivalent node which works on images.
 ### Split Batch
-Divides the latents into two sets. The first `split_index` latents go to ouput A and the remainder to output B. If less then `split_index` latents are provided as input, all are passed to output A and output B is empty.
+Divides the latents into two sets. The first `split_index` latents go to output A and the remainder to output B. If less then `split_index` latents are provided as input, all are passed to output A and output B is empty.
 ### Merge Batch
 Combines two groups of latents into a single output. The order of the output is the latents in A followed by the latents in B.  
 If the input groups are not the same size, the node provides options for rescaling the latents before merging.
