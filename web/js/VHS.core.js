@@ -447,7 +447,7 @@ function applyVHSAudioLinksFix(nodeType, nodeData, audio_slot) {
             if (linfo.type == "VHS_AUDIO") {
                 this.outputs[audio_slot].type = "AUDIO"
                 let tnode = app.graph._nodes_by_id[linfo.target_id]
-                let inputDef = LiteGraph.registered_node_types[tnode.type].nodeData?.input
+                let inputDef = LiteGraph.registered_node_types[tnode.type]?.nodeData?.input
                 let has_migrated = true
                 if (inputDef?.required) {
                     for (let k in inputDef.required) {
