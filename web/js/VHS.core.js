@@ -837,7 +837,7 @@ function addVideoPreview(nodeType) {
             }
             Object.assign(previewWidget.value.params, params)
             if (!force_update &&
-                !app.ui.settings.getSettingValue("VHS.AdvancedPreviews", false)) {
+                !app.ui.settings.getSettingValue("VHS.AdvancedPreviews", true)) {
                 return;
             }
             if (timeout) {
@@ -858,7 +858,7 @@ function addVideoPreview(nodeType) {
             params.timestamp = Date.now()
             this.parentEl.hidden = this.value.hidden;
             if (params.format?.split('/')[0] == 'video' ||
-                app.ui.settings.getSettingValue("VHS.AdvancedPreviews", false) &&
+                app.ui.settings.getSettingValue("VHS.AdvancedPreviews", true) &&
                 (params.format?.split('/')[1] == 'gif') || params.format == 'folder') {
                 this.videoEl.autoplay = !this.value.paused && !this.value.hidden;
                 let target_width = 256
@@ -873,7 +873,7 @@ function addVideoPreview(nodeType) {
                     let ar = parseInt(size[0])/parseInt(size[1])
                     params.force_size = target_width+"x"+(target_width/ar)
                 }
-                if (app.ui.settings.getSettingValue("VHS.AdvancedPreviews", false)) {
+                if (app.ui.settings.getSettingValue("VHS.AdvancedPreviews", true)) {
                     this.videoEl.src = api.apiURL('/vhs/viewvideo?' + new URLSearchParams(params));
                 } else {
                     previewWidget.videoEl.src = api.apiURL('/view?' + new URLSearchParams(params));
@@ -1339,7 +1339,7 @@ app.ui.settings.addSetting({
     id: "VHS.AdvancedPreviews",
     name: "🎥🅥🅗🅢 Advanced Previews",
     type: "boolean",
-    defaultValue: false,
+    defaultValue: true,
 });
 app.ui.settings.addSetting({
     id: "VHS.DefaultMute",
