@@ -3,7 +3,6 @@
     [
         "-n", "-c:v", "prores_ks",
         "-profile:v", ["profile",["1","2","3","4"], {"default": "3"}],
-        "-vf", "colorspace=all=bt709:iall=bt601-6-625:fast=1",
         "-colorspace", "1", "-color_primaries", "1", "-color_trc", "1"
 
     ],
