@@ -144,21 +144,23 @@ def ffmpeg_frame_generator(video, force_rate, frame_load_cap, start_time,
     size_base = None
     fps_base = None
     try:
-        dummy_res =  subprocess.run(args_dummy, stdout=subprocess.DEVNULL,
-                                    stderr=subprocess.PIPE,check=True)
+        dummy_res = subprocess.run(args_dummy, stdout=subprocess.DEVNULL,
+                                 stderr=subprocess.PIPE, check=True)
     except subprocess.CalledProcessError as e:
-        raise Exception("An error occurred in the ffmepg subprocess:\n" \
+        raise Exception("An error occurred in the ffmpeg subprocess:\n" \
                 + e.stderr.decode(*ENCODE_ARGS))
     lines = dummy_res.stderr.decode(*ENCODE_ARGS)
+
     for line in lines.split('\n'):
-        match = re.search(", ([1-9]|\\d{2,})x(\\d+).*, ([\\d\\.]+) fps", line)
+        match = re.search("^ *Stream .* Video.*, ([1-9]|\\d{2,})x(\\d+).*?(, ([\\d\\.]+) fps)?", line)
         if match is not None:
             size_base = [int(match.group(1)), int(match.group(2))]
-            fps_base = float(match.group(3))
+            fps_base = float(match.group(4) or 1)
             alpha = re.search("(yuva|rgba)", line) is not None
             break
     else:
-        raise Exception("Failed to parse video information")
+        raise Exception("Failed to parse video/image information. FFMPEG output:\n" + lines)
+
     durs_match = re.search("Duration: (\\d+:\\d+:\\d+\\.\\d+),", lines)
     if durs_match:
         durs = durs_match.group(1).split(':')
