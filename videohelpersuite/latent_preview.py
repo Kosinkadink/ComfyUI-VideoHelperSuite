@@ -66,8 +66,8 @@ class WrappedPreviewer(latent_preview.LatentPreviewer):
         for preview in previews_ubyte:
             i = Image.fromarray(preview.numpy())
             message = io.BytesIO()
-            message.write((1).to_bytes(length=4)*2)
-            message.write(ind.to_bytes(length=4))
+            message.write((1).to_bytes(length=4, byteorder='big')*2)
+            message.write(ind.to_bytes(length=4, byteorder='big'))
             i.save(message, format="JPEG", quality=95, compress_level=1)
             #NOTE: send sync already uses call_soon_threadsafe
             serv.send_sync(server.BinaryEventTypes.PREVIEW_IMAGE,
