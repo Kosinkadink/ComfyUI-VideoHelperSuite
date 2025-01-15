@@ -54,6 +54,8 @@ async def view_video(request):
         else:
             if not os.path.isfile(file) and not validate_sequence(file):
                     return web.Response(status=404)
+    if query.get('skip_encode', False) or ffmpeg_path is None:
+        return web.FileResponse(path=file)
 
     frame_rate = query.get('frame_rate', 8)
     if query.get('format', 'video') == "folder":

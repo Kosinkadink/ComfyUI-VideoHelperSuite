@@ -785,7 +785,7 @@ function _addVideoPreview(node) {
         return app.canvas._mousewheel_callback(e)
     }, true);
     previewWidget.value = {hidden: false, paused: false, params: {},
-        muted: app.ui.settings.getSettingValue("VHS.DefaultMute", false)}
+        muted: app.ui.settings.getSettingValue("VHS.DefaultMute")}
     previewWidget.parentEl = document.createElement("div");
     previewWidget.parentEl.className = "vhs_preview";
     previewWidget.parentEl.style['width'] = "100%"
@@ -824,7 +824,7 @@ function _addVideoPreview(node) {
     return previewWidget
 }
 
-function addVideoPreview(nodeType) {
+function addVideoPreview(nodeType, isInput=true) {
     chainCallback(nodeType.prototype, "onNodeCreated", function() {
         let previewWidget = _addVideoPreview(this)
         var timeout = null;
@@ -837,7 +837,7 @@ function addVideoPreview(nodeType) {
             }
             Object.assign(previewWidget.value.params, params)
             if (!force_update &&
-                !app.ui.settings.getSettingValue("VHS.AdvancedPreviews", true)) {
+                app.ui.settings.getSettingValue("VHS.AdvancedPreviews") == 'Never') {
                 return;
             }
             if (timeout) {
@@ -854,17 +854,22 @@ function addVideoPreview(nodeType) {
                 return;
             }
             let params =  {}
+            let advp = app.ui.settings.getSettingValue("VHS.AdvancedPreviews")
             Object.assign(params, this.value.params);//shallow copy
             params.timestamp = Date.now()
             this.parentEl.hidden = this.value.hidden;
-            if (params.format?.split('/')[0] == 'video' ||
-                app.ui.settings.getSettingValue("VHS.AdvancedPreviews", true) &&
-                (params.format?.split('/')[1] == 'gif') || params.format == 'folder') {
+            if (params.format?.split('/')[0] == 'video'
+                || advp != 'Never' && (params.format?.split('/')[1] == 'gif')
+                || params.format == 'folder') {
                 this.videoEl.autoplay = !this.value.paused && !this.value.hidden;
                 let target_width = 256
                 if (previewWidget.element?.style?.width) {
                     //overscale to allow scrolling. Endpoint won't return higher than native
                     target_width = previewWidget.element.style.width.slice(0,-2)*2;
+                }
+                let minWidth = app.ui.settings.getSettingValue("VHS>AdvandedPreviewsMinWidth")
+                if (target_width < minWidth) {
+                    target_width = min_width
                 }
                 if (!params.force_size || params.force_size.includes("?") || params.force_size == "Disabled") {
                     params.force_size = target_width+"x?"
@@ -873,11 +878,10 @@ function addVideoPreview(nodeType) {
                     let ar = parseInt(size[0])/parseInt(size[1])
                     params.force_size = target_width+"x"+(target_width/ar)
                 }
-                if (app.ui.settings.getSettingValue("VHS.AdvancedPreviews", true)) {
-                    this.videoEl.src = api.apiURL('/vhs/viewvideo?' + new URLSearchParams(params));
-                } else {
-                    previewWidget.videoEl.src = api.apiURL('/view?' + new URLSearchParams(params));
+                if (advp == 'Never' || advp == 'Input Only' && !isInput) {
+                    params.skip_encode = true
                 }
+                this.videoEl.src = api.apiURL('/vhs/viewvideo?' + new URLSearchParams(params));
                 this.videoEl.hidden = false;
                 this.imgEl.hidden = true;
             } else if (params.format?.split('/')[0] == 'image'){
@@ -1122,7 +1126,7 @@ function addLoadCommon(nodeType, nodeData) {
     if (nodeData?.input?.required?.force_size) {
         addCustomSize(nodeType, nodeData, "force_size")
     }
-    addVideoPreview(nodeType);
+    addVideoPreview(nodeType, nodeData?.name != "VHS_VideoCombine");
     addPreviewOptions(nodeType);
     chainCallback(nodeType.prototype, "onNodeCreated", function() {
         //widget.callback adds unused arguements which need culling
@@ -1334,55 +1338,73 @@ function searchBox(event, [x,y], node) {
 
     return dialog;
 }
-
-app.ui.settings.addSetting({
-    id: "VHS.AdvancedPreviews",
-    name: "🎥🅥🅗🅢 Advanced Previews",
-    type: "boolean",
-    defaultValue: true,
-});
-app.ui.settings.addSetting({
-    id: "VHS.DefaultMute",
-    name: "🎥🅥🅗🅢 Mute videos by default",
-    type: "boolean",
-    defaultValue: false,
-});
-let latentPreviewNodes = new Set()
-app.ui.settings.addSetting({
-    id: "VHS.LatentPreview",
-    name: "🎥🅥🅗🅢 Display animated previews when sampling",
-    type: "boolean",
-    defaultValue: false,
-    onChange(value) {
-        if (!value) {
-            //Remove any previewWidgets
-            for (let n of latentPreviewNodes) {
-                let i = n?.widgets?.findIndex((w) => w.name == 'vhslatentpreview')
-                if (i >= 0) {
-                    n.widgets.splice(i,1)[0].onRemove()
-                }
-            }
-            latentPreviewNodes = new Set()
-        }
-    },
-});
-app.ui.settings.addSetting({
-    id: "VHS.LatentPreviewRate",
-    name: "🎥🅥🅗🅢 Playback rate override.",
-    type: "boolean",
-      type: 'number',
-      attrs: {
-        min: 0,
-        step: 1,
-        max: 60
-      },
-      tooltip:
-        'Force a specific frame rate for the playback of latent frames. This should not be confused with the outptu frame rate and will not match for video models.',
-    defaultValue: 0,
-});
-
 app.registerExtension({
     name: "VideoHelperSuite.Core",
+    settings: [
+      {
+        id: 'VHS.AdvancedPreviews',
+        category: ['🎥🅥🅗🅢', 'Previews', 'Advanced Previews'],
+        name: 'Advanced Previews',
+        tooltip: 'Automatically transcode previews on request. Required for advanced functionality',
+        type: 'combo',
+        options: ['Never', 'Always', 'Input Only'],
+        defaultValue: 'Input Only',
+      },
+      {
+        id: 'VHS.AdvancedPreviewsMinWidth',
+        category: ['🎥🅥🅗🅢', 'Previews', 'Min Width'],
+        name: 'Minimum preview width',
+        tooltip: 'Advanced previews have their resolution downscaled to the node size for performance. While a node can be resized to increase preview quality, a minimum width can be set that previews won\'t be downscaled beneath. Preveiws will never be upscaled, so this can safely be set large.',
+        type: 'number',
+        attrs: {
+          min: 0,
+          step: 1,
+          max: 3840,
+        },
+        defaultValue: 0,
+      },
+      {
+        id: 'VHS.AdvancedPreviewsDefaultMute',
+        category: ['🎥🅥🅗🅢', 'Previews', 'Default Mute'],
+        name: 'Mute videos by default',
+        type: 'boolean',
+        defaultValue: false,
+      },
+      {
+        id: 'VHS.LatentPreview',
+        category: ['🎥🅥🅗🅢', 'Sampling', 'Latent Previews'],
+        name: 'Display animated previews when sampling',
+        type: 'boolean',
+        defaultValue: false,
+        onChange(value) {
+            if (!value) {
+                //Remove any previewWidgets
+                for (let n of latentPreviewNodes) {
+                    let i = n?.widgets?.findIndex((w) => w.name == 'vhslatentpreview')
+                    if (i >= 0) {
+                        n.widgets.splice(i,1)[0].onRemove()
+                    }
+                }
+                latentPreviewNodes = new Set()
+            }
+        },
+      },
+      {
+        id: "VHS.LatentPreviewRate",
+        category: ['🎥🅥🅗🅢', 'Sampling', 'Latent Preview Rate'],
+        name: "Playback rate override.",
+        type: 'number',
+        attrs: {
+          min: 0,
+          step: 1,
+          max: 60
+        },
+        tooltip:
+          'Force a specific frame rate for the playback of latent frames. This should not be confused with the output frame rate and will not match for video models.',
+        defaultValue: 0,
+      },
+    ],
+
     async beforeRegisterNodeDef(nodeType, nodeData, app) {
         if(nodeData?.name?.startsWith("VHS_")) {
             useKVState(nodeType);
@@ -1660,8 +1682,8 @@ app.registerExtension({
                     }
                 }
             }
-            res.workflow.extra['VHS_latentpreview'] = app.ui.settings.getSettingValue("VHS.LatentPreview", false)
-            res.workflow.extra['VHS_latentpreviewrate'] = app.ui.settings.getSettingValue("VHS.LatentPreviewRate", 0)
+            res.workflow.extra['VHS_latentpreview'] = app.ui.settings.getSettingValue("VHS.LatentPreview")
+            res.workflow.extra['VHS_latentpreviewrate'] = app.ui.settings.getSettingValue("VHS.LatentPreviewRate")
             return res
         }
         app.graphToPrompt = graphToPrompt
@@ -1716,6 +1738,12 @@ app.registerExtension({
         }, true)
     },
     async init() {
+        if (app.ui.settings.getSettingValue("VHS.AdvancedPreviews") == true) {
+            app.ui.settings.setSettingValue("VHS.AdvancedPreviews", 'Always')
+        }
+        if (app.ui.settings.getSettingValue("VHS.AdvancedPreviews") == false) {
+            app.ui.settings.setSettingValue("VHS.AdvancedPreviews", 'Never')
+        }
         if (app.VHSHelp != helpDOM) {
             helpDOM = app.VHSHelp
         } else {
@@ -1735,7 +1763,7 @@ app.registerExtension({
 let previewImages = []
 let animateInterval
 api.addEventListener('VHS_latentpreview', ({ detail }) => {
-    let setting = app.ui.settings.getSettingValue("VHS.LatentPreview", false)
+    let setting = app.ui.settings.getSettingValue("VHS.LatentPreview")
     if (!setting) {
         return
     }
