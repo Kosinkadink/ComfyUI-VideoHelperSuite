@@ -1,4 +1,3 @@
-"🍡"
 import { app } from '../../../scripts/app.js'
 import { api } from '../../../scripts/api.js'
 import { setWidgetConfig } from '../../../extensions/core/widgetInputs.js'
@@ -861,6 +860,7 @@ function addVideoPreview(nodeType, isInput=true) {
             if (params.format?.split('/')[0] == 'video'
                 || advp != 'Never' && (params.format?.split('/')[1] == 'gif')
                 || params.format == 'folder') {
+
                 this.videoEl.autoplay = !this.value.paused && !this.value.hidden;
                 let target_width = 256
                 if (previewWidget.element?.style?.width) {
@@ -878,10 +878,17 @@ function addVideoPreview(nodeType, isInput=true) {
                     let ar = parseInt(size[0])/parseInt(size[1])
                     params.force_size = target_width+"x"+(target_width/ar)
                 }
+                let encodedSource = document.createElement("source")
+                let rawSource = document.createElement("source")
+                encodedSource.type = 'video/webm'
+                encodedSource.src = api.apiURL('/vhs/viewvideo?' + new URLSearchParams(params));
+                params.skip_encode = true
+                rawSource.src = api.apiURL('/vhs/viewvideo?' + new URLSearchParams(params));
                 if (advp == 'Never' || advp == 'Input Only' && !isInput) {
-                    params.skip_encode = true
+                    this.videoEl.replaceChildren(rawSource, encodedSource)
+                } else {
+                    this.videoEl.replaceChildren(encodedSource, rawSource)
                 }
-                this.videoEl.src = api.apiURL('/vhs/viewvideo?' + new URLSearchParams(params));
                 this.videoEl.hidden = false;
                 this.imgEl.hidden = true;
             } else if (params.format?.split('/')[0] == 'image'){
@@ -1126,7 +1133,6 @@ function addLoadCommon(nodeType, nodeData) {
     if (nodeData?.input?.required?.force_size) {
         addCustomSize(nodeType, nodeData, "force_size")
     }
-    addVideoPreview(nodeType, nodeData?.name != "VHS_VideoCombine");
     addPreviewOptions(nodeType);
     chainCallback(nodeType.prototype, "onNodeCreated", function() {
         //widget.callback adds unused arguements which need culling
@@ -1338,6 +1344,7 @@ function searchBox(event, [x,y], node) {
 
     return dialog;
 }
+let latentPreviewNodes = new Set()
 app.registerExtension({
     name: "VideoHelperSuite.Core",
     settings: [
@@ -1536,7 +1543,7 @@ app.registerExtension({
                     this.updateParameters(message.gifs[0], true);
                 }
             });
-            addVideoPreview(nodeType);
+            addVideoPreview(nodeType, false);
             addPreviewOptions(nodeType);
             addFormatWidgets(nodeType);
             addVAEInputToggle(nodeType, nodeData)
