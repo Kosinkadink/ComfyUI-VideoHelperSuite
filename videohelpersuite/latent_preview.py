@@ -39,6 +39,8 @@ class WrappedPreviewer(latent_preview.LatentPreviewer):
         self.last_time = self.last_time + num_previews/self.rate
         if num_previews > num_images:
             num_previews = num_images
+        elif num_previews <= 0:
+            return None
         if self.first_preview:
             self.first_preview = False
             serv.send_sync('VHS_latentpreview', {'length':num_images, 'rate': self.rate})
@@ -54,13 +56,14 @@ class WrappedPreviewer(latent_preview.LatentPreviewer):
     def process_previews(self, image_tensor, ind, leng):
         image_tensor = self.decode_latent_to_preview(image_tensor)
         if image_tensor.size(1) > 512 or image_tensor.size(2) > 512:
-            n = image.size(0)
-            if image_tensor.size(1) > image_tensor.size(2):
-                height = (512 * image_tensor.size(2)) // image_tensor.size(1)
-                image_tensor = F.interpolate(image_tensor, (512,height,3), mode='bilinear')
+            image_tensor = image_tensor.movedim(-1,0)
+            if image_tensor.size(2) < image_tensor.size(3):
+                height = (512 * image_tensor.size(2)) // image_tensor.size(3)
+                image_tensor = F.interpolate(image_tensor, (height,512), mode='bilinear')
             else:
-                width = (512 * image_tensor.size(1)) // image_tensor.size(2)
-                image_tensor = F.interpolate(image_tensor, (width, 512,3), mode='bilinear')
+                width = (512 * image_tensor.size(3)) // image_tensor.size(2)
+                image_tensor = F.interpolate(image_tensor, (512, width), mode='bilinear')
+            image_tensor = image_tensor.movedim(0,-1)
         previews_ubyte = (((image_tensor + 1.0) / 2.0).clamp(0, 1)  # change scale from -1..1 to 0..1
                          .mul(0xFF)  # to 0..255
                          ).to(device="cpu", dtype=torch.uint8)
