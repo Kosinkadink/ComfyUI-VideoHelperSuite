@@ -83,6 +83,29 @@ function useKVState(nodeType) {
                     }
                 }
             }
+            if ('force_size' in widgetDict) {
+                //force size has been phased out, Migrate state
+                if (widgetDict.force_size.includes?.('x')) {
+                    let sizes = widgetDict.force_size.split('x')
+                    if (sizes[0] != '?') {
+                        widgetDict.custom_width = parseInt(sizes[0])
+                    } else {
+                        widgetDict.custom_width = 0
+                    }
+                    if (sizes[1] != '?') {
+                        widgetDict.custom_height = parseInt(sizes[1])
+                    } else {
+                        widgetDict.custom_height = 0
+                    }
+                } else {
+                    if (['Disabled', 'Custom Height'].includes(widgetDict.force_size)) {
+                        widgetDict.custom_width = 0
+                    }
+                    if (['Disabled', 'Custom Width'].includes(widgetDict.force_size)) {
+                        widgetDict.custom_height = 0
+                    }
+                }
+            }
             let inputs = {}
             for (let i of this.inputs) {
                 inputs[i.name] = i
@@ -146,10 +169,6 @@ function useKVState(nodeType) {
             }
         });
     })
-}
-app.VHSLoadFormats = {
-    'AnimateDiff': {'rate': {'default': 8}, 'dim': {'default': 512, 'step': 8}},
-    'None': {}
 }
 var helpDOM;
 if (!app.helpDOM) {
@@ -601,56 +620,42 @@ function addTimestampWidget(nodeType, nodeData, targetWidget) {
         });
     });
 }
-
-function addCustomSize(nodeType, nodeData, widgetName) {
-    //Add a callback which sets up the actual logic once the node is created
+function initializeLoadFormat(nodeType, nodeData) {
     chainCallback(nodeType.prototype, "onNodeCreated", function() {
-        const node = this;
-        const sizeOptionWidget = node.widgets.find((w) => w.name === widgetName);
-        const widthWidget = node.widgets.find((w) => w.name === "custom_width");
-        const heightWidget = node.widgets.find((w) => w.name === "custom_height");
-        injectHidden(widthWidget);
-        injectHidden(heightWidget);
-        sizeOptionWidget._value = sizeOptionWidget.value;
-        Object.defineProperty(sizeOptionWidget, "value", {
-            set : function(value) {
-                //TODO: Only modify hidden/reset size when a change occurs
-                if (value == "Custom Width") {
-                    widthWidget.hidden = false;
-                    heightWidget.hidden = true;
-                } else if (value == "Custom Height") {
-                    widthWidget.hidden = true;
-                    heightWidget.hidden = false;
-                } else if (value == "Custom") {
-                    widthWidget.hidden = false;
-                    heightWidget.hidden = false;
-                } else{
-                    widthWidget.hidden = true;
-                    heightWidget.hidden = true;
+        let node = this
+        let formatWidget = this.widgets.find((w) => w.name === "format")
+        formatWidget.options.formats = nodeData.input.optional.format[1].formats
+        let base = {}
+        for (let widget of this.widgets) {
+           if (['force_rate', 'custom_width', 'custom_height',
+               'frame_load_cap'].includes(widget.name)) {
+               //TODO: filter these options?
+               base[widget.name] = widget.options
+           }
+        }
+        chainCallback(formatWidget, "callback", function(value) {
+            let format = this.options.formats[value]
+            if ('target_rate' in format) {
+                format.force_rate = {'reset': format.target_rate * 10}
+            }
+            if ('dim' in format) {
+                format.custom_width = {'step': format.dim[0]*10, 'mod': format.dim[1]}
+                format.custom_height = {'step': format.dim[0]*10, 'mod': format.dim[1]}
+            }
+            if ('frames' in format) {
+                format.frames = {'step': format.dim[0]*10, 'mod': format.dim[1]}
+            }
+            for (let widget of node.widgets) {
+                if (widget.name in base) {
+                    //TODO: Selectively update value if was default?
+                    widget.options = Object.assign({}, base[widget.name], format[widget.name])
                 }
-                node.setSize([node.size[0], node.computeSize([node.size[0], node.size[1]])[1]])
-                this._value = value;
-            },
-            get : function() {
-                return this._value;
             }
-        });
-        //Ensure proper visibility/size state for initial value
-        sizeOptionWidget.value = sizeOptionWidget._value;
 
-        sizeOptionWidget.serializePreview = function() {
-            if (this.value == "Custom Width") {
-                return widthWidget.value + "x?";
-            } else if (this.value == "Custom Height") {
-                return "?x" + heightWidget.value;
-            } else if (this.value == "Custom") {
-                return widthWidget.value + "x" + heightWidget.value;
-            } else {
-                return this.value;
-            }
-        };
+        });
     });
 }
+
 function addUploadWidget(nodeType, nodeData, widgetName, type="video") {
     chainCallback(nodeType.prototype, "onNodeCreated", function() {
         const pathWidget = this.widgets.find((w) => w.name === widgetName);
@@ -1130,13 +1135,11 @@ function addFormatWidgets(nodeType) {
         }
     });
 }
-function sizeModifiesAspect(value) {
-    return ['Custom', '256x256', '512x512'].includes(value)
-}
 function addLoadCommon(nodeType, nodeData) {
     if (nodeData?.input?.required?.force_size) {
         addCustomSize(nodeType, nodeData, "force_size")
     }
+    initializeLoadFormat(nodeType, nodeData)
     addVideoPreview(nodeType);
     addPreviewOptions(nodeType);
     chainCallback(nodeType.prototype, "onNodeCreated", function() {
@@ -1148,19 +1151,10 @@ function addLoadCommon(nodeType, nodeData) {
                 node?.updateParameters(params)
             }
         }
-        const sizeWidget = this.widgets.find((w) => w.name === "force_size");
-        let priorSize = null
-        let updateSize = function(value, _, node) {
-            let size = sizeModifiesAspect(sizeWidget.value)
-            if (size || priorSize) {
-                node?.updateParameters({"force_size": sizeWidget.serializePreview()});
-            }
-            priorSize = size
-        }
         let widgetMap = {'frame_load_cap': 'frame_load_cap',
             'skip_first_frames': 'skip_first_frames', 'select_every_nth': 'select_every_nth',
-            'start_time': 'start_time', 'force_size': updateSize, 'force_rate': 'force_rate',
-            'custom_width': updateSize, 'custom_height': updateSize,
+            'start_time': 'start_time', 'force_rate': 'force_rate',
+            'custom_width': 'custom_width', 'custom_height': 'custom_height',
             'image_load_cap': 'frame_load_cap', 'skip_first_images': 'skip_first_frames'
         }
         let updated = []
@@ -1375,11 +1369,7 @@ function button_action(widget) {
 }
 function inner_value_change(widget, value, node, pos) {
   widget.value = value
-  if (
-    widget.options &&
-    widget.options.property &&
-    node.properties[widget.options.property] !== undefined
-  ) {
+  if (widget.options?.property && widget.options.property in node.properties) {
     node.setProperty(widget.options.property, value)
   }
   if (widget.callback) {
