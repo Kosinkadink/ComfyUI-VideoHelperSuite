@@ -214,6 +214,7 @@ class VideoCombine:
                 "save_output": ("BOOLEAN", {"default": True}),
             },
             "optional": {
+                "frame_rate_input": ("FLOAT", { "forceInput": True}),
                 "audio": ("AUDIO",),
                 "meta_batch": ("VHS_BatchManager",),
                 "vae": ("VAE",),
@@ -248,6 +249,7 @@ class VideoCombine:
         manual_format_widgets=None,
         meta_batch=None,
         vae=None,
+        frame_rate_input=None,
         **kwargs
     ):
         if latents is not None:
@@ -262,6 +264,9 @@ class VideoCombine:
 
         if isinstance(images, torch.Tensor) and images.size(0) == 0:
             return ((save_output, []),)
+
+        frame_rate = frame_rate_input or frame_rate
+
         num_frames = len(images)
         pbar = ProgressBar(num_frames)
         if vae is not None:
