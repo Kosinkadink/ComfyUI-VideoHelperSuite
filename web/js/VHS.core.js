@@ -114,11 +114,13 @@ function useKVState(nodeType) {
                 for (let w of this.widgets) {
                     if (w.name in widgetDict) {
                         w.value = widgetDict[w.name];
+                        w.callback?.(w.value)
                     } else {
                         //Check for a legacy name that needs migrating
                         if (this.type in renameDict && w.name in renameDict[this.type]) {
                             if (renameDict[this.type][w.name] in widgetDict) {
                                 w.value = widgetDict[renameDict[this.type][w.name]]
+                                w.callback?.(w.value)
                                 continue
                             }
                         }
@@ -140,6 +142,7 @@ function useKVState(nodeType) {
                         }
                         if (initialValue) {
                             w.value = initialValue;
+                            w.callback?.(w.value)
                         }
                     }
                     if (w.name in inputs && w.config) {
@@ -636,19 +639,20 @@ function initializeLoadFormat(nodeType, nodeData) {
         chainCallback(formatWidget, "callback", function(value) {
             let format = this.options.formats[value]
             if ('target_rate' in format) {
-                format.force_rate = {'reset': format.target_rate * 10}
+                format.force_rate = {'reset': format.target_rate}
             }
             if ('dim' in format) {
                 format.custom_width = {'step': format.dim[0]*10, 'mod': format.dim[1]}
                 format.custom_height = {'step': format.dim[0]*10, 'mod': format.dim[1]}
             }
             if ('frames' in format) {
-                format.frames = {'step': format.dim[0]*10, 'mod': format.dim[1]}
+                format.frame_load_cap = {'step': format.frames[0]*10, 'mod': format.frames[1]}
             }
             for (let widget of node.widgets) {
                 if (widget.name in base) {
                     //TODO: Selectively update value if was default?
                     widget.options = Object.assign({}, base[widget.name], format[widget.name])
+                    widget.callback(widget.value)
                 }
             }
 
@@ -1531,12 +1535,24 @@ function mouseAnnotated(event, [x, y], node) {
   return true
 }
 function makeAnnotated(widget, baseOptions) {
+    const callback_orig = widget.callback
     Object.assign(widget, {
         type: 'annotatedNumber',
         draw: drawAnnotated,
         mouse: mouseAnnotated,
         computeSize(width) {
             return [width, 20]
+        },
+        callback(v) {
+            if (this.options?.mod == undefined) {
+                return callback_orig.apply(this, arguments);
+            }
+            const s = this.options.step / 10
+            let sh = this.options.mod
+            if (isNaN(sh)) {
+                sh = 0
+            }
+            this.value = Math.round((v - sh) / s) * s + sh
         },
         options: Object.assign({},  baseOptions, widget.options)
     })
