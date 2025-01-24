@@ -109,8 +109,8 @@ def try_download_video(url):
     download_history[url] = file
     return file
 
-def is_safe_path(path):
-    if "VHS_STRICT_PATHS" not in os.environ:
+def is_safe_path(path, strict=False):
+    if "VHS_STRICT_PATHS" not in os.environ and not strict:
         return True
     basedir = os.path.abspath('.')
     try:

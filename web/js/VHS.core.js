@@ -884,23 +884,16 @@ function addVideoPreview(nodeType, isInput=true) {
                 if (target_width < minWidth) {
                     target_width = min_width
                 }
-                if (!params.force_size || params.force_size.includes("?") || params.force_size == "Disabled") {
+                if (!params.custom_width || !params.custom_height) {
                     params.force_size = target_width+"x?"
                 } else {
-                    let size = params.force_size.split("x")
-                    let ar = parseInt(size[0])/parseInt(size[1])
+                    let ar = params.custom_width/params.custom_height
                     params.force_size = target_width+"x"+(target_width/ar)
                 }
-                let encodedSource = document.createElement("source")
-                let rawSource = document.createElement("source")
-                encodedSource.type = 'video/webm'
-                encodedSource.src = api.apiURL('/vhs/viewvideo?' + new URLSearchParams(params));
-                params.skip_encode = true
-                rawSource.src = api.apiURL('/vhs/viewvideo?' + new URLSearchParams(params));
                 if (advp == 'Never' || advp == 'Input Only' && !isInput) {
-                    this.videoEl.replaceChildren(rawSource, encodedSource)
+                    this.videoEl.src = api.apiURL('/view?' + new URLSearchParams(params));
                 } else {
-                    this.videoEl.replaceChildren(encodedSource, rawSource)
+                    this.videoEl.src = api.apiURL('/vhs/viewvideo?' + new URLSearchParams(params));
                 }
                 this.videoEl.hidden = false;
                 this.imgEl.hidden = true;
@@ -1140,9 +1133,6 @@ function addFormatWidgets(nodeType) {
     });
 }
 function addLoadCommon(nodeType, nodeData) {
-    if (nodeData?.input?.required?.force_size) {
-        addCustomSize(nodeType, nodeData, "force_size")
-    }
     initializeLoadFormat(nodeType, nodeData)
     addVideoPreview(nodeType);
     addPreviewOptions(nodeType);
