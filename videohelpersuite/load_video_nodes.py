@@ -389,7 +389,7 @@ class LoadVideoUpload:
                     files.append(f)
         return {"required": {
                     "video": (sorted(files),),
-                    "force_rate": ("INT", {"default": 0, "min": 0, "max": 60, "step": 1, "disable": 0}),
+                    "force_rate": ("FLOAT", {"default": 0, "min": 0, "max": 60, "step": 1, "disable": 0}),
                     "custom_width": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
                     "custom_height": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
                     "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1, "disable": 0}),
@@ -435,7 +435,7 @@ class LoadVideoPath:
         return {
             "required": {
                 "video": ("STRING", {"placeholder": "X://insert/path/here.mp4", "vhs_path_extensions": video_extensions}),
-                "force_rate": ("INT", {"default": 0, "min": 0, "max": 60, "step": 1, "disable": 0}),
+                "force_rate": ("FLOAT", {"default": 0, "min": 0, "max": 60, "step": 1, "disable": 0}),
                 "custom_width": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
                 "custom_height": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
                 "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
@@ -486,7 +486,7 @@ class LoadVideoFFmpegUpload:
                     files.append(f)
         return {"required": {
                     "video": (sorted(files),),
-                    "force_rate": ("INT", {"default": 0, "min": 0, "max": 60, "step": 1, "disable": 0}),
+                    "force_rate": ("FLOAT", {"default": 0, "min": 0, "max": 60, "step": 1, "disable": 0}),
                     "custom_width": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
                     "custom_height": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
                     "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
@@ -535,7 +535,7 @@ class LoadVideoFFmpegPath:
         return {
             "required": {
                 "video": ("STRING", {"placeholder": "X://insert/path/here.mp4", "vhs_path_extensions": video_extensions}),
-                "force_rate": ("INT", {"default": 0, "min": 0, "max": 60, "step": 1, "disable": 0}),
+                "force_rate": ("FLOAT", {"default": 0, "min": 0, "max": 60, "step": 1, "disable": 0}),
                 "custom_width": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
                 "custom_height": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
                 "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),

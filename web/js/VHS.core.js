@@ -146,7 +146,7 @@ function useKVState(nodeType) {
                         }
                     }
                     if (w.name in inputs && w.config) {
-                        setWidgetConfig(inputs[w.name], w.config.slice(1), w)
+                        setWidgetConfig(inputs[w.name], w.config, w)
                     }
                 }
             } else {
@@ -638,6 +638,9 @@ function initializeLoadFormat(nodeType, nodeData) {
         }
         chainCallback(formatWidget, "callback", function(value) {
             let format = this.options.formats[value]
+            if (!format) {
+                return
+            }
             if ('target_rate' in format) {
                 format.force_rate = {'reset': format.target_rate}
             }
@@ -1086,7 +1089,7 @@ function addFormatWidgets(nodeType) {
                         //TODO: consider letting this happen and just removing from list?
                         let w = {};
                         w.name = wDef[0];
-                        w.config = wDef;
+                        w.config = wDef.slice(1);
                         let inputData = wDef.slice(1);
                         w.type = inputData[0];
                         w.options = inputData[1] ? inputData[1] : {};
@@ -1120,19 +1123,6 @@ function addFormatWidgets(nodeType) {
                 return formatWidget._value;
             }
         });
-        const originalAddInput = this.addInput;
-        this.addInput = function(name, type, options) {
-            if (options.widget) {
-                const widget = this.widgets.find((w) => w.name == name)
-                if (widget.config) {
-                    //Is converted format widget
-                    type = widget.config[1]
-                    const symbol = Object.getOwnPropertySymbols(options.widget)[0]
-                    options.widget[symbol] = () => widget.config.slice(1)
-                }
-            }
-            return originalAddInput.apply(this, [name, type, options])
-        }
     });
 }
 function addLoadCommon(nodeType, nodeData) {
@@ -1541,10 +1531,10 @@ function mouseAnnotated(event, [x, y], node) {
     )
   return true
 }
-function makeAnnotated(widget, baseOptions) {
+function makeAnnotated(widget, inputData) {
     const callback_orig = widget.callback
     Object.assign(widget, {
-        type: 'annotatedNumber',
+        type: "BOOLEAN",//Horrific, not namespaced, nonsensical, easier than upstreaming
         draw: drawAnnotated,
         mouse: mouseAnnotated,
         computeSize(width) {
@@ -1561,7 +1551,8 @@ function makeAnnotated(widget, baseOptions) {
             }
             this.value = Math.round((v - sh) / s) * s + sh
         },
-        options: Object.assign({},  baseOptions, widget.options)
+        config: inputData,
+        options: Object.assign({},  inputData[1], widget.options)
     })
     return widget
 }
@@ -1665,12 +1656,29 @@ app.registerExtension({
                         if (w?.type == "text" && config[1].vhs_path_extensions) {
                             new_widgets.push(app.widgets.VHSPATH({}, w.name, ["VHSPATH", config[1]]));
                         } else if (w?.type == "number") {
-                            new_widgets.push(makeAnnotated(w, config[1]))
+                            new_widgets.push(makeAnnotated(w, config))
                         } else {
                             new_widgets.push(w)
                         }
                     }
                     this.widgets = new_widgets;
+                }
+                const originalAddInput = this.addInput;
+                this.addInput = function(name, type, options) {
+                    if (options.widget) {
+                        //Is Converted Widget
+                        const widget = this.widgets.find((w) => w.name == name)
+                        if (widget?.config) {
+                            //Has override for type
+                            type = widget.config[0]
+                            if (type == 'FLOAT') {
+                                type = "FLOAT,INT"
+                            }
+                            const symbol = Object.getOwnPropertySymbols(options.widget)[0]
+                            options.widget[symbol] = () => widget.config
+                        }
+                    }
+                    return originalAddInput.apply(this, [name, type, options])
                 }
             });
         }
@@ -1885,11 +1893,11 @@ app.registerExtension({
             },
             VHSFLOAT(node, inputName, inputData, app) {
                 let w = app.widgets.FLOAT(node, inputName, inputData, app)
-                return makeAnnotated(w, inputData[1]);
+                return makeAnnotated(w, inputData);
             },
             VHSINT(node, inputName, inputData, app_arg) {
                 let w = app.widgets.INT(node, inputName, inputData, app)
-                return makeAnnotated(w, inputData[1]);
+                return makeAnnotated(w, inputData);
             }
         }
     },
