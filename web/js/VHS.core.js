@@ -650,8 +650,11 @@ function initializeLoadFormat(nodeType, nodeData) {
             }
             for (let widget of node.widgets) {
                 if (widget.name in base) {
-                    //TODO: Selectively update value if was default?
+                    let wasDefault = widget.options?.reset == widget.value
                     widget.options = Object.assign({}, base[widget.name], format[widget.name])
+                    if (wasDefault && widget.options.reset != undefined) {
+                        widget.value = widget.options.reset
+                    }
                     widget.callback(widget.value)
                 }
             }
@@ -1145,10 +1148,24 @@ function addLoadCommon(nodeType, nodeData) {
                 node?.updateParameters(params)
             }
         }
+        let prior_ar = -2
+        const widthWidget = this.widgets.find((w) => w.name === "custom_width");
+        const heightWidget = this.widgets.find((w) => w.name === "custom_height");
+        function updateAR(value, _, node) {
+            let new_ar = -1
+            if (widthWidget.value & heightWidget.value) {
+                new_ar = widthWidget.value / heightWidget.value
+            }
+            if (new_ar != prior_ar) {
+                node?.updateParameters({'custom_width': widthWidget.value,
+                    'custom_height': heightWidget.value})
+                prior_ar = new_ar
+            }
+        }
         let widgetMap = {'frame_load_cap': 'frame_load_cap',
             'skip_first_frames': 'skip_first_frames', 'select_every_nth': 'select_every_nth',
             'start_time': 'start_time', 'force_rate': 'force_rate',
-            'custom_width': 'custom_width', 'custom_height': 'custom_height',
+            'custom_width': updateAR, 'custom_height': updateAR,
             'image_load_cap': 'frame_load_cap', 'skip_first_images': 'skip_first_frames'
         }
         let updated = []
@@ -1163,11 +1180,11 @@ function addLoadCommon(nodeType, nodeData) {
             }
         }
         //do first load
-        requestAnimationFrame(() => {
+        setTimeout(() => {
             for (let w of updated) {
                 w.callback(w.value, null, this);
             }
-        });
+        }, 200);
     });
 }
 
