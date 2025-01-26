@@ -42,10 +42,17 @@ def ffmpeg_suitability(path):
             score += int(copyright_year)
     return score
 
-class ImageOrLatent(str):
+class MultiInput(str):
+    def __new__(cls, string, allowed_types="*"):
+        res = super().__new__(cls, string)
+        res.allowed_types=allowed_types
+        return res
     def __ne__(self, other):
-        return not (other == "IMAGE" or other == "LATENT" or other == "*")
-imageOrLatent = ImageOrLatent("IMAGE")
+        if self.allowed_types == "*" or other == "*":
+            return False
+        return other not in self.allowed_types
+imageOrLatent = MultiInput("IMAGE", ["IMAGE", "LATENT"])
+floatOrInt = MultiInput("FLOAT", ["FLOAT", "INT"])
 
 if "VHS_FORCE_FFMPEG_PATH" in os.environ:
     ffmpeg_path = os.environ.get("VHS_FORCE_FFMPEG_PATH")
