@@ -624,6 +624,9 @@ function addTimestampWidget(nodeType, nodeData, targetWidget) {
     });
 }
 function initializeLoadFormat(nodeType, nodeData) {
+    if (!nodeData?.input?.optional?.format) {
+        return
+    }
     chainCallback(nodeType.prototype, "onNodeCreated", function() {
         let node = this
         let formatWidget = this.widgets.find((w) => w.name === "format")
@@ -1156,7 +1159,7 @@ function addLoadCommon(nodeType, nodeData) {
             'skip_first_frames': 'skip_first_frames', 'select_every_nth': 'select_every_nth',
             'start_time': 'start_time', 'force_rate': 'force_rate',
             'custom_width': updateAR, 'custom_height': updateAR,
-            'image_load_cap': 'frame_load_cap', 'skip_first_images': 'skip_first_frames'
+            'image_load_cap': 'image_load_cap', 'skip_first_images': 'skip_first_images'
         }
         let updated = []
         for (let widget of this.widgets) {

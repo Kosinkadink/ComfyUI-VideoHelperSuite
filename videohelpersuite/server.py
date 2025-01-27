@@ -61,8 +61,6 @@ async def view_video(request):
 
     frame_rate = query.get('frame_rate', 8)
     if query.get('format', 'video') == "folder":
-        #Check that folder contains some valid image file, get it's extension
-        #ffmpeg seems to not support list globs, so support for mixed extensions seems unfeasible
         os.makedirs(folder_paths.get_temp_directory(), exist_ok=True)
         concat_file = os.path.join(folder_paths.get_temp_directory(), "image_sequence_preview.txt")
         skip_first_images = int(query.get('skip_first_images', 0))
