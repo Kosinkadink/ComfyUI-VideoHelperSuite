@@ -13,8 +13,7 @@ function chainCallback(object, property, callback) {
         const callback_orig = object[property]
         object[property] = function () {
             const r = callback_orig.apply(this, arguments);
-            callback.apply(this, arguments);
-            return r
+            return callback.apply(this, arguments) ?? r
         };
     } else {
         object[property] = callback;
@@ -114,13 +113,11 @@ function useKVState(nodeType) {
                 for (let w of this.widgets) {
                     if (w.name in widgetDict) {
                         w.value = widgetDict[w.name];
-                        w.callback?.(w.value)
                     } else {
                         //Check for a legacy name that needs migrating
                         if (this.type in renameDict && w.name in renameDict[this.type]) {
                             if (renameDict[this.type][w.name] in widgetDict) {
                                 w.value = widgetDict[renameDict[this.type][w.name]]
-                                w.callback?.(w.value)
                                 continue
                             }
                         }
@@ -142,7 +139,6 @@ function useKVState(nodeType) {
                         }
                         if (initialValue) {
                             w.value = initialValue;
-                            w.callback?.(w.value)
                         }
                     }
                     if (w.name in inputs && w.config) {
@@ -666,6 +662,7 @@ function initializeLoadFormat(nodeType, nodeData) {
             }
 
         });
+        formatWidget.callback(formatWidget.value)
     });
 }
 
@@ -769,85 +766,81 @@ function addUploadWidget(nodeType, nodeData, widgetName, type="video") {
         uploadWidget.options.serialize = false;
     });
 }
-function _addVideoPreview(node) {
-    var element = document.createElement("div");
-    const previewNode = node;
-    var previewWidget = node.addDOMWidget("videopreview", "preview", element, {
-        serialize: false,
-        hideOnZoom: false,
-        getValue() {
-            return element.value;
-        },
-        setValue(v) {
-            element.value = v;
-        },
-    });
-    previewWidget.computeSize = function(width) {
-        if (this.aspectRatio && !this.parentEl.hidden) {
-            let height = (previewNode.size[0]-20)/ this.aspectRatio + 10;
-            if (!(height > 0)) {
-                height = 0;
-            }
-            this.computedHeight = height + 10;
-            return [width, height];
-        }
-        return [width, -4];//no loaded src, widget should not display
-    }
-    element.addEventListener('contextmenu', (e)  => {
-        e.preventDefault()
-        return app.canvas._mousedown_callback(e)
-    }, true);
-    element.addEventListener('pointerdown', (e)  => {
-        e.preventDefault()
-        return app.canvas._mousedown_callback(e)
-    }, true);
-    element.addEventListener('mousewheel', (e)  => {
-        e.preventDefault()
-        return app.canvas._mousewheel_callback(e)
-    }, true);
-    previewWidget.value = {hidden: false, paused: false, params: {},
-        muted: app.ui.settings.getSettingValue("VHS.DefaultMute")}
-    previewWidget.parentEl = document.createElement("div");
-    previewWidget.parentEl.className = "vhs_preview";
-    previewWidget.parentEl.style['width'] = "100%"
-    element.appendChild(previewWidget.parentEl);
-    previewWidget.videoEl = document.createElement("video");
-    previewWidget.videoEl.controls = false;
-    previewWidget.videoEl.loop = true;
-    previewWidget.videoEl.muted = true;
-    previewWidget.videoEl.style['width'] = "100%"
-    previewWidget.videoEl.addEventListener("loadedmetadata", () => {
-
-        previewWidget.aspectRatio = previewWidget.videoEl.videoWidth / previewWidget.videoEl.videoHeight;
-        fitHeight(node);
-    });
-    previewWidget.videoEl.addEventListener("error", () => {
-        //TODO: consider a way to properly notify the user why a preview isn't shown.
-        previewWidget.parentEl.hidden = true;
-        fitHeight(node);
-    });
-    previewWidget.videoEl.onmouseenter =  () => {
-        previewWidget.videoEl.muted = previewWidget.value.muted
-    };
-    previewWidget.videoEl.onmouseleave = () => {
-        previewWidget.videoEl.muted = true;
-    };
-
-    previewWidget.imgEl = document.createElement("img");
-    previewWidget.imgEl.style['width'] = "100%"
-    previewWidget.imgEl.hidden = true;
-    previewWidget.imgEl.onload = () => {
-        previewWidget.aspectRatio = previewWidget.imgEl.naturalWidth / previewWidget.imgEl.naturalHeight;
-        fitHeight(node);
-    };
-    previewWidget.parentEl.appendChild(previewWidget.videoEl)
-    previewWidget.parentEl.appendChild(previewWidget.imgEl)
-    return previewWidget
-}
 
 function addVideoPreview(nodeType, isInput=true) {
     chainCallback(nodeType.prototype, "onNodeCreated", function() {
-        let previewWidget = _addVideoPreview(this)
+        var element = document.createElement("div");
+        const previewNode = this;
+        var previewWidget = this.addDOMWidget("videopreview", "preview", element, {
+            serialize: false,
+            hideOnZoom: false,
+            getValue() {
+                return element.value;
+            },
+            setValue(v) {
+                element.value = v;
+            },
+        });
+        previewWidget.computeSize = function(width) {
+            if (this.aspectRatio && !this.parentEl.hidden) {
+                let height = (previewNode.size[0]-20)/ this.aspectRatio + 10;
+                if (!(height > 0)) {
+                    height = 0;
+                }
+                this.computedHeight = height + 10;
+                return [width, height];
+            }
+            return [width, -4];//no loaded src, widget should not display
+        }
+        element.addEventListener('contextmenu', (e)  => {
+            e.preventDefault()
+            return app.canvas._mousedown_callback(e)
+        }, true);
+        element.addEventListener('pointerdown', (e)  => {
+            e.preventDefault()
+            return app.canvas._mousedown_callback(e)
+        }, true);
+        element.addEventListener('mousewheel', (e)  => {
+            e.preventDefault()
+            return app.canvas._mousewheel_callback(e)
+        }, true);
+        previewWidget.value = {hidden: false, paused: false, params: {},
+            muted: app.ui.settings.getSettingValue("VHS.DefaultMute")}
+        previewWidget.parentEl = document.createElement("div");
+        previewWidget.parentEl.className = "vhs_preview";
+        previewWidget.parentEl.style['width'] = "100%"
+        element.appendChild(previewWidget.parentEl);
+        previewWidget.videoEl = document.createElement("video");
+        previewWidget.videoEl.controls = false;
+        previewWidget.videoEl.loop = true;
+        previewWidget.videoEl.muted = true;
+        previewWidget.videoEl.style['width'] = "100%"
+        previewWidget.videoEl.addEventListener("loadedmetadata", () => {
+
+            previewWidget.aspectRatio = previewWidget.videoEl.videoWidth / previewWidget.videoEl.videoHeight;
+            fitHeight(this);
+        });
+        previewWidget.videoEl.addEventListener("error", () => {
+            //TODO: consider a way to properly notify the user why a preview isn't shown.
+            previewWidget.parentEl.hidden = true;
+            fitHeight(this);
+        });
+        previewWidget.videoEl.onmouseenter =  () => {
+            previewWidget.videoEl.muted = previewWidget.value.muted
+        };
+        previewWidget.videoEl.onmouseleave = () => {
+            previewWidget.videoEl.muted = true;
+        };
+
+        previewWidget.imgEl = document.createElement("img");
+        previewWidget.imgEl.style['width'] = "100%"
+        previewWidget.imgEl.hidden = true;
+        previewWidget.imgEl.onload = () => {
+            previewWidget.aspectRatio = previewWidget.imgEl.naturalWidth / previewWidget.imgEl.naturalHeight;
+            fitHeight(this);
+        };
+        previewWidget.parentEl.appendChild(previewWidget.videoEl)
+        previewWidget.parentEl.appendChild(previewWidget.imgEl)
         var timeout = null;
         this.updateParameters = (params, force_update) => {
             if (!previewWidget.value.params) {
@@ -1129,8 +1122,8 @@ function addFormatWidgets(nodeType) {
     });
 }
 function addLoadCommon(nodeType, nodeData) {
-    initializeLoadFormat(nodeType, nodeData)
     addVideoPreview(nodeType);
+    initializeLoadFormat(nodeType, nodeData)
     addPreviewOptions(nodeType);
     chainCallback(nodeType.prototype, "onNodeCreated", function() {
         //widget.callback adds unused arguements which need culling
@@ -1173,11 +1166,9 @@ function addLoadCommon(nodeType, nodeData) {
             }
         }
         //do first load
-        setTimeout(() => {
-            for (let w of updated) {
-                w.callback(w.value, null, this);
-            }
-        }, 200);
+        for (let w of updated) {
+            w.callback(w.value, null, this);
+        }
     });
 }
 
@@ -1713,6 +1704,9 @@ app.registerExtension({
             addLoadCommon(nodeType, nodeData);
         } else if (nodeData?.name == "VHS_LoadVideo" || nodeData?.name == "VHS_LoadVideoFFmpeg") {
             addUploadWidget(nodeType, nodeData, "video");
+            addLoadCommon(nodeType, nodeData);
+            addVAEOutputToggle(nodeType, nodeData);
+            applyVHSAudioLinksFix(nodeType, nodeData, 2)
             chainCallback(nodeType.prototype, "onNodeCreated", function() {
                 const pathWidget = this.widgets.find((w) => w.name === "video");
                 chainCallback(pathWidget, "callback", (value) => {
@@ -1730,16 +1724,17 @@ app.registerExtension({
                     let params = {filename : parts[1], type : parts[0], format: format};
                     this.updateParameters(params, true);
                 });
+                pathWidget.callback(pathWidget.value)
             });
-            addLoadCommon(nodeType, nodeData);
-            addVAEOutputToggle(nodeType, nodeData);
-            applyVHSAudioLinksFix(nodeType, nodeData, 2)
         } else if (nodeData?.name == "VHS_LoadAudioUpload") {
             addUploadWidget(nodeType, nodeData, "audio", "audio");
             applyVHSAudioLinksFix(nodeType, nodeData, 0)
         } else if (nodeData?.name == "VHS_LoadAudio"){
             applyVHSAudioLinksFix(nodeType, nodeData, 0)
         } else if (nodeData?.name == "VHS_LoadVideoPath" || nodeData?.name == "VHS_LoadVideoFFmpegPath") {
+            addLoadCommon(nodeType, nodeData);
+            addVAEOutputToggle(nodeType, nodeData);
+            applyVHSAudioLinksFix(nodeType, nodeData, 2)
             chainCallback(nodeType.prototype, "onNodeCreated", function() {
                 const pathWidget = this.widgets.find((w) => w.name === "video");
                 chainCallback(pathWidget, "callback", (value) => {
@@ -1751,13 +1746,12 @@ app.registerExtension({
                     }
                     format += "/" + extension;
                     let params = {filename : value, type: "path", format: format};
-                    this?.updateParameters(params, true);
+                    this.updateParameters(params, true);
                 });
             });
+        } else if (nodeData?.name == "VHS_LoadImagePath") {
             addLoadCommon(nodeType, nodeData);
             addVAEOutputToggle(nodeType, nodeData);
-            applyVHSAudioLinksFix(nodeType, nodeData, 2)
-        } else if (nodeData?.name == "VHS_LoadImagePath") {
             chainCallback(nodeType.prototype, "onNodeCreated", function() {
                 const pathWidget = this.widgets.find((w) => w.name === "image");
                 chainCallback(pathWidget, "callback", (value) => {
@@ -1765,11 +1759,9 @@ app.registerExtension({
                     let extension = value.slice(extension_index+1);
                     let format = "video" +  "/" + extension;
                     let params = {filename : value, type: "path", format: format};
-                    this?.updateParameters(params, true);
+                    this.updateParameters(params, true);
                 });
             });
-            addLoadCommon(nodeType, nodeData);
-            addVAEOutputToggle(nodeType, nodeData);
         } else if (nodeData?.name == "VHS_VideoCombine") {
             addDateFormatting(nodeType, "filename_prefix");
             chainCallback(nodeType.prototype, "onExecuted", function(message) {
@@ -1798,7 +1790,7 @@ app.registerExtension({
                     }
                 });
                 //Display previews after reload/ loading workflow
-                requestAnimationFrame(() => {this.updateParameters({}, true);});
+                this.updateParameters({}, true);
             });
         } else if (nodeData?.name == "VHS_SaveImageSequence") {
             //Disabled for safety as VHS_SaveImageSequence is not currently merged
