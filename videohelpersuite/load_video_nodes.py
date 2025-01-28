@@ -32,14 +32,14 @@ VHSLoadFormats = {
     'Cosmos': {'target_rate': 24, 'dim': (8,0), 'frames':(8,1)},
 }
 def get_load_formats():
-    return (list(extra_config.VHSLoadFormats.keys()),
-            {'default': 'AnimateDiff', 'formats': extra_config.VHSLoadFormats})
-
-def is_gif(filename) -> bool:
     #TODO: check if {**extra_config.VHSLoafFormats, **VHSLoadFormats} has minimum version
     formats = {}
     formats.update(extra_config.VHSLoadFormats)
     formats.update(VHSLoadFormats)
+    return (list(formats.keys()),
+            {'default': 'AnimateDiff', 'formats': formats})
+
+def is_gif(filename) -> bool:
     file_parts = filename.split('.')
     return len(file_parts) > 1 and file_parts[-1] == "gif"
 
@@ -438,7 +438,7 @@ class LoadVideoPath:
                 "force_rate": (floatOrInt, {"default": 0, "min": 0, "max": 60, "step": 1, "disable": 0}),
                 "custom_width": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
                 "custom_height": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
-                "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
+                "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1, "disable": 0}),
                 "skip_first_frames": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
                 "select_every_nth": ("INT", {"default": 1, "min": 1, "max": BIGMAX, "step": 1}),
             },
@@ -489,7 +489,7 @@ class LoadVideoFFmpegUpload:
                     "force_rate": (floatOrInt, {"default": 0, "min": 0, "max": 60, "step": 1, "disable": 0}),
                     "custom_width": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
                     "custom_height": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
-                    "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
+                    "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1, "disable": 0}),
                     "start_time": ("FLOAT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
                     },
                 "optional": {
@@ -538,7 +538,7 @@ class LoadVideoFFmpegPath:
                 "force_rate": (floatOrInt, {"default": 0, "min": 0, "max": 60, "step": 1, "disable": 0}),
                 "custom_width": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
                 "custom_height": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
-                "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
+                "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1, "disable": 0}),
                 "start_time": ("FLOAT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
             },
             "optional": {

@@ -1537,14 +1537,14 @@ function makeAnnotated(widget, inputData) {
             return [width, 20]
         },
         callback(v) {
+            if (v == 0) {
+                return
+            }
             if (this.options?.mod == undefined) {
                 return callback_orig.apply(this, arguments);
             }
             const s = this.options.step / 10
             let sh = this.options.mod
-            if (isNaN(sh)) {
-                sh = 0
-            }
             this.value = Math.round((v - sh) / s) * s + sh
         },
         config: inputData,
