@@ -23,11 +23,11 @@ video_extensions = ['webm', 'mp4', 'mkv', 'gif', 'mov']
 
 VHSLoadFormats = {
     'None': {},
-    'AnimateDiff': {'target_rate': 8, 'dim': (8,0)},
-    'Mochi': {'target_rate': 24, 'dim': (8,0), 'frames':(6,1)},
-    'LTXV': {'target_rate': 24, 'dim': (8,0), 'frames':(8,1)},
-    'Hunyuan': {'target_rate': 24, 'dim': (8,0), 'frames':(4,1)},
-    'Cosmos': {'target_rate': 24, 'dim': (8,0), 'frames':(8,1)},
+    'AnimateDiff': {'target_rate': 8, 'dim': (8,0,512,512)},
+    'Mochi': {'target_rate': 24, 'dim': (8,0,848,480), 'frames':(6,1)},
+    'LTXV': {'target_rate': 24, 'dim': (8,0,768,512), 'frames':(8,1)},
+    'Hunyuan': {'target_rate': 24, 'dim': (8,0,848,480), 'frames':(4,1)},
+    'Cosmos': {'target_rate': 24, 'dim': (8,0,1280,704), 'frames':(8,1)},
 }
 """
 External plugins may add additional formats to utils.extra_config.VHSLoadFormats
@@ -298,6 +298,9 @@ def resized_cv_frame_gen(custom_width, custom_height, downscale_ratio, **kwargs)
 
 def load_video(meta_batch=None, unique_id=None, memory_limit_mb=None, vae=None,
                generator=resized_cv_frame_gen, format='None',  **kwargs):
+    if 'force_size' in kwargs:
+        kwargs.pop('force_size')
+        logger.warn("force_size has been removed. Did you reload the webpage after updating?")
     kwargs['video'] = strip_path(kwargs['video'])
     downscale_ratio = getattr(vae, "downscale_ratio", 8) if vae is not None else None
     if meta_batch is None or unique_id not in meta_batch.inputs:
@@ -417,6 +420,7 @@ class LoadVideoUpload:
                      "format": get_load_formats(),
                 },
                 "hidden": {
+                    "force_size": "STRING",
                     "unique_id": "UNIQUE_ID"
                 },
                 }
@@ -463,6 +467,7 @@ class LoadVideoPath:
                 "format": get_load_formats(),
             },
             "hidden": {
+                "force_size": "STRING",
                 "unique_id": "UNIQUE_ID"
             },
         }
@@ -513,7 +518,9 @@ class LoadVideoFFmpegUpload:
                      "format": get_load_formats(),
                 },
                 "hidden": {
+                    "force_size": "STRING",
                     "unique_id": "UNIQUE_ID"
+
                 },
                 }
 
@@ -562,6 +569,7 @@ class LoadVideoFFmpegPath:
                 "format": get_load_formats(),
             },
             "hidden": {
+                "force_size": "STRING",
                 "unique_id": "UNIQUE_ID"
             },
         }
@@ -603,6 +611,9 @@ class LoadImagePath:
             },
             "optional": {
                 "vae": ("VAE",),
+            },
+            "hidden": {
+                "force_size": "STRING",
             },
         }
 

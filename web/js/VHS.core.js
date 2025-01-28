@@ -652,6 +652,12 @@ function initializeLoadFormat(nodeType, nodeData) {
             if ('dim' in format) {
                 format.custom_width = {'step': format.dim[0]*10, 'mod': format.dim[1]}
                 format.custom_height = {'step': format.dim[0]*10, 'mod': format.dim[1]}
+                if (format.dim[2]) {
+                    format.custom_width.reset = format.dim[2]
+                }
+                if (format.dim[3]) {
+                    format.custom_height.reset = format.dim[3]
+                }
             }
             if ('frames' in format) {
                 format.frame_load_cap = {'step': format.frames[0]*10, 'mod': format.frames[1]}
