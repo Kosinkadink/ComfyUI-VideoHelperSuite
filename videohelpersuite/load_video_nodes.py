@@ -21,8 +21,6 @@ from .utils import BIGMAX, DIMMAX, calculate_file_hash, get_sorted_dir_files_fro
 
 video_extensions = ['webm', 'mp4', 'mkv', 'gif', 'mov']
 
-if not hasattr(extra_config, 'VHSLoadFormats'):
-    extra_config.VHSLoadFormats = {}
 VHSLoadFormats = {
     'None': {},
     'AnimateDiff': {'target_rate': 8, 'dim': (8,0)},
@@ -31,6 +29,15 @@ VHSLoadFormats = {
     'Hunyuan': {'target_rate': 24, 'dim': (8,0), 'frames':(4,1)},
     'Cosmos': {'target_rate': 24, 'dim': (8,0), 'frames':(8,1)},
 }
+"""
+External plugins may add additional formats to utils.extra_config.VHSLoadFormats
+In addition to shorthand options, direct widget names will map a given dict to options.
+Adding a third arguement to a frames tuple can enable strict checks on number
+of loaded frames, i.e (8,1,True)
+"""
+if not hasattr(extra_config, 'VHSLoadFormats'):
+    extra_config.VHSLoadFormats = {}
+
 def get_load_formats():
     #TODO: check if {**extra_config.VHSLoafFormats, **VHSLoadFormats} has minimum version
     formats = {}
@@ -170,10 +177,14 @@ def ffmpeg_frame_generator(video, force_rate, frame_load_cap, start_time,
     lines = dummy_res.stderr.decode(*ENCODE_ARGS)
 
     for line in lines.split('\n'):
-        match = re.search("^ *Stream .* Video.*, ([1-9]|\\d{2,})x(\\d+).*?(, ([\\d\\.]+) fps)?", line)
+        match = re.search("^ *Stream .* Video.*, ([1-9]|\\d{2,})x(\\d+)", line)
         if match is not None:
             size_base = [int(match.group(1)), int(match.group(2))]
-            fps_base = float(match.group(4) or 1)
+            fps_match = re.search(", ([\\d\\.]+) fps", line)
+            if fps_match:
+                fps_base = float(fps_match.group(1))
+            else:
+                fps_base = 1
             alpha = re.search("(yuva|rgba)", line) is not None
             break
     else:
@@ -347,9 +358,13 @@ def load_video(meta_batch=None, unique_id=None, memory_limit_mb=None, vae=None,
     if len(images) == 0:
         raise RuntimeError("No frames generated")
     if 'frames' in format and len(images) % format['frames'][0] != format['frames'][1]:
+        err_msg = f"The number of frames loaded {len(images)}, does not match the requirements of the currently selected format."
+        if len(format['frames']) > 2 and format['frames'][2]:
+            raise RuntimeError(err_msg)
         div, mod = format['frames']
         frames = (len(images) - mod) // div + mod
         images = images[:frames]
+        logger.warn(err_msg + f" Output has been truncated to {len(images)} frames.")
     if 'start_time' in kwargs:
         start_time = kwargs['start_time']
     else:
