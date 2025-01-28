@@ -111,13 +111,18 @@ function useKVState(nodeType) {
             }
             if (widgetDict.length == undefined) {
                 for (let w of this.widgets) {
+                    if (w.type =="button") {
+                        continue
+                    }
                     if (w.name in widgetDict) {
                         w.value = widgetDict[w.name];
+                        w.callback?.(w.value)
                     } else {
                         //Check for a legacy name that needs migrating
                         if (this.type in renameDict && w.name in renameDict[this.type]) {
                             if (renameDict[this.type][w.name] in widgetDict) {
                                 w.value = widgetDict[renameDict[this.type][w.name]]
+                                w.callback?.(w.value)
                                 continue
                             }
                         }
@@ -139,6 +144,7 @@ function useKVState(nodeType) {
                         }
                         if (initialValue) {
                             w.value = initialValue;
+                            w.callback?.(w.value)
                         }
                     }
                     if (w.name in inputs && w.config) {
@@ -662,7 +668,6 @@ function initializeLoadFormat(nodeType, nodeData) {
             }
 
         });
-        formatWidget.callback(formatWidget.value)
     });
 }
 
@@ -1127,8 +1132,9 @@ function addLoadCommon(nodeType, nodeData) {
     addPreviewOptions(nodeType);
     chainCallback(nodeType.prototype, "onNodeCreated", function() {
         //widget.callback adds unused arguements which need culling
+        const node = this
         function update(key) {
-            return (value, _, node) => {
+            return (value) => {
                 let params = {}
                 params[key] = value
                 node?.updateParameters(params)
@@ -1137,7 +1143,7 @@ function addLoadCommon(nodeType, nodeData) {
         let prior_ar = -2
         const widthWidget = this.widgets.find((w) => w.name === "custom_width");
         const heightWidget = this.widgets.find((w) => w.name === "custom_height");
-        function updateAR(value, _, node) {
+        function updateAR(value) {
             let new_ar = -1
             if (widthWidget.value & heightWidget.value) {
                 new_ar = widthWidget.value / heightWidget.value
@@ -1164,10 +1170,6 @@ function addLoadCommon(nodeType, nodeData) {
                 }
                 updated.push(widget)
             }
-        }
-        //do first load
-        for (let w of updated) {
-            w.callback(w.value, null, this);
         }
     });
 }
@@ -1724,7 +1726,6 @@ app.registerExtension({
                     let params = {filename : parts[1], type : parts[0], format: format};
                     this.updateParameters(params, true);
                 });
-                pathWidget.callback(pathWidget.value)
             });
         } else if (nodeData?.name == "VHS_LoadAudioUpload") {
             addUploadWidget(nodeType, nodeData, "audio", "audio");
