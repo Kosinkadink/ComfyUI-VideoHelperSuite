@@ -11,7 +11,7 @@ import time
 
 import folder_paths
 from comfy.utils import common_upscale, ProgressBar
-from utils import extra_config
+import nodes
 from comfy.k_diffusion.utils import FolderOfImages
 from .logger import logger
 from .utils import BIGMAX, DIMMAX, calculate_file_hash, get_sorted_dir_files_from_directory,\
@@ -24,10 +24,10 @@ video_extensions = ['webm', 'mp4', 'mkv', 'gif', 'mov']
 VHSLoadFormats = {
     'None': {},
     'AnimateDiff': {'target_rate': 8, 'dim': (8,0,512,512)},
-    'Mochi': {'target_rate': 24, 'dim': (8,0,848,480), 'frames':(6,1)},
-    'LTXV': {'target_rate': 24, 'dim': (8,0,768,512), 'frames':(8,1)},
-    'Hunyuan': {'target_rate': 24, 'dim': (8,0,848,480), 'frames':(4,1)},
-    'Cosmos': {'target_rate': 24, 'dim': (8,0,1280,704), 'frames':(8,1)},
+    'Mochi': {'target_rate': 24, 'dim': (16,0,848,480), 'frames':(6,1)},
+    'LTXV': {'target_rate': 24, 'dim': (32,0,768,512), 'frames':(8,1)},
+    'Hunyuan': {'target_rate': 24, 'dim': (16,0,848,480), 'frames':(4,1)},
+    'Cosmos': {'target_rate': 24, 'dim': (16,0,1280,704), 'frames':(8,1)},
 }
 """
 External plugins may add additional formats to utils.extra_config.VHSLoadFormats
@@ -35,13 +35,13 @@ In addition to shorthand options, direct widget names will map a given dict to o
 Adding a third arguement to a frames tuple can enable strict checks on number
 of loaded frames, i.e (8,1,True)
 """
-if not hasattr(extra_config, 'VHSLoadFormats'):
-    extra_config.VHSLoadFormats = {}
+if not hasattr(nodes, 'VHSLoadFormats'):
+    nodes.VHSLoadFormats = {}
 
 def get_load_formats():
     #TODO: check if {**extra_config.VHSLoafFormats, **VHSLoadFormats} has minimum version
     formats = {}
-    formats.update(extra_config.VHSLoadFormats)
+    formats.update(nodes.VHSLoadFormats)
     formats.update(VHSLoadFormats)
     return (list(formats.keys()),
             {'default': 'AnimateDiff', 'formats': formats})
