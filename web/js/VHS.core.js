@@ -105,6 +105,9 @@ function useKVState(nodeType) {
                     }
                 }
             }
+            if (widgetDict.videopreview?.params?.force_size) {
+                delete widgetDict.videopreview.params.force_size
+            }
             let inputs = {}
             for (let i of this.inputs) {
                 inputs[i.name] = i
@@ -674,6 +677,42 @@ function initializeLoadFormat(nodeType, nodeData) {
             }
 
         });
+        let capWidget = this.widgets.find((w) => w.name === "frame_load_cap")
+        let previewWidget = this.widgets.find((w) => w.name === "videopreview")
+        let rateWidget = this.widgets.find((w) => w.name === "force_rate")
+        chainCallback(previewWidget, "updateSource", () => setTimeout(async () => {
+            if (!previewWidget?.value?.params?.filename) {
+                return
+            }
+            let qurl = api.apiURL('/vhs/queryvideo?' + new URLSearchParams(previewWidget.value.params))
+            let query_res = await fetch(qurl)
+            let query = await query_res.json()
+            if (!query?.source) {
+                return
+            }
+            if (rateWidget.value) {
+                let duration = query['source']['duration']
+                this.max_frames = duration * rateWidget.value | 0
+            } else {
+                this.max_frames = query['source']['frames']
+            }
+        }, 100));
+        capWidget.annotation = (value, width) => {
+            if (!this.max_frames || value && value < this.max_frames) {
+                return
+            }
+            let format = formatWidget.options.formats[formatWidget.value]
+            if (!format?.frames?.[0]) {
+                return
+            }
+            const div = format.frames[0]
+            const mod = format.frames[1] ?? 0
+            let loadable_frames = this.max_frames
+            if ((this.max_frames % div) != mod) {
+                loadable_frames = ((this.max_frames - mod)/div|0) * div + mod
+            }
+            return loadable_frames + "\u21FD"
+        }
     });
 }
 

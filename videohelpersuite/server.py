@@ -175,6 +175,7 @@ async def query_video(request):
         duration = int(durs[0])*360 + int(durs[1])*60 + float(durs[2])
         results['duration'] = duration
         results['frames'] = int(duration*results['fps'])
+    results = {'source': results}
     query_cache[filepath] = (os.stat(filepath).st_mtime, results)
     return web.json_response(results)
 
