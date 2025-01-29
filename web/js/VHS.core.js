@@ -1205,7 +1205,6 @@ function addLoadCommon(nodeType, nodeData) {
             'custom_width': updateAR, 'custom_height': updateAR,
             'image_load_cap': 'image_load_cap', 'skip_first_images': 'skip_first_images'
         }
-        let updated = []
         for (let widget of this.widgets) {
             if (widget.name in widgetMap) {
                 if (typeof(widgetMap[widget.name]) == 'function') {
@@ -1213,7 +1212,9 @@ function addLoadCommon(nodeType, nodeData) {
                 } else {
                     chainCallback(widget, "callback", update(widgetMap[widget.name]))
                 }
-                updated.push(widget)
+            }
+            if (widget.type != "button") {
+                widget.callback?.(widget.value)
             }
         }
     });
