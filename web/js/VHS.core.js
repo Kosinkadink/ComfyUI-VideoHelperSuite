@@ -1750,10 +1750,6 @@ app.registerExtension({
             });
             addLoadCommon(nodeType, nodeData);
         } else if (nodeData?.name == "VHS_LoadVideo" || nodeData?.name == "VHS_LoadVideoFFmpeg") {
-            addUploadWidget(nodeType, nodeData, "video");
-            addLoadCommon(nodeType, nodeData);
-            addVAEOutputToggle(nodeType, nodeData);
-            applyVHSAudioLinksFix(nodeType, nodeData, 2)
             chainCallback(nodeType.prototype, "onNodeCreated", function() {
                 const pathWidget = this.widgets.find((w) => w.name === "video");
                 chainCallback(pathWidget, "callback", (value) => {
@@ -1772,15 +1768,16 @@ app.registerExtension({
                     this.updateParameters(params, true);
                 });
             });
+            addUploadWidget(nodeType, nodeData, "video");
+            addLoadCommon(nodeType, nodeData);
+            addVAEOutputToggle(nodeType, nodeData);
+            applyVHSAudioLinksFix(nodeType, nodeData, 2)
         } else if (nodeData?.name == "VHS_LoadAudioUpload") {
             addUploadWidget(nodeType, nodeData, "audio", "audio");
             applyVHSAudioLinksFix(nodeType, nodeData, 0)
         } else if (nodeData?.name == "VHS_LoadAudio"){
             applyVHSAudioLinksFix(nodeType, nodeData, 0)
         } else if (nodeData?.name == "VHS_LoadVideoPath" || nodeData?.name == "VHS_LoadVideoFFmpegPath") {
-            addLoadCommon(nodeType, nodeData);
-            addVAEOutputToggle(nodeType, nodeData);
-            applyVHSAudioLinksFix(nodeType, nodeData, 2)
             chainCallback(nodeType.prototype, "onNodeCreated", function() {
                 const pathWidget = this.widgets.find((w) => w.name === "video");
                 chainCallback(pathWidget, "callback", (value) => {
@@ -1795,6 +1792,9 @@ app.registerExtension({
                     this.updateParameters(params, true);
                 });
             });
+            addLoadCommon(nodeType, nodeData);
+            addVAEOutputToggle(nodeType, nodeData);
+            applyVHSAudioLinksFix(nodeType, nodeData, 2)
         } else if (nodeData?.name == "VHS_LoadImagePath") {
             addLoadCommon(nodeType, nodeData);
             addVAEOutputToggle(nodeType, nodeData);
