@@ -45,6 +45,10 @@ def get_load_formats():
     formats.update(VHSLoadFormats)
     return (list(formats.keys()),
             {'default': 'AnimateDiff', 'formats': formats})
+def get_format(format):
+    if format in VHSLoadFormats:
+        return VHSLoadFormats[format]
+    return nodes.VHSLoadFormats.get(format, {})
 
 def is_gif(filename) -> bool:
     file_parts = filename.split('.')
@@ -360,14 +364,16 @@ def load_video(meta_batch=None, unique_id=None, memory_limit_mb=None, vae=None,
             pass
     if len(images) == 0:
         raise RuntimeError("No frames generated")
+    format = get_format(format)
     if 'frames' in format and len(images) % format['frames'][0] != format['frames'][1]:
         err_msg = f"The number of frames loaded {len(images)}, does not match the requirements of the currently selected format."
         if len(format['frames']) > 2 and format['frames'][2]:
             raise RuntimeError(err_msg)
-        div, mod = format['frames']
-        frames = (len(images) - mod) // div + mod
+        div, mod = format['frames'][:2]
+        frames = (len(images) - mod) // div * div + mod
         images = images[:frames]
-        logger.warn(err_msg + f" Output has been truncated to {len(images)} frames.")
+        #Commenting out log message since it's displayed in UI. consider further
+        #logger.warn(err_msg + f" Output has been truncated to {len(images)} frames.")
     if 'start_time' in kwargs:
         start_time = kwargs['start_time']
     else:
