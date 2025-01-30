@@ -516,7 +516,7 @@ class LoadVideoFFmpegUpload:
                     "custom_width": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
                     "custom_height": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
                     "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1, "disable": 0}),
-                    "start_time": ("FLOAT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
+                    "start_time": ("FLOAT", {"default": 0, "min": 0, "max": BIGMAX, "step": .001}),
                     },
                 "optional": {
                     "meta_batch": ("VHS_BatchManager",),
@@ -567,7 +567,7 @@ class LoadVideoFFmpegPath:
                 "custom_width": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
                 "custom_height": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
                 "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1, "disable": 0}),
-                "start_time": ("FLOAT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
+                "start_time": ("FLOAT", {"default": 0, "min": 0, "max": BIGMAX, "step": .001}),
             },
             "optional": {
                 "meta_batch": ("VHS_BatchManager",),
@@ -594,6 +594,8 @@ class LoadVideoFFmpegPath:
         if is_url(kwargs['video']):
             kwargs['video'] = try_download_video(kwargs['video']) or kwargs['video']
         image, _, audio, video_info =  load_video(**kwargs, generator=ffmpeg_frame_generator)
+        if isinstance(image, dict):
+            return (image, None, audio, video_info)
         if image.size(3) == 4:
             return (image[:,:,:,:3], 1-image[:,:,:,3], audio, video_info)
         return (image, torch.zeros(image.size(0), 64, 64, device="cpu"), audio, video_info)
@@ -638,6 +640,8 @@ class LoadImagePath:
                       'start_time': 0})
         kwargs.pop('image')
         image, _, _, _ =  load_video(**kwargs, generator=ffmpeg_frame_generator)
+        if isinstance(image, dict):
+            return (image, None)
         if image.size(3) == 4:
             return (image[:,:,:,:3], 1-image[:,:,:,3])
         return (image, torch.zeros(image.size(0), 64, 64, device="cpu"))

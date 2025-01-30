@@ -506,7 +506,8 @@ function applyVHSAudioLinksFix(nodeType, nodeData, audio_slot) {
 }
 function addVAEOutputToggle(nodeType, nodeData) {
     chainCallback(nodeType.prototype, "onConnectionsChange", function(contype, slot, iscon, linfo) {
-        if (contype == LiteGraph.INPUT && slot == 1 && this.inputs[1].type == "VAE") {
+        let slotType = this.inputs[slot]?.type
+        if (contype == LiteGraph.INPUT && slotType == "VAE") {
             if (iscon && linfo) {
                 if (this.linkTimeout) {
                     clearTimeout(this.linkTimeout)
@@ -931,9 +932,9 @@ function addVideoPreview(nodeType, isInput=true) {
                     //overscale to allow scrolling. Endpoint won't return higher than native
                     target_width = previewWidget.element.style.width.slice(0,-2)*2;
                 }
-                let minWidth = app.ui.settings.getSettingValue("VHS>AdvandedPreviewsMinWidth")
+                let minWidth = app.ui.settings.getSettingValue("VHS.AdvancedPreviewsMinWidth")
                 if (target_width < minWidth) {
-                    target_width = min_width
+                    target_width = minWidth
                 }
                 if (!params.custom_width || !params.custom_height) {
                     params.force_size = target_width+"x?"
@@ -1197,6 +1198,10 @@ function addLoadCommon(nodeType, nodeData) {
                     'custom_height': heightWidget.value})
                 prior_ar = new_ar
             }
+        }
+        const offsetWidget = this.widgets.find((w) => w.name === "start_time");
+        if (offsetWidget) {
+            offsetWidget.options.step = 10
         }
         let widgetMap = {'frame_load_cap': 'frame_load_cap',
             'skip_first_frames': 'skip_first_frames', 'select_every_nth': 'select_every_nth',
