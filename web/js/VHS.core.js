@@ -942,6 +942,7 @@ function addVideoPreview(nodeType, isInput=true) {
                     let ar = params.custom_width/params.custom_height
                     params.force_size = target_width+"x"+(target_width/ar)
                 }
+                params.deadline = app.ui.settings.getSettingValue("VHS.AdvancedPreviewsDeadline")
                 if (advp == 'Never' || advp == 'Input Only' && !isInput) {
                     this.videoEl.src = api.apiURL('/view?' + new URLSearchParams(params));
                 } else {
@@ -1627,6 +1628,15 @@ app.registerExtension({
           max: 3840,
         },
         defaultValue: 0,
+      },
+      {
+        id: 'VHS.AdvancedPreviewsDeadline',
+        category: ['🎥🅥🅗🅢', 'Previews', 'Deadline'],
+        name: 'Deadline',
+        tooltip: 'Determines how much time can be spent when encoding advanced previews. Realtime results in reduced quality, but good will likely cause the preview to stutter as initial generation occurs',
+        type: 'combo',
+        options: ['realtime', 'good'],
+        defaultValue: 'realtime',
       },
       {
         id: 'VHS.AdvancedPreviewsDefaultMute',

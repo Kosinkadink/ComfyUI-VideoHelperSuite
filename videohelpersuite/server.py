@@ -102,8 +102,12 @@ async def view_video(request):
     if int(query.get('frame_load_cap', 0)) > 0:
         args += ["-frames:v", query['frame_load_cap']]
     #TODO:reconsider adding high frame cap/setting default frame cap on node
+    if query.get('deadline', 'realtime') == 'good':
+        deadline = 'good'
+    else:
+        deadline = 'realtime'
 
-    args += ['-c:v', 'libvpx-vp9','-deadline', 'realtime', '-cpu-used', '8', '-f', 'webm', '-']
+    args += ['-c:v', 'libvpx-vp9','-deadline', deadline, '-cpu-used', '8', '-f', 'webm', '-']
 
     try:
         with subprocess.Popen(args, stdout=subprocess.PIPE) as proc:
