@@ -679,23 +679,22 @@ function initializeLoadFormat(nodeType, nodeData) {
         });
         let capWidget = this.widgets.find((w) => w.name === "frame_load_cap")
         let previewWidget = this.widgets.find((w) => w.name === "videopreview")
-        let rateWidget = this.widgets.find((w) => w.name === "force_rate")
         chainCallback(previewWidget, "updateSource", () => setTimeout(async () => {
             if (!previewWidget?.value?.params?.filename) {
                 return
             }
             let qurl = api.apiURL('/vhs/queryvideo?' + new URLSearchParams(previewWidget.value.params))
-            let query_res = await fetch(qurl)
-            let query = await query_res.json()
-            if (!query?.source) {
+            let query = undefined
+            try {
+                let query_res = await fetch(qurl)
+                query = await query_res.json()
+            } catch(e) {
                 return
             }
-            if (rateWidget.value) {
-                let duration = query['source']['duration']
-                this.max_frames = duration * rateWidget.value | 0
-            } else {
-                this.max_frames = query['source']['frames']
+            if (!query?.loaded) {
+                return
             }
+            this.max_frames = query.loaded.frames
         }, 100));
         capWidget.annotation = (value, width) => {
             if (!this.max_frames || value && value < this.max_frames) {
