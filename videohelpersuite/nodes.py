@@ -398,7 +398,7 @@ class VideoCombine:
 
             video_format = apply_format_widgets(format_ext, kwargs)
             has_alpha = first_image.shape[-1] == 4
-            dim_alignment = video_format.get("dim_alignment", 8)
+            dim_alignment = video_format.get("dim_alignment", 2)
             if (first_image.shape[1] % dim_alignment) or (first_image.shape[0] % dim_alignment):
                 #output frames must be padded
                 to_pad = (-first_image.shape[1] % dim_alignment,

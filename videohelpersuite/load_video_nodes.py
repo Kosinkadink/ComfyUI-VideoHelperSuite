@@ -305,8 +305,12 @@ def load_video(meta_batch=None, unique_id=None, memory_limit_mb=None, vae=None,
     if 'force_size' in kwargs:
         kwargs.pop('force_size')
         logger.warn("force_size has been removed. Did you reload the webpage after updating?")
+    format = get_format(format)
     kwargs['video'] = strip_path(kwargs['video'])
-    downscale_ratio = getattr(vae, "downscale_ratio", 8) if vae is not None else None
+    if vae is not None:
+        downscale_ratio = getattr(vae, "downscale_ratio", 8)
+    else:
+        downscale_ratio = format.get('dim', (1,))[0]
     if meta_batch is None or unique_id not in meta_batch.inputs:
         gen = generator(meta_batch=meta_batch, unique_id=unique_id, downscale_ratio=downscale_ratio, **kwargs)
         (width, height, fps, duration, total_frames, target_frame_time, yieldable_frames, new_width, new_height, alpha) = next(gen)
@@ -364,7 +368,6 @@ def load_video(meta_batch=None, unique_id=None, memory_limit_mb=None, vae=None,
             pass
     if len(images) == 0:
         raise RuntimeError("No frames generated")
-    format = get_format(format)
     if 'frames' in format and len(images) % format['frames'][0] != format['frames'][1]:
         err_msg = f"The number of frames loaded {len(images)}, does not match the requirements of the currently selected format."
         if len(format['frames']) > 2 and format['frames'][2]:
