@@ -222,7 +222,7 @@ async def resolve_path(query):
             return web.Response(status=403)
 
         if "subfolder" in query:
-            output_dir = os.path.join(output_dir, request.rel_url.query["subfolder"])
+            output_dir = os.path.join(output_dir, query["subfolder"])
 
         filename = os.path.basename(filename)
         file = os.path.join(output_dir, filename)
