@@ -702,11 +702,8 @@ function initializeLoadFormat(nodeType, nodeData) {
                 return
             }
             let format = formatWidget.options.formats[formatWidget.value]
-            if (!format?.frames?.[0]) {
-                return
-            }
-            const div = format.frames[0]
-            const mod = format.frames[1] ?? 0
+            const div = format?.frames?.[0] ?? 1
+            const mod = format?.frames?.[1] ?? 0
             let loadable_frames = this.max_frames
             if ((this.max_frames % div) != mod) {
                 loadable_frames = ((this.max_frames - mod)/div|0) * div + mod
