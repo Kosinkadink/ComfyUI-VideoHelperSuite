@@ -123,11 +123,13 @@ descriptions = {
      'Widgets': {
          'video': 'The video file to be loaded. Lists all files with a video extension in the ComfyUI/Input folder',
          'force_rate': 'Drops or duplicates frames so that the produced output has the target frame rate. Many motion models are trained on videos of a specific frame rate and will give better results if input matches that frame rate. If set to 0, all frames are returned. May give unusual results with inputs that have a variable frame rate like animated gifs. Reducing this value can also greatly reduce the execution time and memory requirements.',
-         'force_size': ['Allows for conveniently scaling the input without requiring an additional node. Provides options to maintain aspect ratio or conveniently target common training formats for Animate Diff', {'custom_width': 'Allows for an arbitrary width to be entered, cropping to maintain aspect ratio if both are set',
-               'custom_height': 'Allows for an arbitrary height to be entered, cropping to maintain aspect ratio if both are set'}],
+         'force_size': 'Previously was used to provide suggested resolutions. Instead, custom_width and custom_height can be disabled by setting to 0.',
+         'custom_width': 'Allows for an arbitrary width to be entered, cropping to maintain aspect ratio if both are set',
+         'custom_height': 'Allows for an arbitrary height to be entered, cropping to maintain aspect ratio if both are set',
          'frame_load_cap': 'The maximum number of frames to load. If 0, all frames are loaded.',
          'skip_first_frames': 'A number of frames which are discarded before producing output.',
          'select_every_nth': 'Similar to frame rate. Keeps only the first of every n frames and discard the rest. Has better compatibility with variable frame rate inputs such as gifs. When combined with force_rate, select_every_nth_applies after force_rate so the resulting output has a frame rate equivalent to force_rate/select_every_nth. select_every_nth does not apply to skip_first_frames',
+         'format': 'Updates other widgets so that only values supported by the given format can be entered and provides recommended defaults.',
          'choose video to upload': 'An upload button is provided to upload local files to the input folder',
          'videopreview': 'Displays a preview for the selected video input. If advanced previews is enabled, this preview will reflect the frame_load_cap, force_rate, skip_first_frames, and select_every_nth values chosen. If the video has audio, it will also be previewed when moused over. Additional preview options can be accessed with right click.',
          }
@@ -150,10 +152,12 @@ descriptions = {
      'Widgets': {
          'video': 'The video file to be loaded. Lists all files with a video extension in the ComfyUI/Input folder',
          'force_rate': 'Drops or duplicates frames so that the produced output has the target frame rate. Many motion models are trained on videos of a specific frame rate and will give better results if input matches that frame rate. If set to 0, all frames are returned. May give unusual results with inputs that have a variable frame rate like animated gifs. Reducing this value can also greatly reduce the execution time and memory requirements.',
-         'force_size': ['Allows for conveniently scaling the input without requiring an additional node. Provides options to maintain aspect ratio or conveniently target common training formats for Animate Diff', {'custom_width': 'Allows for an arbitrary width to be entered, cropping to maintain aspect ratio if both are set',
-               'custom_height': 'Allows for an arbitrary height to be entered, cropping to maintain aspect ratio if both are set'}],
+         'force_size': 'Previously was used to provide suggested resolutions. Instead, custom_width and custom_height can be disabled by setting to 0.',
+         'custom_width': 'Allows for an arbitrary width to be entered, cropping to maintain aspect ratio if both are set',
+         'custom_height': 'Allows for an arbitrary height to be entered, cropping to maintain aspect ratio if both are set',
          'frame_load_cap': 'The maximum number of frames to load. If 0, all frames are loaded.',
          'start_time': 'A timestamp, in seconds from the start of the video, to start loading frames from. ',
+         'format': 'Updates other widgets so that only values supported by the given format can be entered and provides recommended defaults.',
          'choose video to upload': 'An upload button is provided to upload local files to the input folder',
          'videopreview': 'Displays a preview for the selected video input. If advanced previews is enabled, this preview will reflect the frame_load_cap, force_rate, skip_first_frames, and select_every_nth values chosen. If the video has audio, it will also be previewed when moused over. Additional preview options can be accessed with right click.',
          }
@@ -175,11 +179,13 @@ descriptions = {
      'Widgets': {
          'video': ['The video file to be loaded.', 'You can also select an image to load it as a single frame'] + common_descriptions['VHS_PATH'],
          'force_rate': 'Drops or duplicates frames so that the produced output has the target frame rate. Many motion models are trained on videos of a specific frame rate and will give better results if input matches that frame rate. If set to 0, all frames are returned. May give unusual results with inputs that have a variable frame rate like animated gifs. Reducing this value can also greatly reduce the execution time and memory requirements.',
-         'force_size': ['Allows for conveniently scaling the input without requiring an additional node. Provides options to maintain aspect ratio or conveniently target common training formats for Animate Diff', {'custom_width': 'Allows for an arbitrary width to be entered, cropping to maintain aspect ratio if both are set',
-               'custom_height': 'Allows for an arbitrary height to be entered, cropping to maintain aspect ratio if both are set'}],
+         'force_size': 'Previously was used to provide suggested resolutions. Instead, custom_width and custom_height can be disabled by setting to 0.',
+         'custom_width': 'Allows for an arbitrary width to be entered, cropping to maintain aspect ratio if both are set',
+         'custom_height': 'Allows for an arbitrary height to be entered, cropping to maintain aspect ratio if both are set',
          'frame_load_cap': 'The maximum number of frames to load. If 0, all frames are loaded.',
          'skip_first_frames': 'A number of frames which are discarded before producing output.',
          'select_every_nth': 'Similar to frame rate. Keeps only the first of every n frames and discard the rest. Has better compatibility with variable frame rate inputs such as gifs. When combined with force_rate, select_every_nth_applies after force_rate so the resulting output has a frame rate equivalent to force_rate/select_every_nth. select_every_nth does not apply to skip_first_frames',
+         'format': 'Updates other widgets so that only values supported by the given format can be entered and provides recommended defaults.',
          'videopreview': 'Displays a preview for the selected video input. Will only be shown if Advanced Previews is enabled. This preview will reflect the frame_load_cap, force_rate, skip_first_frames, and select_every_nth values chosen. If the video has audio, it will also be previewed when moused over. Additional preview options can be accessed with right click.',
          }
         }],
@@ -201,11 +207,13 @@ descriptions = {
      'Widgets': {
          'video': ['The video file to be loaded.', 'You can also select an image to load it as a single frame'] + common_descriptions['VHS_PATH'],
          'force_rate': 'Drops or duplicates frames so that the produced output has the target frame rate. Many motion models are trained on videos of a specific frame rate and will give better results if input matches that frame rate. If set to 0, all frames are returned. May give unusual results with inputs that have a variable frame rate like animated gifs. Reducing this value can also greatly reduce the execution time and memory requirements.',
-         'force_size': ['Allows for conveniently scaling the input without requiring an additional node. Provides options to maintain aspect ratio or conveniently target common training formats for Animate Diff', {'custom_width': 'Allows for an arbitrary width to be entered, cropping to maintain aspect ratio if both are set',
-               'custom_height': 'Allows for an arbitrary height to be entered, cropping to maintain aspect ratio if both are set'}],
+         'force_size': 'Previously was used to provide suggested resolutions. Instead, custom_width and custom_height can be disabled by setting to 0.',
+         'custom_width': 'Allows for an arbitrary width to be entered, cropping to maintain aspect ratio if both are set',
+         'custom_height': 'Allows for an arbitrary height to be entered, cropping to maintain aspect ratio if both are set',
          'frame_load_cap': 'The maximum number of frames to load. If 0, all frames are loaded.',
          'skip_first_frames': 'A number of frames which are discarded before producing output.',
          'select_every_nth': 'Similar to frame rate. Keeps only the first of every n frames and discard the rest. Has better compatibility with variable frame rate inputs such as gifs. When combined with force_rate, select_every_nth_applies after force_rate so the resulting output has a frame rate equivalent to force_rate/select_every_nth. select_every_nth does not apply to skip_first_frames',
+         'format': 'Updates other widgets so that only values supported by the given format can be entered and provides recommended defaults.',
          'videopreview': 'Displays a preview for the selected video input. Will only be shown if Advanced Previews is enabled. This preview will reflect the frame_load_cap, force_rate, skip_first_frames, and select_every_nth values chosen. If the video has audio, it will also be previewed when moused over. Additional preview options can be accessed with right click.',
          }
         }],

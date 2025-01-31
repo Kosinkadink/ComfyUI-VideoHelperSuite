@@ -17,48 +17,18 @@ web = server.web
 @server.PromptServer.instance.routes.get("/viewvideo")
 async def view_video(request):
     query = request.rel_url.query
-    if "filename" not in query:
-        return web.Response(status=404)
-    filename = query["filename"]
+    path_res = await resolve_path(query)
+    if isinstance(path_res, web.Response):
+        return path_res
+    file, filename, output_dir = path_res
 
-    #Path code misformats urls on windows and must be skipped
-    if is_url(filename):
-        file = filename
-        file = try_download_video(file) or file
-    else:
-        filename, output_dir = folder_paths.annotated_filepath(filename)
-
-        type = request.rel_url.query.get("type", "output")
-        if type == "path":
-            #special case for path_based nodes
-            #NOTE: output_dir may be empty, but non-None
-            output_dir, filename = os.path.split(strip_path(filename))
-        if output_dir is None:
-            output_dir = folder_paths.get_directory_by_type(type)
-
-        if output_dir is None:
-            return web.Response(status=400)
-
-        if not is_safe_path(output_dir):
-            return web.Response(status=403)
-
-        if "subfolder" in request.rel_url.query:
-            output_dir = os.path.join(output_dir, request.rel_url.query["subfolder"])
-
-        filename = os.path.basename(filename)
-        file = os.path.join(output_dir, filename)
-
-        if query.get('format', 'video') == 'folder':
-            if not os.path.isdir(file):
-                return web.Response(status=404)
-        else:
-            if not os.path.isfile(file) and not validate_sequence(file):
-                    return web.Response(status=404)
+    if ffmpeg_path is None:
+        #Don't just return file, that provides  arbitrary read access to any file
+        if is_safe_path(output_dir, strict=True):
+            return web.FileResponse(path=file)
 
     frame_rate = query.get('frame_rate', 8)
     if query.get('format', 'video') == "folder":
-        #Check that folder contains some valid image file, get it's extension
-        #ffmpeg seems to not support list globs, so support for mixed extensions seems unfeasible
         os.makedirs(folder_paths.get_temp_directory(), exist_ok=True)
         concat_file = os.path.join(folder_paths.get_temp_directory(), "image_sequence_preview.txt")
         skip_first_images = int(query.get('skip_first_images', 0))
@@ -132,8 +102,12 @@ async def view_video(request):
     if int(query.get('frame_load_cap', 0)) > 0:
         args += ["-frames:v", query['frame_load_cap']]
     #TODO:reconsider adding high frame cap/setting default frame cap on node
+    if query.get('deadline', 'realtime') == 'good':
+        deadline = 'good'
+    else:
+        deadline = 'realtime'
 
-    args += ['-c:v', 'libvpx-vp9','-deadline', 'realtime', '-cpu-used', '8', '-f', 'webm', '-']
+    args += ['-c:v', 'libvpx-vp9','-deadline', deadline, '-cpu-used', '8', '-f', 'webm', '-']
 
     try:
         with subprocess.Popen(args, stdout=subprocess.PIPE) as proc:
@@ -164,6 +138,102 @@ async def view_video(request):
     except BrokenPipeError as e:
         pass
     return resp
+
+query_cache = {}
+@server.PromptServer.instance.routes.get("/vhs/queryvideo")
+async def query_video(request):
+    query = request.rel_url.query
+    filepath = await resolve_path(query)
+    #TODO: cache lookup
+    if isinstance(filepath, web.Response):
+        return filepath
+    filepath = filepath[0]
+    if filepath in query_cache and query_cache[filepath][0] == os.stat(filepath).st_mtime:
+        source = query_cache[filepath][1]
+    else:
+        args_dummy = [ffmpeg_path, "-i", filepath, '-c', 'copy', '-frames:v', '1', "-f", "null", "-"]
+        try:
+            dummy_res = subprocess.run(args_dummy, stdout=subprocess.DEVNULL,
+                                     stderr=subprocess.PIPE, check=True)
+        except subprocess.CalledProcessError as e:
+            raise Exception("An error occurred in the ffmpeg subprocess:\n" \
+                    + e.stderr.decode(*ENCODE_ARGS))
+        lines = dummy_res.stderr.decode(*ENCODE_ARGS)
+        source = {}
+
+        for line in lines.split('\n'):
+            match = re.search("^ *Stream .* Video.*, ([1-9]|\\d{2,})x(\\d+)", line)
+            if match is not None:
+                source['size'] = [int(match.group(1)), int(match.group(2))]
+                fps_match = re.search(", ([\\d\\.]+) fps", line)
+                if not fps_match:
+                    return web.Response(status=500)
+                source['fps'] = float(fps_match.group(1))
+                if re.search("(yuva|rgba)", line):
+                    source['alpha'] = True
+                break
+        else:
+            raise Exception("Failed to parse video/image information. FFMPEG output:\n" + lines)
+
+        durs_match = re.search("Duration: (\\d+:\\d+:\\d+\\.\\d+),", lines)
+        if not (durs_match and 'fps' in source):
+            return web.Response(status=500)
+        durs = durs_match.group(1).split(':')
+        duration = int(durs[0])*360 + int(durs[1])*60 + float(durs[2])
+        source['duration'] = duration
+        source['frames'] = int(duration*source['fps'])
+        query_cache[filepath] = (os.stat(filepath).st_mtime, source)
+    loaded = {}
+    if 'duration' not in source:
+        return web.Response(status=500)
+    loaded['duration'] = source['duration']
+    loaded['duration'] -= float(query.get('start_time',0))
+    loaded['fps'] = float(query.get('force_rate', 0)) or source['fps']
+    loaded['duration'] -= int(query.get('skip_first_frames', 0)) / loaded['fps']
+    loaded['fps'] /= int(query.get('select_every_nth', 1))
+    loaded['frames'] = loaded['duration'] * loaded['fps']
+    return web.json_response({'source': source, 'loaded': loaded})
+
+async def resolve_path(query):
+    if "filename" not in query:
+        return web.Response(status=404)
+    filename = query["filename"]
+
+    #Path code misformats urls on windows and must be skipped
+    if is_url(filename):
+        file = await asyncio.to_thread(try_download_video, filename) or file
+        filname, output_dir = os.path.split(file)
+        return file, filename, output_dir
+    else:
+        filename, output_dir = folder_paths.annotated_filepath(filename)
+
+        type = query.get("type", "output")
+        if type == "path":
+            #special case for path_based nodes
+            #NOTE: output_dir may be empty, but non-None
+            output_dir, filename = os.path.split(strip_path(filename))
+        if output_dir is None:
+            output_dir = folder_paths.get_directory_by_type(type)
+
+        if output_dir is None:
+            return web.Response(status=400)
+
+        if not is_safe_path(output_dir):
+            return web.Response(status=403)
+
+        if "subfolder" in query:
+            output_dir = os.path.join(output_dir, request.rel_url.query["subfolder"])
+
+        filename = os.path.basename(filename)
+        file = os.path.join(output_dir, filename)
+
+        if query.get('format', 'video') == 'folder':
+            if not os.path.isdir(file):
+                return web.Response(status=404)
+        else:
+            if not os.path.isfile(file) and not validate_sequence(file):
+                    return web.Response(status=404)
+        return file, filename, output_dir
 
 @server.PromptServer.instance.routes.get("/vhs/getpath")
 @server.PromptServer.instance.routes.get("/getpath")

@@ -11,30 +11,59 @@ import time
 
 import folder_paths
 from comfy.utils import common_upscale, ProgressBar
+import nodes
 from comfy.k_diffusion.utils import FolderOfImages
 from .logger import logger
 from .utils import BIGMAX, DIMMAX, calculate_file_hash, get_sorted_dir_files_from_directory,\
         lazy_get_audio, hash_path, validate_path, strip_path, try_download_video,  \
-        is_url, imageOrLatent, ffmpeg_path, ENCODE_ARGS
+        is_url, imageOrLatent, ffmpeg_path, ENCODE_ARGS, floatOrInt
 
 
 video_extensions = ['webm', 'mp4', 'mkv', 'gif', 'mov']
 
+VHSLoadFormats = {
+    'None': {},
+    'AnimateDiff': {'target_rate': 8, 'dim': (8,0,512,512)},
+    'Mochi': {'target_rate': 24, 'dim': (16,0,848,480), 'frames':(6,1)},
+    'LTXV': {'target_rate': 24, 'dim': (32,0,768,512), 'frames':(8,1)},
+    'Hunyuan': {'target_rate': 24, 'dim': (16,0,848,480), 'frames':(4,1)},
+    'Cosmos': {'target_rate': 24, 'dim': (16,0,1280,704), 'frames':(8,1)},
+}
+"""
+External plugins may add additional formats to utils.extra_config.VHSLoadFormats
+In addition to shorthand options, direct widget names will map a given dict to options.
+Adding a third arguement to a frames tuple can enable strict checks on number
+of loaded frames, i.e (8,1,True)
+"""
+if not hasattr(nodes, 'VHSLoadFormats'):
+    nodes.VHSLoadFormats = {}
+
+def get_load_formats():
+    #TODO: check if {**extra_config.VHSLoafFormats, **VHSLoadFormats} has minimum version
+    formats = {}
+    formats.update(nodes.VHSLoadFormats)
+    formats.update(VHSLoadFormats)
+    return (list(formats.keys()),
+            {'default': 'AnimateDiff', 'formats': formats})
+def get_format(format):
+    if format in VHSLoadFormats:
+        return VHSLoadFormats[format]
+    return nodes.VHSLoadFormats.get(format, {})
 
 def is_gif(filename) -> bool:
     file_parts = filename.split('.')
     return len(file_parts) > 1 and file_parts[-1] == "gif"
 
 
-def target_size(width, height, force_size, custom_width, custom_height, downscale_ratio=8) -> tuple[int, int]:
+def target_size(width, height, custom_width, custom_height, downscale_ratio=8) -> tuple[int, int]:
     if downscale_ratio is None:
         downscale_ratio = 8
-    if force_size == "Disabled":
+    if custom_width == 0 and custom_height ==  0:
         pass
-    elif force_size == "Custom Width" or force_size.endswith('x?'):
+    elif custom_height == 0:
         height *= custom_width/width
         width = custom_width
-    elif force_size == "Custom Height" or force_size.startswith('?x'):
+    elif custom_width == 0:
         width *= custom_height/height
         height = custom_height
     else:
@@ -138,7 +167,7 @@ def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
         yield prev_frame
 
 def ffmpeg_frame_generator(video, force_rate, frame_load_cap, start_time,
-                           force_size, custom_width, custom_height, downscale_ratio=8,
+                           custom_width, custom_height, downscale_ratio=8,
                            meta_batch=None, unique_id=None):
     args_dummy = [ffmpeg_path, "-i", video, '-c', 'copy', '-frames:v', '1', "-f", "null", "-"]
     size_base = None
@@ -152,10 +181,14 @@ def ffmpeg_frame_generator(video, force_rate, frame_load_cap, start_time,
     lines = dummy_res.stderr.decode(*ENCODE_ARGS)
 
     for line in lines.split('\n'):
-        match = re.search("^ *Stream .* Video.*, ([1-9]|\\d{2,})x(\\d+).*?(, ([\\d\\.]+) fps)?", line)
+        match = re.search("^ *Stream .* Video.*, ([1-9]|\\d{2,})x(\\d+)", line)
         if match is not None:
             size_base = [int(match.group(1)), int(match.group(2))]
-            fps_base = float(match.group(4) or 1)
+            fps_match = re.search(", ([\\d\\.]+) fps", line)
+            if fps_match:
+                fps_base = float(fps_match.group(1))
+            else:
+                fps_base = 1
             alpha = re.search("(yuva|rgba)", line) is not None
             break
     else:
@@ -184,8 +217,8 @@ def ffmpeg_frame_generator(video, force_rate, frame_load_cap, start_time,
     vfilters = []
     if force_rate != 0:
         vfilters.append("fps=fps="+str(force_rate))
-    if force_size != "Disabled":
-        size = target_size(size_base[0], size_base[1], force_size, custom_width,
+    if custom_width != 0 or custom_height != 0:
+        size = target_size(size_base[0], size_base[1], custom_width,
                            custom_height, downscale_ratio=downscale_ratio)
         ar = float(size[0])/float(size[1])
         if abs(size_base[0]*ar-size_base[1]) >= 1:
@@ -245,15 +278,15 @@ def batched_vae_encode(images, vae, frames_per_batch):
     for batch in batched(images, frames_per_batch):
         image_batch = torch.from_numpy(np.array(batch))
         yield from vae.encode(image_batch).numpy()
-def resized_cv_frame_gen(custom_width, custom_height, force_size, downscale_ratio, **kwargs):
+def resized_cv_frame_gen(custom_width, custom_height, downscale_ratio, **kwargs):
     gen = cv_frame_generator(**kwargs)
     info =  next(gen)
     width, height = info[0], info[1]
     frames_per_batch = (1920 * 1080 * 16) // (width * height) or 1
     if kwargs.get('meta_batch', None) is not None:
         frames_per_batch = min(frames_per_batch, kwargs['meta_batch'].frames_per_batch)
-    if force_size != "Disabled" or downscale_ratio is not None:
-        new_size = target_size(width, height, force_size, custom_width, custom_height, downscale_ratio)
+    if custom_width != 0 or custom_height != 0 or downscale_ratio is not None:
+        new_size = target_size(width, height, custom_width, custom_height, downscale_ratio)
         yield (*info, new_size[0], new_size[1], False)
         if new_size[0] != width or new_size[1] != height:
             def rescale(frame):
@@ -268,9 +301,16 @@ def resized_cv_frame_gen(custom_width, custom_height, force_size, downscale_rati
     yield from gen
 
 def load_video(meta_batch=None, unique_id=None, memory_limit_mb=None, vae=None,
-               generator=resized_cv_frame_gen, **kwargs):
+               generator=resized_cv_frame_gen, format='None',  **kwargs):
+    if 'force_size' in kwargs:
+        kwargs.pop('force_size')
+        logger.warn("force_size has been removed. Did you reload the webpage after updating?")
+    format = get_format(format)
     kwargs['video'] = strip_path(kwargs['video'])
-    downscale_ratio = getattr(vae, "downscale_ratio", 8) if vae is not None else None
+    if vae is not None:
+        downscale_ratio = getattr(vae, "downscale_ratio", 8)
+    else:
+        downscale_ratio = format.get('dim', (1,))[0]
     if meta_batch is None or unique_id not in meta_batch.inputs:
         gen = generator(meta_batch=meta_batch, unique_id=unique_id, downscale_ratio=downscale_ratio, **kwargs)
         (width, height, fps, duration, total_frames, target_frame_time, yieldable_frames, new_width, new_height, alpha) = next(gen)
@@ -293,21 +333,24 @@ def load_video(meta_batch=None, unique_id=None, memory_limit_mb=None, vae=None,
             memory_limit = (psutil.virtual_memory().available + psutil.swap_memory().free) - 2 ** 27
         except:
             logger.warn("Failed to calculate available memory. Memory load limit has been disabled")
-    if memory_limit is not None:
-        if vae is not None:
-            #space required to load as f32, exist as latent with wiggle room, decode to f32
-            max_loadable_frames = int(memory_limit//(width*height*3*(4+4+1/10)))
-        else:
-            #TODO: use better estimate for when vae is not None
-            #Consider completely ignoring for load_latent case?
-            max_loadable_frames = int(memory_limit//(width*height*3*(.1)))
-        if meta_batch is not None:
-            if meta_batch.frames_per_batch > max_loadable_frames:
-                raise RuntimeError(f"Meta Batch set to {meta_batch.frames_per_batch} frames but only {max_loadable_frames} can fit in memory")
-            gen = itertools.islice(gen, meta_batch.frames_per_batch)
-        else:
-            original_gen = gen
-            gen = itertools.islice(gen, max_loadable_frames)
+            memory_limit = BIGMAX
+    if vae is not None:
+        #space required to load as f32, exist as latent with wiggle room, decode to f32
+        max_loadable_frames = int(memory_limit//(width*height*3*(4+4+1/10)))
+    else:
+        #TODO: use better estimate for when vae is not None
+        #Consider completely ignoring for load_latent case?
+        max_loadable_frames = int(memory_limit//(width*height*3*(.1)))
+    if meta_batch is not None:
+        if 'frames' in format:
+            assert frames_per_batch % format['frames'][0] == format['frames'][1], \
+                   "The chosen frames per batch is incompatible with the selected format"
+        if meta_batch.frames_per_batch > max_loadable_frames:
+            raise RuntimeError(f"Meta Batch set to {meta_batch.frames_per_batch} frames but only {max_loadable_frames} can fit in memory")
+        gen = itertools.islice(gen, meta_batch.frames_per_batch)
+    else:
+        original_gen = gen
+        gen = itertools.islice(gen, max_loadable_frames)
     frames_per_batch = (1920 * 1080 * 16) // (width * height) or 1
     if vae is not None:
         gen = batched_vae_encode(gen, vae, frames_per_batch)
@@ -325,7 +368,15 @@ def load_video(meta_batch=None, unique_id=None, memory_limit_mb=None, vae=None,
             pass
     if len(images) == 0:
         raise RuntimeError("No frames generated")
-
+    if 'frames' in format and len(images) % format['frames'][0] != format['frames'][1]:
+        err_msg = f"The number of frames loaded {len(images)}, does not match the requirements of the currently selected format."
+        if len(format['frames']) > 2 and format['frames'][2]:
+            raise RuntimeError(err_msg)
+        div, mod = format['frames'][:2]
+        frames = (len(images) - mod) // div * div + mod
+        images = images[:frames]
+        #Commenting out log message since it's displayed in UI. consider further
+        #logger.warn(err_msg + f" Output has been truncated to {len(images)} frames.")
     if 'start_time' in kwargs:
         start_time = kwargs['start_time']
     else:
@@ -365,19 +416,20 @@ class LoadVideoUpload:
                     files.append(f)
         return {"required": {
                     "video": (sorted(files),),
-                     "force_rate": ("INT", {"default": 0, "min": 0, "max": 60, "step": 1}),
-                     "force_size": (["Disabled", "Custom Height", "Custom Width", "Custom", "256x?", "?x256", "256x256", "512x?", "?x512", "512x512"],),
-                     "custom_width": ("INT", {"default": 512, "min": 0, "max": DIMMAX, "step": 8}),
-                     "custom_height": ("INT", {"default": 512, "min": 0, "max": DIMMAX, "step": 8}),
-                     "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
-                     "skip_first_frames": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
-                     "select_every_nth": ("INT", {"default": 1, "min": 1, "max": BIGMAX, "step": 1}),
-                     },
+                    "force_rate": (floatOrInt, {"default": 0, "min": 0, "max": 60, "step": 1, "disable": 0}),
+                    "custom_width": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
+                    "custom_height": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
+                    "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1, "disable": 0}),
+                    "skip_first_frames": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
+                    "select_every_nth": ("INT", {"default": 1, "min": 1, "max": BIGMAX, "step": 1}),
+                    },
                 "optional": {
                     "meta_batch": ("VHS_BatchManager",),
                     "vae": ("VAE",),
+                     "format": get_load_formats(),
                 },
                 "hidden": {
+                    "force_size": "STRING",
                     "unique_id": "UNIQUE_ID"
                 },
                 }
@@ -399,7 +451,7 @@ class LoadVideoUpload:
         return calculate_file_hash(image_path)
 
     @classmethod
-    def VALIDATE_INPUTS(s, video, force_size, **kwargs):
+    def VALIDATE_INPUTS(s, video, **kwargs):
         if not folder_paths.exists_annotated_filepath(video):
             return "Invalid video file: {}".format(video)
         return True
@@ -411,19 +463,20 @@ class LoadVideoPath:
         return {
             "required": {
                 "video": ("STRING", {"placeholder": "X://insert/path/here.mp4", "vhs_path_extensions": video_extensions}),
-                "force_rate": ("INT", {"default": 0, "min": 0, "max": 60, "step": 1}),
-                 "force_size": (["Disabled", "Custom Height", "Custom Width", "Custom", "256x?", "?x256", "256x256", "512x?", "?x512", "512x512"],),
-                 "custom_width": ("INT", {"default": 512, "min": 0, "max": DIMMAX, "step": 8}),
-                 "custom_height": ("INT", {"default": 512, "min": 0, "max": DIMMAX, "step": 8}),
-                "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
+                "force_rate": (floatOrInt, {"default": 0, "min": 0, "max": 60, "step": 1, "disable": 0}),
+                "custom_width": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
+                "custom_height": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
+                "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1, "disable": 0}),
                 "skip_first_frames": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
                 "select_every_nth": ("INT", {"default": 1, "min": 1, "max": BIGMAX, "step": 1}),
             },
             "optional": {
                 "meta_batch": ("VHS_BatchManager",),
                 "vae": ("VAE",),
+                "format": get_load_formats(),
             },
             "hidden": {
+                "force_size": "STRING",
                 "unique_id": "UNIQUE_ID"
             },
         }
@@ -462,19 +515,21 @@ class LoadVideoFFmpegUpload:
                     files.append(f)
         return {"required": {
                     "video": (sorted(files),),
-                     "force_rate": ("INT", {"default": 0, "min": 0, "max": 60, "step": 1}),
-                     "force_size": (["Disabled", "Custom Height", "Custom Width", "Custom", "256x?", "?x256", "256x256", "512x?", "?x512", "512x512"],),
-                     "custom_width": ("INT", {"default": 512, "min": 0, "max": DIMMAX, "step": 8}),
-                     "custom_height": ("INT", {"default": 512, "min": 0, "max": DIMMAX, "step": 8}),
-                     "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
-                     "start_time": ("FLOAT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
-                     },
+                    "force_rate": (floatOrInt, {"default": 0, "min": 0, "max": 60, "step": 1, "disable": 0}),
+                    "custom_width": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
+                    "custom_height": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
+                    "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1, "disable": 0}),
+                    "start_time": ("FLOAT", {"default": 0, "min": 0, "max": BIGMAX, "step": .001}),
+                    },
                 "optional": {
                     "meta_batch": ("VHS_BatchManager",),
                     "vae": ("VAE",),
+                     "format": get_load_formats(),
                 },
                 "hidden": {
+                    "force_size": "STRING",
                     "unique_id": "UNIQUE_ID"
+
                 },
                 }
 
@@ -499,7 +554,7 @@ class LoadVideoFFmpegUpload:
         return calculate_file_hash(image_path)
 
     @classmethod
-    def VALIDATE_INPUTS(s, video, force_size, **kwargs):
+    def VALIDATE_INPUTS(s, video, **kwargs):
         if not folder_paths.exists_annotated_filepath(video):
             return "Invalid video file: {}".format(video)
         return True
@@ -511,18 +566,19 @@ class LoadVideoFFmpegPath:
         return {
             "required": {
                 "video": ("STRING", {"placeholder": "X://insert/path/here.mp4", "vhs_path_extensions": video_extensions}),
-                "force_rate": ("INT", {"default": 0, "min": 0, "max": 60, "step": 1}),
-                 "force_size": (["Disabled", "Custom Height", "Custom Width", "Custom", "256x?", "?x256", "256x256", "512x?", "?x512", "512x512"],),
-                 "custom_width": ("INT", {"default": 512, "min": 0, "max": DIMMAX, "step": 8}),
-                 "custom_height": ("INT", {"default": 512, "min": 0, "max": DIMMAX, "step": 8}),
-                "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
-                "start_time": ("FLOAT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
+                "force_rate": (floatOrInt, {"default": 0, "min": 0, "max": 60, "step": 1, "disable": 0}),
+                "custom_width": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
+                "custom_height": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
+                "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1, "disable": 0}),
+                "start_time": ("FLOAT", {"default": 0, "min": 0, "max": BIGMAX, "step": .001}),
             },
             "optional": {
                 "meta_batch": ("VHS_BatchManager",),
                 "vae": ("VAE",),
+                "format": get_load_formats(),
             },
             "hidden": {
+                "force_size": "STRING",
                 "unique_id": "UNIQUE_ID"
             },
         }
@@ -541,6 +597,8 @@ class LoadVideoFFmpegPath:
         if is_url(kwargs['video']):
             kwargs['video'] = try_download_video(kwargs['video']) or kwargs['video']
         image, _, audio, video_info =  load_video(**kwargs, generator=ffmpeg_frame_generator)
+        if isinstance(image, dict):
+            return (image, None, audio, video_info)
         if image.size(3) == 4:
             return (image[:,:,:,:3], 1-image[:,:,:,3], audio, video_info)
         return (image, torch.zeros(image.size(0), 64, 64, device="cpu"), audio, video_info)
@@ -559,12 +617,14 @@ class LoadImagePath:
         return {
             "required": {
                 "image": ("STRING", {"placeholder": "X://insert/path/here.png", "vhs_path_extensions": list(FolderOfImages.IMG_EXTENSIONS)}),
-                 "force_size": (["Disabled", "Custom Height", "Custom Width", "Custom", "256x?", "?x256", "256x256", "512x?", "?x512", "512x512"],),
-                 "custom_width": ("INT", {"default": 512, "min": 0, "max": DIMMAX, "step": 8}),
-                 "custom_height": ("INT", {"default": 512, "min": 0, "max": DIMMAX, "step": 8}),
+                "custom_width": ("INT", {"default": 0, "min": 0, "max": DIMMAX, "step": 8, 'disable': 0}),
+                "custom_height": ("INT", {"default": 0, "min": 0, "max": DIMMAX, "step": 8, 'disable': 0}),
             },
             "optional": {
                 "vae": ("VAE",),
+            },
+            "hidden": {
+                "force_size": "STRING",
             },
         }
 
@@ -583,6 +643,8 @@ class LoadImagePath:
                       'start_time': 0})
         kwargs.pop('image')
         image, _, _, _ =  load_video(**kwargs, generator=ffmpeg_frame_generator)
+        if isinstance(image, dict):
+            return (image, None)
         if image.size(3) == 4:
             return (image[:,:,:,:3], 1-image[:,:,:,3])
         return (image, torch.zeros(image.size(0), 64, 64, device="cpu"))

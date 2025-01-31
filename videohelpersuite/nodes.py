@@ -22,7 +22,7 @@ from .load_images_nodes import LoadImagesFromDirectoryUpload, LoadImagesFromDire
 from .batched_nodes import VAEEncodeBatched, VAEDecodeBatched
 from .utils import ffmpeg_path, get_audio, hash_path, validate_path, requeue_workflow, \
         gifski_path, calculate_file_hash, strip_path, try_download_video, is_url, \
-        imageOrLatent, BIGMAX, merge_filter_args, ENCODE_ARGS
+        imageOrLatent, BIGMAX, merge_filter_args, ENCODE_ARGS, floatOrInt
 from comfy.utils import ProgressBar
 
 folder_paths.folder_names_and_paths["VHS_video_formats"] = (
@@ -204,7 +204,7 @@ class VideoCombine:
             "required": {
                 "images": (imageOrLatent,),
                 "frame_rate": (
-                    "FLOAT",
+                    floatOrInt,
                     {"default": 8, "min": 1, "step": 1},
                 ),
                 "loop_count": ("INT", {"default": 0, "min": 0, "max": 100, "step": 1}),
@@ -398,7 +398,7 @@ class VideoCombine:
 
             video_format = apply_format_widgets(format_ext, kwargs)
             has_alpha = first_image.shape[-1] == 4
-            dim_alignment = video_format.get("dim_alignment", 8)
+            dim_alignment = video_format.get("dim_alignment", 2)
             if (first_image.shape[1] % dim_alignment) or (first_image.shape[0] % dim_alignment):
                 #output frames must be padded
                 to_pad = (-first_image.shape[1] % dim_alignment,
