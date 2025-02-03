@@ -50,9 +50,12 @@ async def view_video(request):
     #breaks skip_first frames if this default is ever actually needed
     base_fps = 30
     try:
-        res = subprocess.run([ffmpeg_path] + in_args + ['-t', '0', '-f', 'null', '-'],
-                             capture_output=True, check=True)
-        match = re.search(': Video: (\\w+) .+, (\\d+) fps,', res.stderr.decode(*ENCODE_ARGS))
+        proc = await asyncio.create_subprocess_exec(ffmpeg_path, *in_args, '-t',
+                                   '0','-f', 'null','-', stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE, stdin=subprocess.DEVNULL)
+        _, res_stderr = await proc.communicate()
+
+        match = re.search(': Video: (\\w+) .+, (\\d+) fps,', res_stderr.decode(*ENCODE_ARGS))
         if match:
             base_fps = float(match.group(2))
             if match.group(1) == 'vp9':
@@ -61,6 +64,7 @@ async def view_video(request):
     except subprocess.CalledProcessError as e:
         print("An error occurred in the ffmpeg prepass:\n" \
                 + e.stderr.decode(*ENCODE_ARGS))
+        return web.Response(status=500)
     vfilters = []
     target_rate = float(query.get('force_rate', 0)) or base_fps
     modified_rate = target_rate / float(query.get('select_every_nth',1))
@@ -110,31 +114,19 @@ async def view_video(request):
     args += ['-c:v', 'libvpx-vp9','-deadline', deadline, '-cpu-used', '8', '-f', 'webm', '-']
 
     try:
-        with subprocess.Popen(args, stdout=subprocess.PIPE) as proc:
-            try:
-                resp = web.StreamResponse()
-                resp.content_type = 'video/webm'
-                resp.headers["Content-Disposition"] = f"filename=\"{filename}\""
-                await resp.prepare(request)
-                await asyncio.sleep(.1)
-                while True:
-                    bytes_read = proc.stdout.read(2**20)
-                    delay = asyncio.create_task(asyncio.sleep(.1))
-                    if bytes_read is None:
-                        #TODO: check for timeout here
-                        await delay
-                        continue
-                    if len(bytes_read) == 0:
-                        break
-                    await asyncio.gather(resp.write(bytes_read), delay)
-                #Of dubious value given frequency of kill calls, but more correct
-                proc.wait()
-            except (ConnectionResetError, ConnectionError) as e:
-                pass
-            finally:
-                #Kill ffmpeg before the pipe is closed
-                proc.kill()
-
+        proc = await asyncio.create_subprocess_exec(*args, stdout=subprocess.PIPE,
+                                                    stdin=subprocess.DEVNULL)
+        try:
+            resp = web.StreamResponse()
+            resp.content_type = 'video/webm'
+            resp.headers["Content-Disposition"] = f"filename=\"{filename}\""
+            await resp.prepare(request)
+            while len(bytes_read := await proc.stdout.read(2**20)) != 0:
+                await resp.write(bytes_read)
+            #Of dubious value given frequency of kill calls, but more correct
+            await proc.wait()
+        except (ConnectionResetError, ConnectionError) as e:
+            proc.kill()
     except BrokenPipeError as e:
         pass
     return resp
