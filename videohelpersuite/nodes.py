@@ -338,11 +338,13 @@ class VideoCombine:
         # save first frame as png to keep metadata
         first_image_file = f"{filename}_{counter:05}.png"
         file_path = os.path.join(full_output_folder, first_image_file)
-        Image.fromarray(tensor_to_bytes(first_image)).save(
-            file_path,
-            pnginfo=metadata,
-            compress_level=4,
-        )
+        extra_options = extra_pnginfo.get('workflow', {}).get('extra', {})
+        if extra_options.get('VHS_MetadataImage', True) != False:
+            Image.fromarray(tensor_to_bytes(first_image)).save(
+                file_path,
+                pnginfo=metadata,
+                compress_level=4,
+            )
         output_files.append(file_path)
 
         format_type, format_ext = format.split("/")
@@ -554,7 +556,10 @@ class VideoCombine:
                 #Return this file with audio to the webui.
                 #It will be muted unless opened or saved with right click
                 file = output_file_with_audio
-
+        if extra_options.get('VHS_KeepIntermediate', True) == False:
+            for intermediate in output_files[1:-1]:
+                if os.path.exists(intermediate):
+                    os.remove(intermediate)
         preview = {
                 "filename": file,
                 "subfolder": subfolder,

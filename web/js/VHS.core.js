@@ -1675,6 +1675,20 @@ app.registerExtension({
           'Force a specific frame rate for the playback of latent frames. This should not be confused with the output frame rate and will not match for video models.',
         defaultValue: 0,
       },
+      {
+        id: 'VHS.MetadataImage',
+        category: ['🎥🅥🅗🅢', 'Output', 'MetadataImage'],
+        name: 'Save png of first frame for metadata',
+        type: 'boolean',
+        defaultValue: true,
+      },
+      {
+        id: 'VHS.KeepIntermediate',
+        category: ['🎥🅥🅗🅢', 'Output', 'Keep Intermediate'],
+        name: 'Keep required intermediate files after sucessful execution',
+        type: 'boolean',
+        defaultValue: true,
+      },
     ],
 
     async beforeRegisterNodeDef(nodeType, nodeData, app) {
@@ -1983,6 +1997,8 @@ app.registerExtension({
             }
             res.workflow.extra['VHS_latentpreview'] = app.ui.settings.getSettingValue("VHS.LatentPreview")
             res.workflow.extra['VHS_latentpreviewrate'] = app.ui.settings.getSettingValue("VHS.LatentPreviewRate")
+            res.workflow.extra['VHS_MetadataImage'] = app.ui.settings.getSettingValue("VHS.MetadataImage")
+            res.workflow.extra['VHS_KeepIntermediate'] = app.ui.settings.getSettingValue("VHS.KeepIntermediate")
             return res
         }
         app.graphToPrompt = graphToPrompt
