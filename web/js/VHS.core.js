@@ -1126,7 +1126,8 @@ function addFormatWidgets(nodeType) {
                     formatWidget._value = value;
                 } else {
                     formatWidget._value = fullDef[0];
-                    for (let wDef of fullDef[1]) {
+                    let formatWidgets = formatWidgetoptions?.formats?.[fullDef[0]] ?? fullDef[1]
+                    for (let wDef of formatWidgets) {
                         //create widgets. Heavy borrowed from web/scripts/app.js
                         //default implementation doesn't work since it automatically adds
                         //the widget in the wrong spot.
