@@ -1081,7 +1081,8 @@ function addPreviewOptions(nodeType) {
         options.unshift(...optNew);
     });
 }
-function addFormatWidgets(nodeType) {
+function addFormatWidgets(nodeType, nodeData) {
+    const formats = nodeData?.input?.required?.format?.[1]?.formats
     function parseFormats(options) {
         options.fullvalues = options._values;
         options._values = [];
@@ -1122,11 +1123,12 @@ function addFormatWidgets(nodeType) {
                 formatWidget._value = value;
                 let newWidgets = [];
                 const fullDef = formatWidget.options.fullvalues.find((w) => Array.isArray(w) ? w[0] === value : w === value);
-                if (!Array.isArray(fullDef)) {
+
+                if (!Array.isArray(fullDef) && !formats?.[value]) {
                     formatWidget._value = value;
                 } else {
-                    formatWidget._value = fullDef[0];
-                    let formatWidgets = formatWidgetoptions?.formats?.[fullDef[0]] ?? fullDef[1]
+                    formatWidget._value = value;
+                    let formatWidgets = formats?.[value] ?? fullDef[1]
                     for (let wDef of formatWidgets) {
                         //create widgets. Heavy borrowed from web/scripts/app.js
                         //default implementation doesn't work since it automatically adds
@@ -1844,7 +1846,7 @@ app.registerExtension({
             });
             addVideoPreview(nodeType, false);
             addPreviewOptions(nodeType);
-            addFormatWidgets(nodeType);
+            addFormatWidgets(nodeType, nodeData);
             addVAEInputToggle(nodeType, nodeData)
 
             chainCallback(nodeType.prototype, "onNodeCreated", function() {
