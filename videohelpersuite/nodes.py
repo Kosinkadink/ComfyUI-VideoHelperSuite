@@ -25,12 +25,8 @@ from .utils import ffmpeg_path, get_audio, hash_path, validate_path, requeue_wor
         imageOrLatent, BIGMAX, merge_filter_args, ENCODE_ARGS, floatOrInt
 from comfy.utils import ProgressBar
 
-folder_paths.folder_names_and_paths["VHS_video_formats"] = (
-    [
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "video_formats"),
-    ],
-    [".json"]
-)
+if 'VHS_video_formats' not in folder_paths.folder_names_and_paths:
+    folder_paths.folder_names_and_paths["VHS_video_formats"] = ((),[".json"])
 audio_extensions = ['mp3', 'mp4', 'wav', 'ogg']
 
 def gen_format_widgets(video_format):
@@ -47,12 +43,18 @@ def gen_format_widgets(video_format):
                 yield item
                 video_format[k] = item[0]
 
+base_formats_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "video_formats")
 def get_video_formats():
-    formats = []
+    format_files = {}
     for format_name in folder_paths.get_filename_list("VHS_video_formats"):
-        format_name = format_name[:-5]
-        video_format_path = folder_paths.get_full_path("VHS_video_formats", format_name + ".json")
-        with open(video_format_path, 'r') as stream:
+        format_files[folder_name] = folder_paths.get_full_path("VHS_video_formats", format_name + ".json")
+    for item in os.scandir(base_formats_dir):
+        if not item.is_file() or not item.name.endswith('.json'):
+            continue
+        format_files[item.name[:-5]] = item.path
+    formats = []
+    for format_name, path in format_files.items():
+        with open(path, 'r') as stream:
             video_format = json.load(stream)
         if "gifski_pass" in video_format and gifski_path is None:
             #Skip format
@@ -65,7 +67,10 @@ def get_video_formats():
     return formats
 
 def apply_format_widgets(format_name, kwargs):
-    video_format_path = folder_paths.get_full_path("VHS_video_formats", format_name + ".json")
+    if os.path.exists(os.path.join(base_formats_dir, format_name + ".json")):
+        video_format_path = os.path.join(base_formats_dir, format_name + ".json")
+    else:
+        video_format_path = folder_paths.get_full_path("VHS_video_formats", format_name + ".json")
     with open(video_format_path, 'r') as stream:
         video_format = json.load(stream)
     for w in gen_format_widgets(video_format):
