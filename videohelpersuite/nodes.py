@@ -316,6 +316,9 @@ class VideoCombine:
             for x in extra_pnginfo:
                 metadata.add_text(x, json.dumps(extra_pnginfo[x]))
                 video_metadata[x] = extra_pnginfo[x]
+            extra_options = extra_pnginfo.get('workflow', {}).get('extra', {})
+        else:
+            extra_options = {}
         metadata.add_text("CreationTime", datetime.datetime.now().isoformat(" ")[:19])
 
         if meta_batch is not None and unique_id in meta_batch.outputs:
@@ -343,7 +346,6 @@ class VideoCombine:
         # save first frame as png to keep metadata
         first_image_file = f"{filename}_{counter:05}.png"
         file_path = os.path.join(full_output_folder, first_image_file)
-        extra_options = extra_pnginfo.get('workflow', {}).get('extra', {})
         if extra_options.get('VHS_MetadataImage', True) != False:
             Image.fromarray(tensor_to_bytes(first_image)).save(
                 file_path,
