@@ -26,7 +26,9 @@ from .utils import ffmpeg_path, get_audio, hash_path, validate_path, requeue_wor
 from comfy.utils import ProgressBar
 
 if 'VHS_video_formats' not in folder_paths.folder_names_and_paths:
-    folder_paths.folder_names_and_paths["VHS_video_formats"] = ((),[".json"])
+    folder_paths.folder_names_and_paths["VHS_video_formats"] = ((),{".json"})
+if len(folder_paths.folder_names_and_paths['VHS_video_formats'][1]) == 0:
+    folder_paths.folder_names_and_paths["VHS_video_formats"][1].add(".json")
 audio_extensions = ['mp3', 'mp4', 'wav', 'ogg']
 
 def gen_format_widgets(video_format):
@@ -47,7 +49,7 @@ base_formats_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 def get_video_formats():
     format_files = {}
     for format_name in folder_paths.get_filename_list("VHS_video_formats"):
-        format_files[folder_name] = folder_paths.get_full_path("VHS_video_formats", format_name + ".json")
+        format_files[format_name] = folder_paths.get_full_path("VHS_video_formats", format_name)
     for item in os.scandir(base_formats_dir):
         if not item.is_file() or not item.name.endswith('.json'):
             continue
@@ -70,7 +72,7 @@ def apply_format_widgets(format_name, kwargs):
     if os.path.exists(os.path.join(base_formats_dir, format_name + ".json")):
         video_format_path = os.path.join(base_formats_dir, format_name + ".json")
     else:
-        video_format_path = folder_paths.get_full_path("VHS_video_formats", format_name + ".json")
+        video_format_path = folder_paths.get_full_path("VHS_video_formats", format_name)
     with open(video_format_path, 'r') as stream:
         video_format = json.load(stream)
     for w in gen_format_widgets(video_format):
