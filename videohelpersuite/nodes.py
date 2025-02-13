@@ -22,7 +22,7 @@ from .load_images_nodes import LoadImagesFromDirectoryUpload, LoadImagesFromDire
 from .batched_nodes import VAEEncodeBatched, VAEDecodeBatched
 from .utils import ffmpeg_path, get_audio, hash_path, validate_path, requeue_workflow, \
         gifski_path, calculate_file_hash, strip_path, try_download_video, is_url, \
-        imageOrLatent, BIGMAX, merge_filter_args, ENCODE_ARGS, floatOrInt
+        imageOrLatent, BIGMAX, merge_filter_args, ENCODE_ARGS, floatOrInt, cached
 from comfy.utils import ProgressBar
 
 if 'VHS_video_formats' not in folder_paths.folder_names_and_paths:
@@ -46,6 +46,7 @@ def gen_format_widgets(video_format):
                 video_format[k] = item[0]
 
 base_formats_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "video_formats")
+@cached(5)
 def get_video_formats():
     format_files = {}
     for format_name in folder_paths.get_filename_list("VHS_video_formats"):
