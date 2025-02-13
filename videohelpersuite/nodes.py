@@ -583,9 +583,6 @@ class VideoCombine:
             preview['format'] = 'image/png'
             preview['filename'] = file.replace('%03d', '001')
         return {"ui": {"gifs": [preview]}, "result": ((save_output, output_files),)}
-    @classmethod
-    def VALIDATE_INPUTS(self, format, **kwargs):
-        return True
 
 class LoadAudio:
     @classmethod
