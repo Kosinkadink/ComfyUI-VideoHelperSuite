@@ -55,6 +55,7 @@ def get_video_formats():
             continue
         format_files[item.name[:-5]] = item.path
     formats = []
+    format_widgets = {}
     for format_name, path in format_files.items():
         with open(path, 'r') as stream:
             video_format = json.load(stream)
@@ -62,11 +63,10 @@ def get_video_formats():
             #Skip format
             continue
         widgets = [w[0] for w in gen_format_widgets(video_format)]
+        formats.append("video/" + format_name)
         if (len(widgets) > 0):
-            formats.append(["video/" + format_name, widgets])
-        else:
-            formats.append("video/" + format_name)
-    return formats
+            format_widgets["video/"+ format_name] = widgets
+    return formats, format_widgets
 
 def apply_format_widgets(format_name, kwargs):
     if os.path.exists(os.path.join(base_formats_dir, format_name + ".json")):
@@ -206,7 +206,7 @@ def to_pingpong(inp):
 class VideoCombine:
     @classmethod
     def INPUT_TYPES(s):
-        ffmpeg_formats = get_video_formats()
+        ffmpeg_formats, format_widgets = get_video_formats()
         return {
             "required": {
                 "images": (imageOrLatent,),
@@ -216,7 +216,7 @@ class VideoCombine:
                 ),
                 "loop_count": ("INT", {"default": 0, "min": 0, "max": 100, "step": 1}),
                 "filename_prefix": ("STRING", {"default": "AnimateDiff"}),
-                "format": (["image/gif", "image/webp"] + ffmpeg_formats,),
+                "format": (["image/gif", "image/webp"] + ffmpeg_formats, {'formats': format_widgets}),
                 "pingpong": ("BOOLEAN", {"default": False}),
                 "save_output": ("BOOLEAN", {"default": True}),
             },

@@ -1082,7 +1082,6 @@ function addPreviewOptions(nodeType) {
     });
 }
 function addFormatWidgets(nodeType, nodeData) {
-    const formats = nodeData?.input?.required?.format?.[1]?.formats
     function parseFormats(options) {
         options.fullvalues = options._values;
         options._values = [];
@@ -1120,6 +1119,8 @@ function addFormatWidgets(nodeType, nodeData) {
         formatWidget._value = formatWidget.value;
         Object.defineProperty(formatWidget, "value", {
             set : (value) => {
+                const formats = (LiteGraph.registered_node_types[this.type]
+                    ?.nodeData?.input?.required?.format?.[1]?.formats)
                 formatWidget._value = value;
                 let newWidgets = [];
                 const fullDef = formatWidget.options.fullvalues.find((w) => Array.isArray(w) ? w[0] === value : w === value);
