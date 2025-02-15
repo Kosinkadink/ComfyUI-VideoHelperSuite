@@ -20,27 +20,6 @@ function chainCallback(object, property, callback) {
     }
 }
 
-function injectHidden(widget) {
-    widget.computeSize = (target_width) => {
-        if (widget.hidden) {
-            return [0, -4];
-        }
-        return [target_width, 20];
-    };
-    widget._type = widget.type
-    Object.defineProperty(widget, "type", {
-        set : function(value) {
-            widget._type = value;
-        },
-        get : function() {
-            if (widget.hidden) {
-                return "hidden";
-            }
-            return widget._type;
-        }
-    });
-}
-
 const convDict = {
     VHS_LoadImages : ["directory", null, "image_load_cap", "skip_first_images", "select_every_nth"],
     VHS_LoadImagesPath : ["directory", "image_load_cap", "skip_first_images", "select_every_nth"],
