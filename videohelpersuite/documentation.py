@@ -1,7 +1,7 @@
 from .logger import logger
 
 def image(src):
-    return f'<img src={src} style="width: 0px; min-width: 100%">'
+    return f'<img src={src} loading=lazy style="width: 0px; min-width: 100%">'
 def video(src):
     return f'<video preload="none" src={src} muted loop controls controlslist="nodownload noremoteplayback noplaybackrate" style="width: 0px; min-width: 100%" class="VHS_loopedvideo">'
 def short_desc(desc):
