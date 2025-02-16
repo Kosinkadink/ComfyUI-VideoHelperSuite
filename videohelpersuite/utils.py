@@ -4,6 +4,7 @@ from typing import Iterable
 import shutil
 import subprocess
 import re
+import time
 from collections.abc import Mapping
 from typing import Union
 import functools
@@ -403,3 +404,15 @@ def hook(obj, attr):
         return f
     return dec
 
+def cached(duration):
+    def dec(f):
+        cached_ret = None
+        cache_time = 0
+        def cached_func():
+            nonlocal cache_time, cached_ret
+            if time.time() > cache_time + duration or cached_ret is None:
+                cache_time = time.time()
+                cached_ret = f()
+            return cached_ret
+        return cached_func
+    return dec

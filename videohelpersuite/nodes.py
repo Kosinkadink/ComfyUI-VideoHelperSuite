@@ -22,7 +22,7 @@ from .load_images_nodes import LoadImagesFromDirectoryUpload, LoadImagesFromDire
 from .batched_nodes import VAEEncodeBatched, VAEDecodeBatched
 from .utils import ffmpeg_path, get_audio, hash_path, validate_path, requeue_workflow, \
         gifski_path, calculate_file_hash, strip_path, try_download_video, is_url, \
-        imageOrLatent, BIGMAX, merge_filter_args, ENCODE_ARGS, floatOrInt
+        imageOrLatent, BIGMAX, merge_filter_args, ENCODE_ARGS, floatOrInt, cached
 from comfy.utils import ProgressBar
 
 if 'VHS_video_formats' not in folder_paths.folder_names_and_paths:
@@ -46,6 +46,7 @@ def gen_format_widgets(video_format):
                 video_format[k] = item[0]
 
 base_formats_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "video_formats")
+@cached(5)
 def get_video_formats():
     format_files = {}
     for format_name in folder_paths.get_filename_list("VHS_video_formats"):
@@ -55,6 +56,7 @@ def get_video_formats():
             continue
         format_files[item.name[:-5]] = item.path
     formats = []
+    format_widgets = {}
     for format_name, path in format_files.items():
         with open(path, 'r') as stream:
             video_format = json.load(stream)
@@ -62,11 +64,10 @@ def get_video_formats():
             #Skip format
             continue
         widgets = [w[0] for w in gen_format_widgets(video_format)]
+        formats.append("video/" + format_name)
         if (len(widgets) > 0):
-            formats.append(["video/" + format_name, widgets])
-        else:
-            formats.append("video/" + format_name)
-    return formats
+            format_widgets["video/"+ format_name] = widgets
+    return formats, format_widgets
 
 def apply_format_widgets(format_name, kwargs):
     if os.path.exists(os.path.join(base_formats_dir, format_name + ".json")):
@@ -206,7 +207,7 @@ def to_pingpong(inp):
 class VideoCombine:
     @classmethod
     def INPUT_TYPES(s):
-        ffmpeg_formats = get_video_formats()
+        ffmpeg_formats, format_widgets = get_video_formats()
         return {
             "required": {
                 "images": (imageOrLatent,),
@@ -216,7 +217,7 @@ class VideoCombine:
                 ),
                 "loop_count": ("INT", {"default": 0, "min": 0, "max": 100, "step": 1}),
                 "filename_prefix": ("STRING", {"default": "AnimateDiff"}),
-                "format": (["image/gif", "image/webp"] + ffmpeg_formats,),
+                "format": (["image/gif", "image/webp"] + ffmpeg_formats, {'formats': format_widgets}),
                 "pingpong": ("BOOLEAN", {"default": False}),
                 "save_output": ("BOOLEAN", {"default": True}),
             },
@@ -582,9 +583,6 @@ class VideoCombine:
             preview['format'] = 'image/png'
             preview['filename'] = file.replace('%03d', '001')
         return {"ui": {"gifs": [preview]}, "result": ((save_output, output_files),)}
-    @classmethod
-    def VALIDATE_INPUTS(self, format, **kwargs):
-        return True
 
 class LoadAudio:
     @classmethod

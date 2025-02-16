@@ -20,27 +20,6 @@ function chainCallback(object, property, callback) {
     }
 }
 
-function injectHidden(widget) {
-    widget.computeSize = (target_width) => {
-        if (widget.hidden) {
-            return [0, -4];
-        }
-        return [target_width, 20];
-    };
-    widget._type = widget.type
-    Object.defineProperty(widget, "type", {
-        set : function(value) {
-            widget._type = value;
-        },
-        get : function() {
-            if (widget.hidden) {
-                return "hidden";
-            }
-            return widget._type;
-        }
-    });
-}
-
 const convDict = {
     VHS_LoadImages : ["directory", null, "image_load_cap", "skip_first_images", "select_every_nth"],
     VHS_LoadImagesPath : ["directory", "image_load_cap", "skip_first_images", "select_every_nth"],
@@ -1082,18 +1061,6 @@ function addPreviewOptions(nodeType) {
     });
 }
 function addFormatWidgets(nodeType, nodeData) {
-    const formats = nodeData?.input?.required?.format?.[1]?.formats
-    function parseFormats(options) {
-        options.fullvalues = options._values;
-        options._values = [];
-        for (let format of options.fullvalues) {
-            if (Array.isArray(format)) {
-                options._values.push(format[0]);
-            } else {
-                options._values.push(format);
-            }
-        }
-    }
     chainCallback(nodeType.prototype, "onNodeCreated", function() {
         var formatWidget = null;
         var formatWidgetIndex = -1;
@@ -1101,74 +1068,31 @@ function addFormatWidgets(nodeType, nodeData) {
             if (this.widgets[i].name === "format"){
                 formatWidget = this.widgets[i];
                 formatWidgetIndex = i+1;
+                break
             }
         }
         let formatWidgetsCount = 0;
         //Pre-process options to just names
-        formatWidget.options._values = formatWidget.options.values;
-        parseFormats(formatWidget.options);
-        Object.defineProperty(formatWidget.options, "values", {
-            set : (value) => {
-                formatWidget.options._values  = value;
-                parseFormats(formatWidget.options);
-            },
-            get : () => {
-                return formatWidget.options._values;
-            }
-        })
-
-        formatWidget._value = formatWidget.value;
-        Object.defineProperty(formatWidget, "value", {
-            set : (value) => {
-                formatWidget._value = value;
-                let newWidgets = [];
-                const fullDef = formatWidget.options.fullvalues.find((w) => Array.isArray(w) ? w[0] === value : w === value);
-
-                if (!Array.isArray(fullDef) && !formats?.[value]) {
-                    formatWidget._value = value;
-                } else {
-                    formatWidget._value = value;
-                    let formatWidgets = formats?.[value] ?? fullDef[1]
-                    for (let wDef of formatWidgets) {
-                        //create widgets. Heavy borrowed from web/scripts/app.js
-                        //default implementation doesn't work since it automatically adds
-                        //the widget in the wrong spot.
-                        //TODO: consider letting this happen and just removing from list?
-                        let w = {};
-                        w.name = wDef[0];
-                        w.config = wDef.slice(1);
-                        let inputData = wDef.slice(1);
-                        w.type = inputData[0];
-                        w.options = inputData[1] ? inputData[1] : {};
-                        if (Array.isArray(w.type)) {
-                            w.value = w.type[0];
-                            w.options.values = w.type;
-                            w.type = "combo";
-                        }
-                        if(inputData[1]?.default != undefined) {
-                            w.value = inputData[1].default;
-                        }
-                        if (w.type == "INT") {
-                            Object.assign(w.options, {"precision": 0, "step": 10})
-                            w.callback = function (v) {
-                                const s = this.options.step / 10;
-                                this.value = Math.round(v / s) * s;
-                            }
-                        }
-                        const typeTable = {BOOLEAN: "toggle", STRING: "text", INT: "number", FLOAT: "number"};
-                        if (w.type in typeTable) {
-                            w.type = typeTable[w.type];
-                        }
-                        newWidgets.push(w);
+        chainCallback(formatWidget, "callback", (value) => {
+            const formats = (LiteGraph.registered_node_types[this.type]
+                ?.nodeData?.input?.required?.format?.[1]?.formats)
+            let newWidgets = [];
+            if (formats?.[value]) {
+                let formatWidgets = formats[value]
+                for (let wDef of formatWidgets) {
+                    let type = wDef[1]
+                    if (Array.isArray(type)) {
+                        type = "COMBO"
                     }
+                    app.widgets[type](this, wDef[0], wDef.slice(1), app)
+                    let w = this.widgets.pop()
+                    w.config = wDef.slice(1)
+                    newWidgets.push(w)
                 }
-                this.widgets.splice(formatWidgetIndex, formatWidgetsCount, ...newWidgets);
-                fitHeight(this);
-                formatWidgetsCount = newWidgets.length;
-            },
-            get : () => {
-                return formatWidget._value;
             }
+            this.widgets.splice(formatWidgetIndex, formatWidgetsCount, ...newWidgets);
+            fitHeight(this);
+            formatWidgetsCount = newWidgets.length;
         });
     });
 }
