@@ -268,6 +268,53 @@ class VideoCombine:
             else:
                 vae = None
 
+        # get output information
+        output_dir = (
+            folder_paths.get_output_directory()
+            if save_output
+            else folder_paths.get_temp_directory()
+        )
+        (
+            full_output_folder,
+            filename,
+            _,
+            subfolder,
+            _,
+        ) = folder_paths.get_save_image_path(filename_prefix, output_dir)
+        overlap = None
+        if meta_batch is not None and unique_id in meta_batch.outputs:
+            (counter, output_process, overlap) = meta_batch.outputs[unique_id]
+            if meta_batch.overlap > 0:
+                meta_batch.outputs[unique_id][2] = images[metabatch.overlap:]
+                images = images[:-metabatch.overlap]
+
+            #do linear overlap
+            if meta_batch.overlap > 0:
+                for i in range(meta_batch.overlap):
+                    images[i]
+
+        else:
+            # comfy counter workaround
+            max_counter = 0
+
+            # Loop through the existing files
+            matcher = re.compile(f"{re.escape(filename)}_(\\d+)\\D*\\..+", re.IGNORECASE)
+            for existing_file in os.listdir(full_output_folder):
+                # Check if the file matches the expected format
+                match = matcher.fullmatch(existing_file)
+                if match:
+                    # Extract the numeric portion of the filename
+                    file_counter = int(match.group(1))
+                    # Update the maximum counter value if necessary
+                    if file_counter > max_counter:
+                        max_counter = file_counter
+
+            # Increment the counter by 1 to get the next available value
+            counter = max_counter + 1
+            output_process = None
+            if meta_batch is not None:
+                meta_batch.outputs[unique_id] = (counter, None, None)
+
         if isinstance(images, torch.Tensor) and images.size(0) == 0:
             return ((save_output, []),)
         num_frames = len(images)
@@ -295,19 +342,6 @@ class VideoCombine:
         else:
             first_image = images[0]
             images = iter(images)
-        # get output information
-        output_dir = (
-            folder_paths.get_output_directory()
-            if save_output
-            else folder_paths.get_temp_directory()
-        )
-        (
-            full_output_folder,
-            filename,
-            _,
-            subfolder,
-            _,
-        ) = folder_paths.get_save_image_path(filename_prefix, output_dir)
         output_files = []
 
         metadata = PngInfo()
@@ -324,28 +358,6 @@ class VideoCombine:
             extra_options = {}
         metadata.add_text("CreationTime", datetime.datetime.now().isoformat(" ")[:19])
 
-        if meta_batch is not None and unique_id in meta_batch.outputs:
-            (counter, output_process) = meta_batch.outputs[unique_id]
-        else:
-            # comfy counter workaround
-            max_counter = 0
-
-            # Loop through the existing files
-            matcher = re.compile(f"{re.escape(filename)}_(\\d+)\\D*\\..+", re.IGNORECASE)
-            for existing_file in os.listdir(full_output_folder):
-                # Check if the file matches the expected format
-                match = matcher.fullmatch(existing_file)
-                if match:
-                    # Extract the numeric portion of the filename
-                    file_counter = int(match.group(1))
-                    # Update the maximum counter value if necessary
-                    if file_counter > max_counter:
-                        max_counter = file_counter
-
-            # Increment the counter by 1 to get the next available value
-            counter = max_counter + 1
-            output_process = None
-
         # save first frame as png to keep metadata
         first_image_file = f"{filename}_{counter:05}.png"
         file_path = os.path.join(full_output_folder, first_image_file)
@@ -356,6 +368,13 @@ class VideoCombine:
                 compress_level=4,
             )
         output_files.append(file_path)
+        def overlapped_iter(images, overlap):
+            for index, frame in enumerate(overlap):
+                ratio = index/len(overlap)
+                yield next(images)*ratio + (1-ratio)*frame
+            yield from images
+        if overlap is not None:
+            images = overlapped_iter(images, overlap)
 
         format_type, format_ext = format.split("/")
         if format_type == "image":
@@ -494,7 +513,7 @@ class VideoCombine:
                 #Proceed to first yield
                 output_process.send(None)
                 if meta_batch is not None:
-                    meta_batch.outputs[unique_id] = (counter, output_process)
+                    meta_batch.outputs[unique_id][1] = output_process
 
             for image in images:
                 pbar.update(1)
@@ -770,9 +789,9 @@ class BatchManager:
     def reset(self):
         self.close_inputs()
         for key in self.outputs:
-            if getattr(self.outputs[key][-1], "gi_suspended", False):
+            if getattr(self.outputs[key][1], "gi_suspended", False):
                 try:
-                    self.outputs[key][-1].send(None)
+                    self.outputs[key][1].send(None)
                 except StopIteration:
                     pass
         self.__init__(self.frames_per_batch)
@@ -792,7 +811,10 @@ class BatchManager:
         return {
                 "required": {
                     "frames_per_batch": ("INT", {"default": 16, "min": 1, "max": BIGMAX, "step": 1})
-                    },
+                },
+                "optional": {
+                    "overlap": ("INT", {"default": 0, "min": 0})
+                },
                 "hidden": {
                     "prompt": "PROMPT",
                     "unique_id": "UNIQUE_ID"
@@ -804,7 +826,7 @@ class BatchManager:
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
     FUNCTION = "update_batch"
 
-    def update_batch(self, frames_per_batch, prompt=None, unique_id=None):
+    def update_batch(self, frames_per_batch, overlap=0, prompt=None, unique_id=None):
         if unique_id is not None and prompt is not None:
             requeue = prompt[unique_id]['inputs'].get('requeue', 0)
         else:
@@ -812,6 +834,7 @@ class BatchManager:
         if requeue == 0:
             self.reset()
             self.frames_per_batch = frames_per_batch
+            self.overlap = overlap
             self.unique_id = unique_id
         else:
             num_batches = (self.total_frames+self.frames_per_batch-1)//frames_per_batch

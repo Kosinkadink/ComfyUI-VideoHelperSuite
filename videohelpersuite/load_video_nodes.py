@@ -16,7 +16,7 @@ from comfy.k_diffusion.utils import FolderOfImages
 from .logger import logger
 from .utils import BIGMAX, DIMMAX, calculate_file_hash, get_sorted_dir_files_from_directory,\
         lazy_get_audio, hash_path, validate_path, strip_path, try_download_video,  \
-        is_url, imageOrLatent, ffmpeg_path, ENCODE_ARGS, floatOrInt
+        is_url, imageOrLatent, ffmpeg_path, ENCODE_ARGS, floatOrInt, BufferedIterator
 
 
 video_extensions = ['webm', 'mp4', 'mkv', 'gif', 'mov']
@@ -319,9 +319,13 @@ def load_video(meta_batch=None, unique_id=None, memory_limit_mb=None, vae=None,
             meta_batch.inputs[unique_id] = (gen, width, height, fps, duration, total_frames, target_frame_time, yieldable_frames, new_width, new_height, alpha)
             if yieldable_frames:
                 meta_batch.total_frames = min(meta_batch.total_frames, yieldable_frames)
+            if meta_batch.overlap > 0:
+                gen = BufferedIterator(gen, meta_batch.overlap)
 
     else:
         (gen, width, height, fps, duration, total_frames, target_frame_time, yieldable_frames, new_width, new_height, alpha) = meta_batch.inputs[unique_id]
+        if isinstance(gen, BufferedIterator):
+            gen.reset_buffer()
 
     memory_limit = None
     if memory_limit_mb is not None:

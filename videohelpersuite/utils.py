@@ -416,3 +416,30 @@ def cached(duration):
             return cached_ret
         return cached_func
     return dec
+class BufferedIterator:
+    def __init__(self, it, length):
+        self.it = it
+        self.buffer = [None] * length
+        self.i = 0
+        self.buffered_items = 0
+        self.yield_from_buffer = 0
+    def __iter__(self):
+        return self
+    def __next__(self):
+        if self.yield_from_buffer > 0:
+            ret = self.buffer[self.i - self.yield_from_buffer]
+            self.yield_from_buffer -= 1
+            return ret
+        try:
+            ret = next(self.it)
+            self.buffer[self.i] = ret
+        except StopIteration:
+            raise
+        self.i = (self.i + 1) % len(self.buffer)
+        if self.buffered_items < len(self.buffer):
+            self.buffered_items += 1
+        return ret
+    def reset_buffer(self):
+        self.yield_from_buffer = self.buffered_items
+        self.buffered_items = 0
+        #TODO: consider a safe means of keeping buffered items here
