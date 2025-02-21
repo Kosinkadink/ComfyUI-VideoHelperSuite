@@ -32,8 +32,8 @@ function getVideoMetadata(file) {
                                 let length = (vint >> (8*(4-n_octets))) & ~(1 << (7*n_octets));
                                 const content = decoder.decode(videoData.slice(offset+2+n_octets, offset+2+n_octets+length));
                                 let json = JSON.parse(content);
-                                if (name === "COMMENT") {
-                                    json = json.workflow
+                                if (name === "ORKFLOW") {
+                                    json = {workflow: json}
                                 }
                                 r(json);
                                 return;
@@ -93,8 +93,8 @@ fileInput.accept += ",video/webm,video/mp4";
 async function handleFile(file) {
     if (file?.type?.startsWith("video/") || isVideoFile(file)) {
         const videoInfo = await getVideoMetadata(file);
-        if (videoInfo) {
-            app.loadGraphData(videoInfo);
+        if (videoInfo?.workflow) {
+            await app.loadGraphData(videoInfo.workflow);
         }
     } else {
         return await originalHandleFile.apply(this, arguments);
