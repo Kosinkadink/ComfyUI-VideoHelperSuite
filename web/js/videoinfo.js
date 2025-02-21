@@ -25,13 +25,16 @@ function getVideoMetadata(file) {
                     if (dataView.getUint16(offset) == 0x4487) {
                         //check that name of tag is COMMENT
                         const name = String.fromCharCode(...videoData.slice(offset-7,offset));
-                        if (name === "COMMENT") {
+                        if (name === "COMMENT" || name === "ORKFLOW") {
                             let vint = dataView.getUint32(offset+2);
                             let n_octets = Math.clz32(vint)+1;
                             if (n_octets < 4) {//250MB sanity cutoff
                                 let length = (vint >> (8*(4-n_octets))) & ~(1 << (7*n_octets));
                                 const content = decoder.decode(videoData.slice(offset+2+n_octets, offset+2+n_octets+length));
-                                const json = JSON.parse(content);
+                                let json = JSON.parse(content);
+                                if (name === "COMMENT") {
+                                    json = json.workflow
+                                }
                                 r(json);
                                 return;
                             }
@@ -91,11 +94,7 @@ async function handleFile(file) {
     if (file?.type?.startsWith("video/") || isVideoFile(file)) {
         const videoInfo = await getVideoMetadata(file);
         if (videoInfo) {
-            if (videoInfo.workflow) {
-
-                app.loadGraphData(videoInfo.workflow);
-            }
-            //Potentially check for/parse A1111 metadata here.
+            app.loadGraphData(videoInfo);
         }
     } else {
         return await originalHandleFile.apply(this, arguments);
