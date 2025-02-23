@@ -30,7 +30,7 @@ VHSLoadFormats = {
     'Cosmos': {'target_rate': 24, 'dim': (16,0,1280,704), 'frames':(8,1)},
 }
 """
-External plugins may add additional formats to utils.extra_config.VHSLoadFormats
+External plugins may add additional formats to nodes.VHSLoadFormats
 In addition to shorthand options, direct widget names will map a given dict to options.
 Adding a third arguement to a frames tuple can enable strict checks on number
 of loaded frames, i.e (8,1,True)
