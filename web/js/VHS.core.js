@@ -1085,6 +1085,9 @@ function addFormatWidgets(nodeType, nodeData) {
                     }
                     app.widgets[type](this, wDef[0], wDef.slice(1), app)
                     let w = this.widgets.pop()
+                    if (['INT', 'FLOAT'].includes(type)) {
+                        makeAnnotated(w, wDef.slice(1))
+                    }
                     w.config = wDef.slice(1)
                     newWidgets.push(w)
                 }
@@ -1503,8 +1506,8 @@ function mouseAnnotated(event, [x, y], node) {
                             break
                         }
                     }
-                    if (node.widgets[++i]) {
-                        node.widgets[i].mouse(event, [x, y+24], node)
+                    if (node.widgets[++i]?.type == "BOOLEAN") {//restrict to annotatedNUmbers
+                        node.widgets[i]?.mouse(event, [x, y+24], node)
                     }
                 }
             })
