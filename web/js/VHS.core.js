@@ -1440,66 +1440,85 @@ function drawAnnotated(ctx, node, widget_width, y, H) {
   }
 }
 function mouseAnnotated(event, [x, y], node) {
-  const button = button_action(this)
-  const widget_width = this.width || node.size[0]
-  const old_value = this.value
-  const delta = x < 40 ? -1 : x > widget_width - 48 ? 1 : 0
-  const margin = 15
-  var allow_scroll = true
-  if (delta) {
-    if (x > -3 && x < widget_width + 3) {
-      allow_scroll = false
+    const button = button_action(this)
+    const widget_width = this.width || node.size[0]
+    const old_value = this.value
+    const delta = x < 40 ? -1 : x > widget_width - 48 ? 1 : 0
+    const margin = 15
+    var allow_scroll = true
+    if (delta) {
+        if (x > -3 && x < widget_width + 3) {
+            allow_scroll = false
+        }
     }
-  }
-  if (allow_scroll && event.type == 'pointermove') {
-    if (event.deltaX)
-      this.value += event.deltaX * 0.1 * (this.options.step || 1)
-    if (this.options.min != null && this.value < this.options.min) {
-      this.value = this.options.min
+    if (allow_scroll && event.type == 'pointermove') {
+        if (event.deltaX)
+            this.value += event.deltaX * 0.1 * (this.options.step || 1)
+        if (this.options.min != null && this.value < this.options.min) {
+            this.value = this.options.min
+        }
+        if (this.options.max != null && this.value > this.options.max) {
+            this.value = this.options.max
+        }
+    } else if (event.type == 'pointerdown') {
+        if (x > widget_width - margin - 34 && x < widget_width - margin - 18) {
+            if (button == 'Reset') {
+                this.value = this.options.reset
+            } else if (button == 'Disable') {
+                this.value = this.options.disable
+            }
+        } else {
+            this.value += delta * 0.1 * (this.options.step || 1)
+            if (this.options.min != null && this.value < this.options.min) {
+                this.value = this.options.min
+            }
+            if (this.options.max != null && this.value > this.options.max) {
+                this.value = this.options.max
+            }
+        }
+    } //end mousedown
+    else if (event.type == 'pointerup') {
+        if (event.click_time < 200 && delta == 0) {
+            let d_callback = (v) => {
+                this.value = Number(v)
+                inner_value_change(this, this.value, node, [x, y])
+            }
+            let dialog = app.canvas.prompt(
+                'Value',
+                this.value,
+                d_callback,
+                event
+            )
+            const input = dialog.querySelector(".value")
+            input.addEventListener("keydown", (e) => {
+                if (e.keyCode == 9) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    d_callback(input.value)
+                    dialog.close()
+                    node?.graph?.setDirtyCanvas(true);
+                    let i=0
+                    for (;i<node.widgets.length;i++) {
+                        if (node.widgets[i] == this) {
+                            break
+                        }
+                    }
+                    if (node.widgets[++i]) {
+                        node.widgets[i].mouse(event, [x, y+24], node)
+                    }
+                }
+            })
+        }
     }
-    if (this.options.max != null && this.value > this.options.max) {
-      this.value = this.options.max
-    }
-  } else if (event.type == 'pointerdown') {
-    if (x > widget_width - margin - 34 && x < widget_width - margin - 18) {
-      if (button == 'Reset') {
-        this.value = this.options.reset
-      } else if (button == 'Disable') {
-        this.value = this.options.disable
-      }
-    } else {
-      this.value += delta * 0.1 * (this.options.step || 1)
-      if (this.options.min != null && this.value < this.options.min) {
-        this.value = this.options.min
-      }
-      if (this.options.max != null && this.value > this.options.max) {
-        this.value = this.options.max
-      }
-    }
-  } //end mousedown
-  else if (event.type == 'pointerup') {
-    if (event.click_time < 200 && delta == 0) {
-      app.canvas.prompt(
-        'Value',
-        this.value,
-        function (v) {
-          //NOTE: Original code uses eval here. This will not be reproduced
-          this.value = Number(v)
-          inner_value_change(this, this.value, node, [x, y])
-        }.bind(this),
-        event
-      )
-    }
-  }
 
-  if (old_value != this.value)
-    setTimeout(
-      function () {
-        inner_value_change(this, this.value, node, [x, y])
-      }.bind(this),
-      20
-    )
-  return true
+    if (old_value != this.value)
+        setTimeout(
+            function () {
+                inner_value_change(this, this.value, node, [x, y])
+            }.bind(this),
+            20
+        )
+    return true
 }
 function makeAnnotated(widget, inputData) {
     const callback_orig = widget.callback
