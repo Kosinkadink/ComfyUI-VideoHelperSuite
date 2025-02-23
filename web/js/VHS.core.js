@@ -1072,7 +1072,6 @@ function addFormatWidgets(nodeType, nodeData) {
             }
         }
         let formatWidgetsCount = 0;
-        //Pre-process options to just names
         chainCallback(formatWidget, "callback", (value) => {
             const formats = (LiteGraph.registered_node_types[this.type]
                 ?.nodeData?.input?.required?.format?.[1]?.formats)
