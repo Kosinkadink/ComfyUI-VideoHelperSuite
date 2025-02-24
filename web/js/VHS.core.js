@@ -659,33 +659,17 @@ function initializeLoadFormat(nodeType, nodeData) {
         });
         let capWidget = this.widgets.find((w) => w.name === "frame_load_cap")
         let previewWidget = this.widgets.find((w) => w.name === "videopreview")
-        chainCallback(previewWidget, "updateSource", () => setTimeout(async () => {
-            if (!previewWidget?.value?.params?.filename) {
-                return
-            }
-            let qurl = api.apiURL('/vhs/queryvideo?' + new URLSearchParams(previewWidget.value.params))
-            let query = undefined
-            try {
-                let query_res = await fetch(qurl)
-                query = await query_res.json()
-            } catch(e) {
-                return
-            }
-            if (!query?.loaded) {
-                return
-            }
-            this.max_frames = query.loaded.frames
-        }, 100));
         capWidget.annotation = (value, width) => {
-            if (!this.max_frames || value && value < this.max_frames) {
+            let max_frames = this.video_query?.loaded?.frames
+            if (!max_frames || value && value < max_frames) {
                 return
             }
             let format = formatWidget.options.formats[formatWidget.value]
             const div = format?.frames?.[0] ?? 1
             const mod = format?.frames?.[1] ?? 0
-            let loadable_frames = this.max_frames
-            if ((this.max_frames % div) != mod) {
-                loadable_frames = ((this.max_frames - mod)/div|0) * div + mod
+            let loadable_frames = max_frames
+            if ((max_frames % div) != mod) {
+                loadable_frames = ((max_frames - mod)/div|0) * div + mod
             }
             return loadable_frames + "\u21FD"
         }
@@ -932,6 +916,20 @@ function addVideoPreview(nodeType, isInput=true) {
                 this.videoEl.hidden = true;
                 this.imgEl.hidden = false;
             }
+            setTimeout(async () => {
+                if (!previewWidget?.value?.params?.filename) {
+                    return
+                }
+                let qurl = api.apiURL('/vhs/queryvideo?' + new URLSearchParams(previewWidget.value.params))
+                let query = undefined
+                try {
+                    let query_res = await fetch(qurl)
+                    query = await query_res.json()
+                } catch(e) {
+                    return
+                }
+                previewNode.video_query = query
+            }, 100)
         }
         previewWidget.parentEl.appendChild(previewWidget.videoEl)
         previewWidget.parentEl.appendChild(previewWidget.imgEl)
@@ -957,6 +955,12 @@ function addPreviewOptions(nodeType) {
         } else if (previewWidget.imgEl?.hidden == false && previewWidget.imgEl.src) {
             url = previewWidget.imgEl.src;
             url = new URL(url);
+        }
+        if (this.video_query?.source) {
+            let info_string = this.video_query.source.size.join('x') +
+                              '@' + this.video_query.source.fps + 'fps ' +
+                              this.video_query.source.frames + 'frames'
+            optNew.push({content: info_string, disabled: true})
         }
         if (url) {
             optNew.push(
@@ -1482,11 +1486,11 @@ function mouseAnnotated(event, [x, y], node) {
     } //end mousedown
     else if (event.type == 'pointerup') {
         if (event.click_time < 200 && delta == 0) {
-            let d_callback = (v) => {
+            const d_callback = (v) => {
                 this.value = Number(v)
                 inner_value_change(this, this.value, node, [x, y])
             }
-            let dialog = app.canvas.prompt(
+            const dialog = app.canvas.prompt(
                 'Value',
                 this.value,
                 d_callback,
