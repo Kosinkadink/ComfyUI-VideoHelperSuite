@@ -932,6 +932,7 @@ function addVideoPreview(nodeType, isInput=true) {
                 previewNode.video_query = query
             }, 100)
         }
+        previewWidget.callback = previewWidget.updateSource
         previewWidget.parentEl.appendChild(previewWidget.videoEl)
         previewWidget.parentEl.appendChild(previewWidget.imgEl)
     });
@@ -1802,25 +1803,6 @@ app.registerExtension({
             addPreviewOptions(nodeType);
             addFormatWidgets(nodeType, nodeData);
             addVAEInputToggle(nodeType, nodeData)
-
-            chainCallback(nodeType.prototype, "onNodeCreated", function() {
-                this._outputs = this.outputs
-                Object.defineProperty(this, "outputs", {
-                    set : function(value) {
-                        this._outputs = value;
-                        requestAnimationFrame(() => {
-                            if (app.nodeOutputs[this.id + ""]) {
-                                this.updateParameters(app.nodeOutputs[this.id+""].gifs[0], true);
-                            }
-                        })
-                    },
-                    get : function() {
-                        return this._outputs;
-                    }
-                });
-                //Display previews after reload/ loading workflow
-                this.updateParameters({}, true);
-            });
         } else if (nodeData?.name == "VHS_SaveImageSequence") {
             //Disabled for safety as VHS_SaveImageSequence is not currently merged
             //addDateFormating(nodeType, "directory_name", timestamp_widget=true);
