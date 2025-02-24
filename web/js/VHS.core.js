@@ -916,6 +916,7 @@ function addVideoPreview(nodeType, isInput=true) {
                 this.videoEl.hidden = true;
                 this.imgEl.hidden = false;
             }
+            delete previewNode.video_query
             setTimeout(async () => {
                 if (!previewWidget?.value?.params?.filename) {
                     return
@@ -1096,7 +1097,11 @@ function addFormatWidgets(nodeType, nodeData) {
                     newWidgets.push(w)
                 }
             }
-            this.widgets.splice(formatWidgetIndex, formatWidgetsCount, ...newWidgets);
+            let removed = this.widgets.splice(formatWidgetIndex,
+                                            formatWidgetsCount, ...newWidgets);
+            for (let w of removed) {
+                w?.onRemove?.()
+            }
             fitHeight(this);
             formatWidgetsCount = newWidgets.length;
         });
@@ -1910,11 +1915,11 @@ app.registerExtension({
                 node.widgets.push(w);
                 return w;
             },
-            VHSFLOAT(node, inputName, inputData, app) {
+            VHSFLOAT(node, inputName, inputData) {
                 let w = app.widgets.FLOAT(node, inputName, inputData, app)
                 return makeAnnotated(w, inputData);
             },
-            VHSINT(node, inputName, inputData, app_arg) {
+            VHSINT(node, inputName, inputData) {
                 let w = app.widgets.INT(node, inputName, inputData, app)
                 return makeAnnotated(w, inputData);
             }
