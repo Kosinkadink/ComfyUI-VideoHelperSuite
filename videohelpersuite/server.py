@@ -252,5 +252,5 @@ async def get_path(request):
         except OSError:
             #Broken symlinks can throw a very unhelpful "Invalid argument"
             pass
-
+    valid_items.sort(key=lambda f: os.stat(os.path.join(path,f)).st_mtime)
     return web.json_response(valid_items)

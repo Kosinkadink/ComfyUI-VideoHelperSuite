@@ -534,7 +534,6 @@ class LoadVideoFFmpegUpload:
                 }
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
-    EXPERIMENTAL=True
 
     RETURN_TYPES = (imageOrLatent, "MASK", "AUDIO", "VHS_VIDEOINFO")
     RETURN_NAMES = ("IMAGE", "mask", "audio", "video_info")
@@ -584,7 +583,6 @@ class LoadVideoFFmpegPath:
         }
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
-    EXPERIMENTAL=True
 
     RETURN_TYPES = (imageOrLatent, "MASK", "AUDIO", "VHS_VIDEOINFO")
     RETURN_NAMES = ("IMAGE", "mask", "audio", "video_info")
@@ -629,7 +627,6 @@ class LoadImagePath:
         }
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
-    EXPERIMENTAL=True
 
     RETURN_TYPES = (imageOrLatent, "MASK")
     RETURN_NAMES = ("IMAGE", "mask")
