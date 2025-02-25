@@ -159,7 +159,7 @@ async def query_video(request):
                 source['size'] = [int(match.group(1)), int(match.group(2))]
                 fps_match = re.search(", ([\\d\\.]+) fps", line)
                 if not fps_match:
-                    return web.Response(status=500)
+                    return web.json_response({})
                 source['fps'] = float(fps_match.group(1))
                 if re.search("(yuva|rgba)", line):
                     source['alpha'] = True
@@ -169,7 +169,7 @@ async def query_video(request):
 
         durs_match = re.search("Duration: (\\d+:\\d+:\\d+\\.\\d+),", lines)
         if not (durs_match and 'fps' in source):
-            return web.Response(status=500)
+            return web.json_response({})
         durs = durs_match.group(1).split(':')
         duration = int(durs[0])*360 + int(durs[1])*60 + float(durs[2])
         source['duration'] = duration
@@ -177,7 +177,7 @@ async def query_video(request):
         query_cache[filepath] = (os.stat(filepath).st_mtime, source)
     loaded = {}
     if 'duration' not in source:
-        return web.Response(status=500)
+        return web.json_response({})
     loaded['duration'] = source['duration']
     loaded['duration'] -= float(query.get('start_time',0))
     loaded['fps'] = float(query.get('force_rate', 0)) or source['fps']
