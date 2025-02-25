@@ -552,7 +552,7 @@ descriptions = {
     #"VHS_SelectLatents": None,
     #"VHS_SelectImages": None,
     #"VHS_SelectMasks": None,
-  "VHS_Unbatch": ['Unbatch 🎥🅥🅗🅢', short_desc('Experimental node to unbatch a list of items into a single concatenated item'),
+  "VHS_Unbatch": ['Unbatch 🎥🅥🅗🅢', short_desc('Unbatch a list of items into a single concatenated item'),
     "Useful for when you want a single video output from a complex workflow",
     "Has no relation to the Meta Batch system of VHS",
     {'Inputs': {
@@ -560,6 +560,16 @@ descriptions = {
         },
      'Outputs': {
          'unbatched': 'A single output element. Torch tensors are concatenated across dim 0, all other types are added which functions as concatenation for strings and arrays, but may give undesired results for other types',
+        },
+    }],
+  "VHS_SelectLatest": ['Select Latest 🎥🅥🅗🅢', short_desc('Experimental virtual node to select the most recently modified file from a given folder'),
+    "Assists in the creation of workflows where outputs from one execution are used elsewhere in subsequent executions.",
+    {'Inputs': {
+        'filename_prefix': 'A path which can consist of a combination of folders and a prefix which candidate files must match',
+        'filename_postfix': 'A string which chich the selected file must end with. Useful for limiting to a target extension.',
+        },
+     'Outputs': {
+         'Filename': 'A string representing a file path to the most recently modified file.',
         },
     }],
 }
