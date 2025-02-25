@@ -917,7 +917,7 @@ function addVideoPreview(nodeType, isInput=true) {
                 this.imgEl.hidden = false;
             }
             delete previewNode.video_query
-            setTimeout(async () => {
+            const doQuery = async () => {
                 if (!previewWidget?.value?.params?.filename) {
                     return
                 }
@@ -930,7 +930,8 @@ function addVideoPreview(nodeType, isInput=true) {
                     return
                 }
                 previewNode.video_query = query
-            }, 100)
+            }
+            doQuery()
         }
         previewWidget.callback = previewWidget.updateSource
         previewWidget.parentEl.appendChild(previewWidget.videoEl)
