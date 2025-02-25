@@ -1815,6 +1815,78 @@ app.registerExtension({
             });
         } else if (nodeData?.name == "VHS_Unbatch") {
             cloneType(nodeType, nodeData)
+        } else if (nodeData?.name == "VHS_SelectLatest") {
+            chainCallback(nodeType.prototype, "onNodeCreated", function() {
+                this.isVirtualNode = true
+                chainCallback(this, "onConnectionsChange", function (contype, slot, iscon, linfo) {
+                    if (iscon) {
+                        this.update_links()
+                    }
+                })
+
+                this.update_links = function(extraLinks = []) {
+                    if (!this.outputs[0].links?.length) return
+
+                    function get_links(node) {
+                        let links = []
+                        for (const l of node.outputs[0].links) {
+                            const linkInfo = app.graph.links[l]
+                            const n = node.graph.getNodeById(linkInfo.target_id)
+                            if (n.type == 'Reroute') {
+                                links = links.concat(get_links(n))
+                            } else {
+                                links.push(l)
+                            }
+                        }
+                        return links
+                    }
+
+                    let links = [
+                        ...get_links(this).map((l) => app.graph.links[l]),
+                        ...extraLinks
+                    ]
+                    let v = this.latest_file
+                    if (!v) {
+                        return
+                    }
+
+                    // For each output link copy our value over the original widget value
+                    for (const linkInfo of links) {
+                        const node = this.graph.getNodeById(linkInfo.target_id)
+                        const input = node.inputs[linkInfo.target_slot]
+                        const widgetName = input.widget.name
+                        const widget = node.widgets.find((w) => w.name === widgetName)
+                        if (widget) {
+                            widget.value = v
+                            if (widget.callback) {
+                                widget.callback( widget.value, app.canvas,
+                                    node, app.canvas.graph_mouse, {})
+                            }
+                        }
+                    }
+                }
+                let fetch_files = async () => {
+                    let [path, remainder] = path_stem(this.widgets[0].value)
+                    let params = {path : path}
+                    let optionsURL = api.apiURL('/vhs/getpath?' + new URLSearchParams(params));
+                    let options
+                    try {
+                        let resp = await fetch(optionsURL);
+                        options = await resp.json();
+                    } catch(e) {
+                        options = []
+                    }
+                    options = options.filter((file) => file.startsWith(remainder) && file.endsWith(this.widgets[1].value))
+                    if (options.length && this.latest_file != options[options.length-1]) {
+                        this.latest_file = path + options[options.length-1]
+                        this.update_links()
+                    }
+                }
+                this.widgets[0].callback = fetch_files
+                this.widgets[1].callback = fetch_files
+                this.onPromptExecuted  = fetch_files
+                this.applyToGraph = this.update_links
+            })
         }
     },
     async getCustomWidgets() {
@@ -1862,23 +1934,23 @@ app.registerExtension({
                     },
                     mouse : searchBox,
                     options : {},
-                    format_path : function(path) {
+                    format_path : function(path, len=30) {
                         //Formats the full path to be under 30 characters
-                        if (path.length <= 30) {
+                        if (path.length <= len) {
                             return path;
                         }
                         let filename = path_stem(path)[1]
-                        if (filename.length > 28) {
+                        if (filename.length > len-2) {
                             //may all fit, but can't squeeze more info
-                            return filename.substr(0,30);
+                            return filename.substr(0,len);
                         }
                         //TODO: find solution for windows, path[1] == ':'?
                         let isAbs = path[0] == '/';
-                        let partial = path.substr(path.length - (isAbs ? 28:29))
+                        let partial = path.substr(path.length - (isAbs ? len-2:len-1))
                         let cutoff = partial.indexOf('/');
                         if (cutoff < 0) {
                             //Can occur, but there isn't a nicer way to format
-                            return path.substr(path.length-30);
+                            return path.substr(path.length-len);
                         }
                         return (isAbs ? '/…':'…') + partial.substr(cutoff);
 
@@ -2016,6 +2088,15 @@ app.registerExtension({
 });
 let previewImages = []
 let animateInterval
+api.addEventListener('executing', ({ detail }) => {
+    if (detail === null) {
+        for (let node of app.graph._nodes) {
+            if (node.type.startsWith("VHS_")) {
+                node.onPromptExecuted?.()
+            }
+        }
+    }
+})
 api.addEventListener('VHS_latentpreview', ({ detail }) => {
     let setting = app.ui.settings.getSettingValue("VHS.LatentPreview")
     if (!setting) {
