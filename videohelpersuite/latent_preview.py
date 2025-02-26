@@ -16,7 +16,7 @@ rates_table = {'Mochi': 24//6, 'LTXV': 24//8, 'HunyuanVideo': 24//4,
 
 #Temporarily add latent factors for wan
 from comfy import latent_formats
-if getattr(latent_formats.Wan21, 'latent_rgb_factors', None) is None:
+if hasattr(latent_formats, 'Wan21') and getattr(latent_formats.Wan21, 'latent_rgb_factors', None) is None:
     latent_formats.Wan21.latent_rgb_factors = [
         [ 0.0249,  0.0919,  0.0217],
         [-0.0689, -0.1311, -0.1009],
