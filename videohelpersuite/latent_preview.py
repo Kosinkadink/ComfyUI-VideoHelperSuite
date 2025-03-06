@@ -14,28 +14,6 @@ from .utils import hook
 rates_table = {'Mochi': 24//6, 'LTXV': 24//8, 'HunyuanVideo': 24//4,
                'Cosmos1CV8x8x8': 24//8, 'Wan21': 16//4}
 
-#Temporarily add latent factors for wan
-from comfy import latent_formats
-if hasattr(latent_formats, 'Wan21') and getattr(latent_formats.Wan21, 'latent_rgb_factors', None) is None:
-    latent_formats.Wan21.latent_rgb_factors = [
-        [ 0.0249,  0.0919,  0.0217],
-        [-0.0689, -0.1311, -0.1009],
-        [ 0.0580,  0.0889,  0.0684],
-        [ 0.0284,  0.0126,  0.0123],
-        [-0.0590, -0.0480, -0.0154],
-        [-0.0542, -0.1147, -0.0697],
-        [ 0.0402,  0.1482,  0.0700],
-        [ 0.1137,  0.0913,  0.0875],
-        [-0.1317, -0.1886, -0.1243],
-        [ 0.0843,  0.0797,  0.0885],
-        [-0.0582, -0.0460, -0.0837],
-        [ 0.0929,  0.1385,  0.1145],
-        [-0.0501, -0.0680, -0.0382],
-        [ 0.0185,  0.0390,  0.0233],
-        [-0.2399, -0.3648, -0.2398],
-        [ 0.2037,  0.3279,  0.1723]]
-
-
 class WrappedPreviewer(latent_preview.LatentPreviewer):
     def __init__(self, previewer, rate=8):
         self.first_preview = True
