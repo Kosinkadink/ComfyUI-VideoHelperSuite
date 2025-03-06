@@ -344,8 +344,12 @@ def load_video(meta_batch=None, unique_id=None, memory_limit_mb=None, vae=None,
         max_loadable_frames = int(memory_limit//(width*height*3*(.1)))
     if meta_batch is not None:
         if 'frames' in format:
-            assert meta_batch.frames_per_batch % format['frames'][0] == format['frames'][1], \
-                   "The chosen frames per batch is incompatible with the selected format"
+            if meta_batch.frames_per_batch % format['frames'][0] != format['frames'][1]:
+                error = (meta_batch.frames_per_batch - format['frames'][1]) % format['frames'][0]
+                suggested = meta_batch.frames_per_batch - error
+                if error > format['frames'][0] / 2:
+                    suggested += format['frames'][0]
+                raise RuntimeError(f"The chosen frames per batch is incompatible with the selected format. Try {suggested}")
         if meta_batch.frames_per_batch > max_loadable_frames:
             raise RuntimeError(f"Meta Batch set to {meta_batch.frames_per_batch} frames but only {max_loadable_frames} can fit in memory")
         gen = itertools.islice(gen, meta_batch.frames_per_batch)
