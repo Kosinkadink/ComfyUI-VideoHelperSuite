@@ -25,16 +25,13 @@ function getVideoMetadata(file) {
                     if (dataView.getUint16(offset) == 0x4487) {
                         //check that name of tag is COMMENT
                         const name = String.fromCharCode(...videoData.slice(offset-7,offset));
-                        if (name === "COMMENT" || name === "ORKFLOW") {
+                        if (name === "COMMENT") {
                             let vint = dataView.getUint32(offset+2);
                             let n_octets = Math.clz32(vint)+1;
                             if (n_octets < 4) {//250MB sanity cutoff
                                 let length = (vint >> (8*(4-n_octets))) & ~(1 << (7*n_octets));
                                 const content = decoder.decode(videoData.slice(offset+2+n_octets, offset+2+n_octets+length));
                                 let json = JSON.parse(content);
-                                if (name === "ORKFLOW") {
-                                    json = {workflow: json}
-                                }
                                 r(json);
                                 return;
                             }
@@ -64,10 +61,9 @@ function getVideoMetadata(file) {
                 }
             } else {
                 console.error("Unknown magic: " + dataView.getUint32(0))
-                r();
-                return;
             }
-
+            r();
+            return;
         };
 
         reader.readAsArrayBuffer(file);
@@ -95,8 +91,8 @@ async function handleFile(file) {
         const videoInfo = await getVideoMetadata(file);
         if (videoInfo?.workflow) {
             await app.loadGraphData(videoInfo.workflow);
+            return
         }
-    } else {
-        return await originalHandleFile.apply(this, arguments);
     }
+    return await originalHandleFile.apply(this, arguments);
 }
