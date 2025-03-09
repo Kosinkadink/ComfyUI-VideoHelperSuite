@@ -140,6 +140,9 @@ async def query_video(request):
     if isinstance(filepath, web.Response):
         return filepath
     filepath = filepath[0]
+    if filepath.endswith(".webp"):
+        # ffmpeg doesn't support decoding animated WebP https://trac.ffmpeg.org/ticket/4907
+        return web.json_response({})
     if filepath in query_cache and query_cache[filepath][0] == os.stat(filepath).st_mtime:
         source = query_cache[filepath][1]
     else:
