@@ -283,16 +283,7 @@ class VideoCombine:
         ) = folder_paths.get_save_image_path(filename_prefix, output_dir)
         overlap = None
         if meta_batch is not None and unique_id in meta_batch.outputs:
-            (counter, output_process, overlap) = meta_batch.outputs[unique_id]
-            if meta_batch.overlap > 0:
-                meta_batch.outputs[unique_id][2] = images[metabatch.overlap:]
-                images = images[:-metabatch.overlap]
-
-            #do linear overlap
-            if meta_batch.overlap > 0:
-                for i in range(meta_batch.overlap):
-                    images[i]
-
+            (counter, output_process, overlap, overlap_length) = meta_batch.outputs[unique_id]
         else:
             # comfy counter workaround
             max_counter = 0
@@ -313,7 +304,7 @@ class VideoCombine:
             counter = max_counter + 1
             output_process = None
             if meta_batch is not None:
-                meta_batch.outputs[unique_id] = (counter, None, None)
+                meta_batch.outputs[unique_id] = [counter, None, None, None]
 
         if isinstance(images, torch.Tensor) and images.size(0) == 0:
             return ((save_output, []),)
@@ -368,9 +359,18 @@ class VideoCombine:
                 compress_level=4,
             )
         output_files.append(file_path)
+        if meta_batch is not None and meta_batch.overlap > 0:
+            #images is an iterator that will contain only overlapped images
+            #after non-overlapped images are processed
+            meta_batch.outputs[unique_id][2] = images
+            meta_batch.outputs[unique_id][3] = meta_batch.overlap
+
+            #TODO: Consider updating num_frames?
+            #Current implementation allows for future implementation of variable length overlap
+            images = itertools.islice(images, num_frames - meta_batch.overlap)
         def overlapped_iter(images, overlap):
             for index, frame in enumerate(overlap):
-                ratio = index/len(overlap)
+                ratio = (index+1)/(overlap_length+1)
                 yield next(images)*ratio + (1-ratio)*frame
             yield from images
         if overlap is not None:
@@ -834,10 +834,11 @@ class BatchManager:
         if requeue == 0:
             self.reset()
             self.frames_per_batch = frames_per_batch
+            assert overlap < frames_per_batch
             self.overlap = overlap
             self.unique_id = unique_id
         else:
-            num_batches = (self.total_frames+self.frames_per_batch-1)//frames_per_batch
+            num_batches = (self.total_frames+self.frames_per_batch-1-self.overlap)//(frames_per_batch-self.overlap)
             print(f'Meta-Batch {requeue}/{num_batches}')
         #onExecuted seems to not be called unless some message is sent
         return (self,)

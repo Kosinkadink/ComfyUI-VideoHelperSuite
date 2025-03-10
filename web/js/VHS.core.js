@@ -1797,6 +1797,7 @@ app.registerExtension({
             //addTimestampWidget(nodeType, nodeData, "directory_name")
         } else if (nodeData?.name == "VHS_BatchManager") {
             chainCallback(nodeType.prototype, "onNodeCreated", function() {
+                this.widgets.find((w) => w.name === "overlap").annotation = () => "experimental"
                 this.widgets.push({name: "count", type: "dummy", value: 0,
                     computeSize: () => {return [0,-4]},
                     afterQueued: function() {this.value++;}});

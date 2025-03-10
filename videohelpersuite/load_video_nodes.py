@@ -316,11 +316,11 @@ def load_video(meta_batch=None, unique_id=None, memory_limit_mb=None, vae=None,
         (width, height, fps, duration, total_frames, target_frame_time, yieldable_frames, new_width, new_height, alpha) = next(gen)
 
         if meta_batch is not None:
+            if meta_batch.overlap > 0:
+                gen = BufferedIterator(gen, meta_batch.overlap)
             meta_batch.inputs[unique_id] = (gen, width, height, fps, duration, total_frames, target_frame_time, yieldable_frames, new_width, new_height, alpha)
             if yieldable_frames:
                 meta_batch.total_frames = min(meta_batch.total_frames, yieldable_frames)
-            if meta_batch.overlap > 0:
-                gen = BufferedIterator(gen, meta_batch.overlap)
 
     else:
         (gen, width, height, fps, duration, total_frames, target_frame_time, yieldable_frames, new_width, new_height, alpha) = meta_batch.inputs[unique_id]
