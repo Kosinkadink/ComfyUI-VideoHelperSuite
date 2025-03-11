@@ -32,7 +32,7 @@ async def view_video(request):
         os.makedirs(folder_paths.get_temp_directory(), exist_ok=True)
         concat_file = os.path.join(folder_paths.get_temp_directory(), "image_sequence_preview.txt")
         skip_first_images = int(query.get('skip_first_images', 0))
-        select_every_nth = int(query.get('select_every_nth', 1))
+        select_every_nth = int(query.get('select_every_nth', 1)) or 1
         valid_images = get_sorted_dir_files_from_directory(file, skip_first_images, select_every_nth, FolderOfImages.IMG_EXTENSIONS)
         if len(valid_images) == 0:
             return web.Response(status=400)
@@ -67,7 +67,7 @@ async def view_video(request):
         return web.Response(status=500)
     vfilters = []
     target_rate = float(query.get('force_rate', 0)) or base_fps
-    modified_rate = target_rate / float(query.get('select_every_nth',1))
+    modified_rate = target_rate / float(query.get('select_every_nth',1) or 1)
     start_time = 0
     if 'start_time' in query:
         start_time = float(query['start_time'])
@@ -185,7 +185,7 @@ async def query_video(request):
     loaded['duration'] -= float(query.get('start_time',0))
     loaded['fps'] = float(query.get('force_rate', 0)) or source['fps']
     loaded['duration'] -= int(query.get('skip_first_frames', 0)) / loaded['fps']
-    loaded['fps'] /= int(query.get('select_every_nth', 1))
+    loaded['fps'] /= int(query.get('select_every_nth', 1)) or 1
     loaded['frames'] = loaded['duration'] * loaded['fps']
     return web.json_response({'source': source, 'loaded': loaded})
 

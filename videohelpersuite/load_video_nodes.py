@@ -456,7 +456,7 @@ class LoadVideoUpload:
         return calculate_file_hash(image_path)
 
     @classmethod
-    def VALIDATE_INPUTS(s, video, **kwargs):
+    def VALIDATE_INPUTS(s, video):
         if not folder_paths.exists_annotated_filepath(video):
             return "Invalid video file: {}".format(video)
         return True
@@ -505,7 +505,7 @@ class LoadVideoPath:
         return hash_path(video)
 
     @classmethod
-    def VALIDATE_INPUTS(s, video, **kwargs):
+    def VALIDATE_INPUTS(s, video):
         return validate_path(video, allow_none=True)
 
 class LoadVideoFFmpegUpload:
@@ -558,7 +558,7 @@ class LoadVideoFFmpegUpload:
         return calculate_file_hash(image_path)
 
     @classmethod
-    def VALIDATE_INPUTS(s, video, **kwargs):
+    def VALIDATE_INPUTS(s, video):
         if not folder_paths.exists_annotated_filepath(video):
             return "Invalid video file: {}".format(video)
         return True
@@ -611,7 +611,7 @@ class LoadVideoFFmpegPath:
         return hash_path(video)
 
     @classmethod
-    def VALIDATE_INPUTS(s, video, **kwargs):
+    def VALIDATE_INPUTS(s, video):
         return validate_path(video, allow_none=True)
 
 class LoadImagePath:
@@ -656,5 +656,5 @@ class LoadImagePath:
         return hash_path(image)
 
     @classmethod
-    def VALIDATE_INPUTS(s, image, **kwargs):
+    def VALIDATE_INPUTS(s, image):
         return validate_path(image, allow_none=True)
