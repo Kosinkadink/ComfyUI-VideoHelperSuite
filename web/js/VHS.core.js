@@ -1371,7 +1371,7 @@ function inner_value_change(widget, value, node, pos) {
 }
 function drawAnnotated(ctx, node, widget_width, y, H) {
   const litegraph_base = LiteGraph
-  const show_text = app.canvas.ds.scale > (app.canvas.low_quality_zoom_theshold ?? 0.5)
+  const show_text = app.canvas.ds.scale >= (app.canvas.low_quality_zoom_threshold ?? 0.5)
   const margin = 15
   ctx.textAlign = 'left'
   ctx.strokeStyle = litegraph_base.WIDGET_OUTLINE_COLOR
@@ -1907,7 +1907,7 @@ app.registerExtension({
                     value : "",
                     draw : function(ctx, node, widget_width, y, H) {
                         //Adapted from litegraph.core.js:drawNodeWidgets
-                        var show_text = app.canvas.ds.scale > 0.5;
+                        var show_text = app.canvas.ds.scale >= (app.canvas.low_quality_zoom_threshold ?? 0.5)
                         var margin = 15;
                         var text_color = LiteGraph.WIDGET_TEXT_COLOR;
                         var secondary_text_color = LiteGraph.WIDGET_SECONDARY_TEXT_COLOR;
