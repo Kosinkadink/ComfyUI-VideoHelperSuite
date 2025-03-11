@@ -814,6 +814,14 @@ function addVideoPreview(nodeType, isInput=true) {
             e.preventDefault()
             return app.canvas._mousewheel_callback(e)
         }, true);
+        element.addEventListener('pointermove', (e)  => {
+            e.preventDefault()
+            return app.canvas._mousemove_callback(e)
+        }, true);
+        element.addEventListener('pointerup', (e)  => {
+            e.preventDefault()
+            return app.canvas._mouseup_callback(e)
+        }, true);
         previewWidget.value = {hidden: false, paused: false, params: {},
             muted: app.ui.settings.getSettingValue("VHS.DefaultMute")}
         previewWidget.parentEl = document.createElement("div");
@@ -2116,6 +2124,27 @@ api.addEventListener('VHS_latentpreview', ({ detail }) => {
             serialize: false,
             hideOnZoom: false,
         });
+        canvasEl.addEventListener('contextmenu', (e)  => {
+            e.preventDefault()
+            return app.canvas._mousedown_callback(e)
+        }, true);
+        canvasEl.addEventListener('pointerdown', (e)  => {
+            e.preventDefault()
+            return app.canvas._mousedown_callback(e)
+        }, true);
+        canvasEl.addEventListener('mousewheel', (e)  => {
+            e.preventDefault()
+            return app.canvas._mousewheel_callback(e)
+        }, true);
+        canvasEl.addEventListener('pointermove', (e)  => {
+            e.preventDefault()
+            return app.canvas._mousemove_callback(e)
+        }, true);
+        canvasEl.addEventListener('pointerup', (e)  => {
+            e.preventDefault()
+            return app.canvas._mouseup_callback(e)
+        }, true);
+
         previewWidget.computeSize = function(width) {
             if (this.aspectRatio) {
                 let height = (previewNode.size[0]-20)/ this.aspectRatio + 10;
