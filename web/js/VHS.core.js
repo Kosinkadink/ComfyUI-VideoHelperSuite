@@ -420,6 +420,33 @@ function fitHeight(node) {
     node.setSize([node.size[0], node.computeSize([node.size[0], node.size[1]])[1]])
     node?.graph?.setDirtyCanvas(true);
 }
+function startDraggingItems(node, pointer) {
+    app.canvas.emitBeforeChange()
+    app.canvas.graph?.beforeChange()
+    // Ensure that dragging is properly cleaned up, on success or failure.
+    pointer.finally = () => {
+      app.canvas.isDragging = false
+      app.canvas.graph?.afterChange()
+      app.canvas.emitAfterChange()
+    }
+    app.canvas.processSelect(node, pointer.eDown, true)
+    app.canvas.isDragging = true
+}
+function processDraggedItems(e) {
+    if (e.shiftKey || LiteGraph.alwaysSnapToGrid)
+      app.graph?.snapToGrid(app.canvas.selectedItems)
+    app.canvas.dirty_canvas = true
+    app.canvas.dirty_bgcanvas = true
+    app.canvas.onNodeMoved?.(findFirstNode(app.canvas.selectedItems))
+}
+function allowDragFromWidget(widget) {
+    widget.onPointerDown = function(pointer, node) {
+        pointer.onDragStart = (pointer) => startDraggingItems(node, pointer)
+        pointer.onDragEnd = processDraggedItems
+        app.canvas.dirty_canvas = true
+        return true
+    }
+}
 
 async function uploadFile(file) {
     //TODO: Add uploaded file to cache with Cache.put()?
@@ -791,6 +818,7 @@ function addVideoPreview(nodeType, isInput=true) {
                 element.value = v;
             },
         });
+        allowDragFromWidget(previewWidget)
         previewWidget.computeSize = function(width) {
             if (this.aspectRatio && !this.parentEl.hidden) {
                 let height = (previewNode.size[0]-20)/ this.aspectRatio + 10;
@@ -2124,6 +2152,7 @@ api.addEventListener('VHS_latentpreview', ({ detail }) => {
             serialize: false,
             hideOnZoom: false,
         });
+        allowDragFromWidget(previewWidget)
         canvasEl.addEventListener('contextmenu', (e)  => {
             e.preventDefault()
             return app.canvas._mousedown_callback(e)
