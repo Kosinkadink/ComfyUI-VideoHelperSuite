@@ -213,7 +213,7 @@ def ffmpeg_frame_generator(video, force_rate, frame_load_cap, start_time,
         pre_seek = []
         post_seek = []
     args_all_frames = [ffmpeg_path, "-v", "error", "-an"] + pre_seek + \
-            ["-i", video, "-pix_fmt", "rgba" if alpha else "rgb24"] + post_seek
+            ["-i", video, "-pix_fmt", "rgba64le"] + post_seek
 
     vfilters = []
     if force_rate != 0:
@@ -243,7 +243,7 @@ def ffmpeg_frame_generator(video, force_rate, frame_load_cap, start_time,
     try:
         with subprocess.Popen(args_all_frames, stdout=subprocess.PIPE) as proc:
             #Manually buffer enough bytes for an image
-            bpi = size[0] * size[1] * (4 if alpha else 3)
+            bpi = size[0] * size[1] * 8
             current_bytes = bytearray(bpi)
             current_offset=0
             prev_frame = None
@@ -260,7 +260,9 @@ def ffmpeg_frame_generator(video, force_rate, frame_load_cap, start_time,
                     if prev_frame is not None:
                         yield prev_frame
                         pbar.update(1)
-                    prev_frame = np.array(current_bytes, dtype=np.float32).reshape(size[1], size[0], 4 if alpha else 3) / 255.0
+                    prev_frame = np.frombuffer(current_bytes, dtype=np.dtype(np.uint16).newbyteorder("<")).reshape(size[1], size[0], 4) / (2**16-1)
+                    if not alpha:
+                        prev_frame = prev_frame[:, :, :-1]
                     current_offset = 0
     except BrokenPipeError as e:
         raise Exception("An error occured in the ffmpeg subprocess:\n" \
