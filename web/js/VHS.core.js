@@ -923,11 +923,8 @@ function addVideoPreview(nodeType, isInput=true) {
                 || params.format == 'folder') {
 
                 this.videoEl.autoplay = !this.value.paused && !this.value.hidden;
-                let target_width = 256
-                if (previewWidget.element?.style?.width) {
-                    //overscale to allow scrolling. Endpoint won't return higher than native
-                    target_width = previewWidget.element.style.width.slice(0,-2)*2;
-                }
+                //overscale to allow scrolling. Endpoint won't return higher than native
+                let target_width = (previewNode.size[0]-20)*2 || 256;
                 let minWidth = app.ui.settings.getSettingValue("VHS.AdvancedPreviewsMinWidth")
                 if (target_width < minWidth) {
                     target_width = minWidth
