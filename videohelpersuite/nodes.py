@@ -369,11 +369,16 @@ class VideoCombine:
                 exif = Image.Exif()
                 exif[ExifTags.IFD.Exif] = {36867: datetime.datetime.now().isoformat(" ")[:19]}
                 image_kwargs['exif'] = exif
+                image_kwargs['lossless'] = True
             file = f"{filename}_{counter:05}.{format_ext}"
             file_path = os.path.join(full_output_folder, file)
             if pingpong:
                 images = to_pingpong(images)
-            frames = map(lambda x : Image.fromarray(tensor_to_bytes(x)), images)
+            def frames_gen(images):
+                for i in images:
+                    pbar.update(1)
+                    yield Image.fromarray(tensor_to_bytes(i))
+            frames = frames_gen(images)
             # Use pillow directly to save an animated image
             next(frames).save(
                 file_path,
