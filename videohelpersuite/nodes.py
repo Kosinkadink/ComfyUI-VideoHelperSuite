@@ -22,7 +22,8 @@ from .load_images_nodes import LoadImagesFromDirectoryUpload, LoadImagesFromDire
 from .batched_nodes import VAEEncodeBatched, VAEDecodeBatched
 from .utils import ffmpeg_path, get_audio, hash_path, validate_path, requeue_workflow, \
         gifski_path, calculate_file_hash, strip_path, try_download_video, is_url, \
-        imageOrLatent, BIGMAX, merge_filter_args, ENCODE_ARGS, floatOrInt, cached
+        imageOrLatent, BIGMAX, merge_filter_args, ENCODE_ARGS, floatOrInt, cached, \
+        ContainsAll
 from comfy.utils import ProgressBar
 
 if 'VHS_video_formats' not in folder_paths.folder_names_and_paths:
@@ -226,11 +227,11 @@ class VideoCombine:
                 "meta_batch": ("VHS_BatchManager",),
                 "vae": ("VAE",),
             },
-            "hidden": {
+            "hidden": ContainsAll({
                 "prompt": "PROMPT",
                 "extra_pnginfo": "EXTRA_PNGINFO",
                 "unique_id": "UNIQUE_ID"
-            },
+            }),
         }
 
     RETURN_TYPES = ("VHS_FILENAMES",)
@@ -396,22 +397,9 @@ class VideoCombine:
             if ffmpeg_path is None:
                 raise ProcessLookupError(f"ffmpeg is required for video outputs and could not be found.\nIn order to use video outputs, you must either:\n- Install imageio-ffmpeg with pip,\n- Place a ffmpeg executable in {os.path.abspath('')}, or\n- Install ffmpeg and add it to the system path.")
 
-            #Acquire additional format_widget values
-            if manual_format_widgets is None:
-                if prompt is not None:
-                    kwargs, passed_kwargs = prompt[unique_id]['inputs'], kwargs
-                    kwargs.update(passed_kwargs)
-                else:
-                    manual_format_widgets = {}
-            if kwargs is None:
-                missing = {}
-                for k in kwargs.keys():
-                    if k in manual_format_widgets:
-                        kwargs[k] = manual_format_widgets[k]
-                    else:
-                        missing[k] = kwargs[k]
-                if len(missing) > 0:
-                    logger.warn("Extra format values were not provided, the following defaults will be used: " + str(kwargs) + "\nThis is likely due to usage of ComfyUI-to-python. These values can be manually set by supplying a manual_format_widgets argument")
+            if manual_format_widgets is not None:
+                logger.warn("Format args can now be passed directly. The manual_format_widgets argument is now deprecated")
+                kwargs.update(manual_format_widgets)
 
             video_format = apply_format_widgets(format_ext, kwargs)
             has_alpha = first_image.shape[-1] == 4
