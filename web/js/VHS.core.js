@@ -130,7 +130,7 @@ function useKVState(nodeType) {
                         }
                     }
                     if (w.name in inputs && w.config) {
-                        setWidgetConfig(inputs[w.name], w.config, w)
+                        setWidgetConfig(inputs[w.name], w.config)
                     }
                 }
             } else {
@@ -1733,8 +1733,7 @@ app.registerExtension({
                             if (type == 'FLOAT') {
                                 type = "FLOAT,INT"
                             }
-                            const symbol = Object.getOwnPropertySymbols(options.widget)[0]
-                            options.widget[symbol] = () => widget.config
+                            setWidgetConfig(options, widget.config)
                         }
                     }
                     return originalAddInput.apply(this, [name, type, options])
