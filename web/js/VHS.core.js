@@ -1623,6 +1623,7 @@ function makeTimestamp(widget, inputData=["FLOAT",{"disable": 0}]) {
                 return val
             }
         },
+        callback(v) {},
         config: inputData,
         options: Object.assign({}, inputData[1], widget.options),
         displayValue() {
@@ -1641,7 +1642,11 @@ function makeTimestamp(widget, inputData=["FLOAT",{"disable": 0}]) {
                 }
                 display += minutes + ":"
             }
-            display += seconds.toFixed(4)
+            seconds = seconds.toFixed(4)
+            if (seconds[1] == '.') {
+                seconds = '0'+seconds
+            }
+            display += seconds
             return display
         }
     })
