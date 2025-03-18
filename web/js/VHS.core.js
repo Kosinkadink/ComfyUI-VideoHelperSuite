@@ -1172,7 +1172,18 @@ function addLoadCommon(nodeType, nodeData) {
         }
         const offsetWidget = this.widgets.find((w) => w.name === "start_time");
         if (offsetWidget) {
-            offsetWidget.options.step = 10
+            Object.defineProperty(offsetWidget.options, "step2", {
+                set : (value) => {},
+                get : () => {
+                    return 1 / (this.video_query?.loaded?.fps ?? 1)
+                }
+            })
+            Object.defineProperty(offsetWidget.options, "step", {
+                set : (value) => {},
+                get : () => {
+                    return 10 / (this.video_query?.loaded?.fps ?? 1)
+                }
+            })
         }
         let widgetMap = {'frame_load_cap': 'frame_load_cap',
             'skip_first_frames': 'skip_first_frames', 'select_every_nth': 'select_every_nth',
