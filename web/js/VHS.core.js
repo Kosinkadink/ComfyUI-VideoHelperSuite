@@ -1172,6 +1172,7 @@ function addLoadCommon(nodeType, nodeData) {
         }
         const offsetWidget = this.widgets.find((w) => w.name === "start_time");
         if (offsetWidget) {
+            makeTimestamp(offsetWidget)
             Object.defineProperty(offsetWidget.options, "step2", {
                 set : (value) => {},
                 get : () => {
@@ -1453,9 +1454,7 @@ function drawAnnotated(ctx, node, widget_width, y, H) {
     ctx.fillText(this.label || this.name, margin * 2 + 5, y + H * 0.7)
     ctx.fillStyle = litegraph_base.WIDGET_TEXT_COLOR
     ctx.textAlign = 'right'
-    const text = Number(this.value).toFixed(
-      this.options.precision !== undefined ? this.options.precision : 3
-    )
+    const text = this.displayValue()
     let value_offset = margin * 2 + 20
     if (this.options.unit) {
       ctx.save()
@@ -1538,12 +1537,12 @@ function mouseAnnotated(event, [x, y], node) {
     else if (event.type == 'pointerup') {
         if (event.click_time < 200 && delta == 0) {
             const d_callback = (v) => {
-                this.value = Number(v)
+                this.value = this.parseValue?.(v) ?? Number(v)
                 inner_value_change(this, this.value, node, [x, y])
             }
             const dialog = app.canvas.prompt(
                 'Value',
-                this.value,
+                this.value,//TODO: Consider making this displayValue?
                 d_callback,
                 event
             )
@@ -1599,7 +1598,52 @@ function makeAnnotated(widget, inputData) {
             this.value = Math.round((v - sh) / s) * s + sh
         },
         config: inputData,
+        displayValue: function() {
+            return Number(this.value).toFixed(this.options.precision !==
+                undefined ? this.options.precision : 3)
+        },
         options: Object.assign({},  inputData[1], widget.options)
+    })
+    return widget
+}
+function makeTimestamp(widget, inputData=["FLOAT",{"disable": 0}]) {
+    Object.assign(widget, {
+        type: "BOOLEAN",
+        draw: drawAnnotated,
+        mouse: mouseAnnotated,
+        computeSize(width) {
+            return [width, 20]
+        },
+        parseValue(v) {
+            if (typeof(v) == "string") {
+                let val = 0
+                for (let chunk of  v.split(":")) {
+                    val = val * 60 + parseFloat(chunk)
+                }
+                return val
+            }
+        },
+        config: inputData,
+        options: Object.assign({}, inputData[1], widget.options),
+        displayValue() {
+            let seconds = this.value
+            let hours = seconds / 3600 | 0
+            seconds -= 3600 * hours
+            let minutes = seconds / 60 | 0
+            seconds -= 60 * minutes
+            let display = ""
+            if (hours > 0) {
+                display += hours + ":"
+            }
+            if (hours > 0 || minutes > 0) {
+                if (hours > 0) {
+                    minutes = (''+minutes).padStart(2,'0')
+                }
+                display += minutes + ":"
+            }
+            display += seconds.toFixed(4)
+            return display
+        }
     })
     return widget
 }
@@ -1803,8 +1847,16 @@ app.registerExtension({
         } else if (nodeData?.name == "VHS_LoadAudioUpload") {
             addUploadWidget(nodeType, nodeData, "audio", "audio");
             applyVHSAudioLinksFix(nodeType, nodeData, 0)
+            chainCallback(nodeType.prototype, "onNodeCreated", function() {
+                const w = this.widgets.find((w) => w.name === "start_time");
+                makeTimestamp(w)
+            })
         } else if (nodeData?.name == "VHS_LoadAudio"){
             applyVHSAudioLinksFix(nodeType, nodeData, 0)
+            chainCallback(nodeType.prototype, "onNodeCreated", function() {
+                const w = this.widgets.find((w) => w.name === "seek_seconds");
+                makeTimestamp(w)
+            })
         } else if (nodeData?.name == "VHS_LoadVideoPath" || nodeData?.name == "VHS_LoadVideoFFmpegPath") {
             chainCallback(nodeType.prototype, "onNodeCreated", function() {
                 const pathWidget = this.widgets.find((w) => w.name === "video");
@@ -2020,7 +2072,11 @@ app.registerExtension({
             VHSINT(node, inputName, inputData) {
                 let w = app.widgets.INT(node, inputName, inputData, app)
                 return makeAnnotated(w, inputData);
-            }
+            },
+            VHSTIMESTAMP(node, inputName, inputData) {
+                let w = app.widgets.FLOAT(node, inputName, inputData, app)
+                return makeTimestamp(w, inputData)
+            },
         }
     },
     async loadedGraphNode(node) {
