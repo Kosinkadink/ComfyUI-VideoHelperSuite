@@ -209,6 +209,7 @@ class VideoCombine:
     @classmethod
     def INPUT_TYPES(s):
         ffmpeg_formats, format_widgets = get_video_formats()
+        format_widgets["image/webp"] = [['lossless', "BOOLEAN", {'default': True}]]
         return {
             "required": {
                 "images": (imageOrLatent,),
@@ -370,7 +371,7 @@ class VideoCombine:
                 exif = Image.Exif()
                 exif[ExifTags.IFD.Exif] = {36867: datetime.datetime.now().isoformat(" ")[:19]}
                 image_kwargs['exif'] = exif
-                image_kwargs['lossless'] = True
+                image_kwargs['lossless'] = kwargs.get("lossless", True)
             file = f"{filename}_{counter:05}.{format_ext}"
             file_path = os.path.join(full_output_folder, file)
             if pingpong:
