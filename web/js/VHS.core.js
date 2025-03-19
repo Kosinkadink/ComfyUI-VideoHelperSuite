@@ -685,7 +685,6 @@ function initializeLoadFormat(nodeType, nodeData) {
 
         });
         let capWidget = this.widgets.find((w) => w.name === "frame_load_cap")
-        let previewWidget = this.widgets.find((w) => w.name === "videopreview")
         capWidget.annotation = (value, width) => {
             let max_frames = this.video_query?.loaded?.frames
             if (!max_frames || value && value < max_frames) {
@@ -699,6 +698,12 @@ function initializeLoadFormat(nodeType, nodeData) {
                 loadable_frames = ((max_frames - mod)/div|0) * div + mod
             }
             return loadable_frames + "\u21FD"
+        }
+        let rateWidget = this.widgets.find((w) => w.name === "force_rate")
+        rateWidget.annotation = (value, width) => {
+            if (value == 0 && this.video_query?.source?.fps != undefined) {
+                return this.video_query.source.fps + "\u21FD"
+            }
         }
     });
 }
