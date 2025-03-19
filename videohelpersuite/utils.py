@@ -55,6 +55,12 @@ class MultiInput(str):
 imageOrLatent = MultiInput("IMAGE", ["IMAGE", "LATENT"])
 floatOrInt = MultiInput("FLOAT", ["FLOAT", "INT"])
 
+class ContainsAll(dict):
+    def __contains__(self, other):
+        return True
+    def __getitem__(self, key):
+        return super().get(key, (None, {}))
+
 if "VHS_FORCE_FFMPEG_PATH" in os.environ:
     ffmpeg_path = os.environ.get("VHS_FORCE_FFMPEG_PATH")
 else:
