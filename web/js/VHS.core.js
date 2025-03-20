@@ -1648,7 +1648,7 @@ function makeTimestamp(widget, inputData=["FLOAT",{"disable": 0}]) {
                 display += minutes + ":"
             }
             seconds = seconds.toFixed(4)
-            if (seconds[1] == '.') {
+            if (seconds[1] == '.' && (minutes > 0 || hours > 0)) {
                 seconds = '0'+seconds
             }
             display += seconds
