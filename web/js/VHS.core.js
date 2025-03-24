@@ -480,7 +480,7 @@ async function uploadFile(file) {
 function applyVHSAudioLinksFix(nodeType, nodeData, audio_slot) {
     chainCallback(nodeType.prototype, "onConnectionsChange", function(contype, slot, iscon, linfo) {
         if (contype == LiteGraph.OUTPUT && slot == audio_slot) {
-            if (linfo.type == "VHS_AUDIO") {
+            if (linfo?.type == "VHS_AUDIO") {
                 this.outputs[audio_slot].type = "AUDIO"
                 let tnode = app.graph._nodes_by_id[linfo.target_id]
                 let inputDef = LiteGraph.registered_node_types[tnode.type]?.nodeData?.input
