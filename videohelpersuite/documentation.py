@@ -572,6 +572,16 @@ descriptions = {
          'Filename': 'A string representing a file path to the most recently modified file.',
         },
     }],
+  "VHS_ExecutionBlocker": ['Execution Blocker 🎥🅥🅗🅢', short_desc('"Pause" execution when reached'),
+    "Nodes after won't execute unless nodes before are cached.",
+    '<div style="color:#E88">Not compatible with nodes that mark themselves always stale!</div>',
+    {'Inputs': {
+        'input': 'The input to block on',
+        },
+     'Outputs': {
+         'output': 'The unchanged input ',
+        },
+    }],
 }
 
 def as_html(entry, depth=0):

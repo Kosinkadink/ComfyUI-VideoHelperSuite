@@ -13,6 +13,8 @@ from pathlib import Path
 from string import Template
 import itertools
 import functools
+import weakref
+
 
 import folder_paths
 from .logger import logger
@@ -25,6 +27,7 @@ from .utils import ffmpeg_path, get_audio, hash_path, validate_path, requeue_wor
         imageOrLatent, BIGMAX, merge_filter_args, ENCODE_ARGS, floatOrInt, cached, \
         ContainsAll
 from comfy.utils import ProgressBar
+import comfy_execution.graph
 
 if 'VHS_video_formats' not in folder_paths.folder_names_and_paths:
     folder_paths.folder_names_and_paths["VHS_video_formats"] = ((),{".json"})
@@ -927,10 +930,12 @@ class SelectFilename:
 
     def select_filename(self, filenames, index):
         return (filenames[1][index],)
+
+class Any(str):
+    def __ne__(self, other):
+        return False
+
 class Unbatch:
-    class Any(str):
-        def __ne__(self, other):
-            return False
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"batched": ("*",)}}
@@ -948,9 +953,6 @@ class Unbatch:
             out.pop('batch_index', None)
             return (out,)
         return (functools.reduce(lambda x,y: x+y, batched),)
-    @classmethod
-    def VALIDATE_INPUTS(cls, input_types):
-        return True
 class SelectLatest:
     @classmethod
     def INPUT_TYPES(s):
@@ -964,6 +966,40 @@ class SelectLatest:
 
     def select_latest(self, filename_prefix, filename_postfix):
         assert False, "Not Reachable"
+class ExecutionBlocker:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"input": (Any("*"),)}, "hidden": {"updated": ("hidden",)}}
+    RETURN_TYPES = (Any('*'),)
+    RETURN_NAMES =("ouput",)
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
+    FUNCTION = "block_execution"
+    EXPERIMENTAL = True
+
+    def __init__(self):
+        self.updated = 1
+        self.prev = object()
+    def block_execution(self, input, updated=None):
+        if isinstance(self.prev, weakref.ReferenceType):
+            input_changed = self.prev() is not input
+        else:
+            input_changed = self.prev is not input
+        if updated == self.updated and not input_changed:
+            return input,
+        if isinstance(input, dict):
+            if 'samples' in input:
+                input = input['samples']
+            elif 'waveform' in input:
+                input = input['waveform']
+        if input_changed:
+            self.updated += 1
+            try:
+                self.prev = weakref.ref(input)
+            except TypeError as e:
+                logger.info("Storing strong ref for %s", type(input))
+                self.prev = input
+        return {"ui": {"updated": [self.updated]}, "result":
+                (comfy_execution.graph.ExecutionBlocker(None),)}
 
 NODE_CLASS_MAPPINGS = {
     "VHS_VideoCombine": VideoCombine,
@@ -1008,6 +1044,7 @@ NODE_CLASS_MAPPINGS = {
     "VHS_SelectMasks": SelectMasks,
     "VHS_Unbatch": Unbatch,
     "VHS_SelectLatest": SelectLatest,
+    "VHS_ExecutionBlocker": ExecutionBlocker,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_VideoCombine": "Video Combine 🎥🅥🅗🅢",
@@ -1052,4 +1089,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_SelectMasks": "Select Masks 🎥🅥🅗🅢",
     "VHS_Unbatch":  "Unbatch 🎥🅥🅗🅢",
     "VHS_SelectLatest": "Select Latest 🎥🅥🅗🅢",
+    "VHS_ExecutionBlocker": "Execution Blocker 🎥🅥🅗🅢",
 }

@@ -1945,6 +1945,18 @@ app.registerExtension({
             });
         } else if (nodeData?.name == "VHS_Unbatch") {
             cloneType(nodeType, nodeData)
+        } else if (nodeData?.name == "VHS_ExecutionBlocker") {
+            cloneType(nodeType, nodeData)
+            chainCallback(nodeType.prototype, "onNodeCreated", function() {
+                const hiddenWidget = {name: 'updated', type: 'VHS.HIDDEN', value: -1,
+                    options: {}, computeSize: (width) => [width, -4]}
+                this.widgets = [hiddenWidget]
+                chainCallback(this, "onExecuted", function(message) {
+                    if (message?.updated) {
+                        hiddenWidget.value = message.updated[0]
+                    }
+                });
+            })
         } else if (nodeData?.name == "VHS_SelectLatest") {
             chainCallback(nodeType.prototype, "onNodeCreated", function() {
                 this.isVirtualNode = true
