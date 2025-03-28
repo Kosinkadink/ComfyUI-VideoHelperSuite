@@ -944,30 +944,36 @@ function addVideoPreview(nodeType, isInput=true) {
             }
             let params =  {}
             let advp = app.ui.settings.getSettingValue("VHS.AdvancedPreviews")
+            if (advp == 'Never') {
+                advp = false
+            } else if (advp == 'Input Only') {
+                advp = isInput
+            } else {
+                advp = true
+            }
             Object.assign(params, this.value.params);//shallow copy
             params.timestamp = Date.now()
             this.parentEl.hidden = this.value.hidden;
             if (params.format?.split('/')[0] == 'video'
-                || advp != 'Never' && (params.format?.split('/')[1] == 'gif')
+                || advp && (params.format?.split('/')[1] == 'gif')
                 || params.format == 'folder') {
 
                 this.videoEl.autoplay = !this.value.paused && !this.value.hidden;
-                //overscale to allow scrolling. Endpoint won't return higher than native
-                let target_width = (previewNode.size[0]-20)*2 || 256;
-                let minWidth = app.ui.settings.getSettingValue("VHS.AdvancedPreviewsMinWidth")
-                if (target_width < minWidth) {
-                    target_width = minWidth
-                }
-                if (!params.custom_width || !params.custom_height) {
-                    params.force_size = target_width+"x?"
-                } else {
-                    let ar = params.custom_width/params.custom_height
-                    params.force_size = target_width+"x"+(target_width/ar)
-                }
-                params.deadline = app.ui.settings.getSettingValue("VHS.AdvancedPreviewsDeadline")
-                if (advp == 'Never' || advp == 'Input Only' && !isInput) {
+                if (!advp) {
                     this.videoEl.src = api.apiURL('/view?' + new URLSearchParams(params));
                 } else {
+                    let target_width = (previewNode.size[0]-20)*2 || 256;
+                    let minWidth = app.ui.settings.getSettingValue("VHS.AdvancedPreviewsMinWidth")
+                    if (target_width < minWidth) {
+                        target_width = minWidth
+                    }
+                    if (!params.custom_width || !params.custom_height) {
+                        params.force_size = target_width+"x?"
+                    } else {
+                        let ar = params.custom_width/params.custom_height
+                        params.force_size = target_width+"x"+(target_width/ar)
+                    }
+                    params.deadline = app.ui.settings.getSettingValue("VHS.AdvancedPreviewsDeadline")
                     this.videoEl.src = api.apiURL('/vhs/viewvideo?' + new URLSearchParams(params));
                 }
                 this.videoEl.hidden = false;
