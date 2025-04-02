@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-videohelpersuite"
 description = "Nodes related to video workflows"
-version = "1.5.14"
+version = "1.5.15"
 license = { file = "LICENSE" }
 dependencies = ["opencv-python", "imageio-ffmpeg"]
 
