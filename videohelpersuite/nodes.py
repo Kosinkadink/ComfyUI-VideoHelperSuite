@@ -459,7 +459,7 @@ class VideoCombine:
                     # because the input data is in RGB (not YUV) it is more efficient (fewer scale filter invocations)
                     # to specify the input color space as RGB and then later, if the format actually wants YUV,
                     # to convert it to BT.709 YUV via FFmpeg's -vf "scale=out_color_matrix=bt709".
-                    "-color_range", "full", "-colorspace", "rgb", "-color_primaries", "bt709",
+                    "-color_range", "pc", "-colorspace", "rgb", "-color_primaries", "bt709",
                     "-color_trc", video_format.get("fake_trc", "iec61966-2-1"),
                     "-s", f"{dimensions[0]}x{dimensions[1]}", "-r", str(frame_rate), "-i", "-"] \
                     + loop_args
@@ -490,8 +490,8 @@ class VideoCombine:
                 args = args[:13] + video_format['inputs_main_pass'] + args[13:]
 
             if output_process is None:
-                format = 'image/gif'
                 if 'gifski_pass' in video_format:
+                    format = 'image/gif'
                     output_process = gifski_process(args, dimensions, video_format, file_path, env)
                 else:
                     args += video_format['main_pass'] + bitrate_arg
