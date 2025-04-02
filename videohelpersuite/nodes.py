@@ -165,12 +165,13 @@ def ffmpeg_process(args, video_format, video_metadata, file_path, env):
     if len(res) > 0:
         print(res.decode(*ENCODE_ARGS), end="", file=sys.stderr)
 
-def gifski_process(args, video_format, file_path, env):
+def gifski_process(args, dimensions, video_format, file_path, env):
     frame_data = yield
     with subprocess.Popen(args + video_format['main_pass'] + ['-f', 'yuv4mpegpipe', '-'],
                           stderr=subprocess.PIPE, stdin=subprocess.PIPE,
                           stdout=subprocess.PIPE, env=env) as procff:
         with subprocess.Popen([gifski_path] + video_format['gifski_pass']
+                              + ['-W', f'{dimensions[0]}', '-H', f'{dimensions[1]}']
                               + ['-q', '-o', file_path, '-'], stderr=subprocess.PIPE,
                               stdin=procff.stdout, stdout=subprocess.PIPE,
                               env=env) as procgs:
@@ -417,12 +418,11 @@ class VideoCombine:
                     padded = padfunc(image.to(dtype=torch.float32))
                     return padded.permute((1,2,0))
                 images = map(pad, images)
-                new_dims = (-first_image.shape[1] % dim_alignment + first_image.shape[1],
-                            -first_image.shape[0] % dim_alignment + first_image.shape[0])
-                dimensions = f"{new_dims[0]}x{new_dims[1]}"
+                dimensions = (-first_image.shape[1] % dim_alignment + first_image.shape[1],
+                              -first_image.shape[0] % dim_alignment + first_image.shape[0])
                 logger.warn("Output images were not of valid resolution and have had padding applied")
             else:
-                dimensions = f"{first_image.shape[1]}x{first_image.shape[0]}"
+                dimensions = (first_image.shape[1], first_image.shape[0])
             if loop_count > 0:
                 loop_args = ["-vf", "loop=loop=" + str(loop_count)+":size=" + str(num_frames)]
             else:
@@ -450,7 +450,7 @@ class VideoCombine:
             if bitrate is not None:
                 bitrate_arg = ["-b:v", str(bitrate) + "M" if video_format.get('megabit') == 'True' else str(bitrate) + "K"]
             args = [ffmpeg_path, "-v", "error", "-f", "rawvideo", "-pix_fmt", i_pix_fmt,
-                    "-s", dimensions, "-r", str(frame_rate), "-i", "-"] \
+                    "-s", f"{dimensions[0]}x{dimensions[1]}", "-r", str(frame_rate), "-i", "-"] \
                     + loop_args
 
             images = map(lambda x: x.tobytes(), images)
@@ -480,7 +480,7 @@ class VideoCombine:
 
             if output_process is None:
                 if 'gifski_pass' in video_format:
-                    output_process = gifski_process(args, video_format, file_path, env)
+                    output_process = gifski_process(args, dimensions, video_format, file_path, env)
                 else:
                     args += video_format['main_pass'] + bitrate_arg
                     merge_filter_args(args)
