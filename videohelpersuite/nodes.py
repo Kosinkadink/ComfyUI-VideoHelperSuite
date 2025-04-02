@@ -490,6 +490,7 @@ class VideoCombine:
                 args = args[:13] + video_format['inputs_main_pass'] + args[13:]
 
             if output_process is None:
+                format = 'image/gif'
                 if 'gifski_pass' in video_format:
                     output_process = gifski_process(args, dimensions, video_format, file_path, env)
                 else:
