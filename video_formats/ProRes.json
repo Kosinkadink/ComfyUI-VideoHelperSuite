@@ -3,7 +3,8 @@
     [
         "-n", "-c:v", "prores_ks",
         "-profile:v", ["profile",["1","2","3","4"], {"default": "3"}],
-        "-vf", "scale=out_color_matrix=bt709"
+        "-vf", "scale=out_color_matrix=bt709",
+        "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709"
     ],
     "fake_trc": "bt709",
     "audio_pass": ["-c:a", "pcm_s16le"],
