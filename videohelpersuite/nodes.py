@@ -464,6 +464,17 @@ class VideoCombine:
                     "-s", f"{dimensions[0]}x{dimensions[1]}", "-r", str(frame_rate), "-i", "-"] \
                     + loop_args
 
+            if video_format.get("name") == "ProRes":
+                o_pix_fmt = "yuv422p10le"
+                profile_idx = video_format["main_pass"].index("-profile:v")
+                profile = video_format["main_pass"][profile_idx+1]
+                if profile in ("4", "4444", "5", "4444xq"):
+                    if has_alpha:
+                        o_pix_fmt = "yuva444p10le"
+                    else:
+                        o_pix_fmt = "yuv444p10le"
+                args += ["-pix_fmt", o_pix_fmt]
+
             images = map(lambda x: x.tobytes(), images)
             env=os.environ.copy()
             if  "environment" in video_format:

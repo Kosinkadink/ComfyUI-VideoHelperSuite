@@ -1,9 +1,10 @@
 {
+	"name": "ProRes",
     "main_pass":
     [
         "-n", "-c:v", "prores_ks",
-        "-profile:v", ["profile",["1","2","3","4"], {"default": "3"}],
-        "-vf", "scale=out_color_matrix=bt709",
+        "-profile:v", ["profile", ["lt", "standard", "hq", "4444", "4444xq"], {"default": "hq"}],
+        "-vf", "scale=out_color_matrix=bt709,setparams=colorspace=bt709",
         "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709"
     ],
     "fake_trc": "bt709",
