@@ -1185,9 +1185,9 @@ function addLoadCommon(nodeType, nodeData) {
         //widget.callback adds unused arguements which need culling
         const node = this
         function update(key) {
-            return (value) => {
+            return function(value) {
                 let params = {}
-                params[key] = value
+                params[key] = this.value
                 node?.updateParameters(params)
             }
         }

@@ -71,7 +71,7 @@ async def view_video(request):
     start_time = 0
     if 'start_time' in query:
         start_time = float(query['start_time'])
-    elif int(query.get('skip_first_frames', 0)) > 0:
+    elif float(query.get('skip_first_frames', 0)) > 0:
         start_time = float(query.get('skip_first_frames'))/target_rate
         if start_time > 1/modified_rate:
             start_time += 1/modified_rate
@@ -87,7 +87,7 @@ async def view_video(request):
         post_seek = []
 
     args = [ffmpeg_path, "-v", "error"] + pre_seek + in_args + post_seek
-    if int(query.get('force_rate',0)) != 0:
+    if target_rate != 0:
         args += ['-r', str(modified_rate)]
     if query.get('force_size','Disabled') != "Disabled":
         size = query['force_size'].split('x')
@@ -103,8 +103,8 @@ async def view_video(request):
         vfilters.append(f"scale={size}")
     if len(vfilters) > 0:
         args += ["-vf", ",".join(vfilters)]
-    if int(query.get('frame_load_cap', 0)) > 0:
-        args += ["-frames:v", query['frame_load_cap']]
+    if float(query.get('frame_load_cap', 0)) > 0:
+        args += ["-frames:v", query['frame_load_cap'].split('.')[0]]
     #TODO:reconsider adding high frame cap/setting default frame cap on node
     if query.get('deadline', 'realtime') == 'good':
         deadline = 'good'
