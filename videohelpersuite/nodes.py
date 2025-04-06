@@ -956,7 +956,10 @@ class Unbatch:
             return (torch.cat(batched),)
         if isinstance(batched[0], dict):
             out = batched[0].copy()
-            out['samples'] = torch.cat([x['samples'] for x in batched])
+            if 'samples' in out:
+                out['samples'] = torch.cat([x['samples'] for x in batched])
+            if 'waveform' in out:
+                out['waveform'] = torch.cat([x['waveform'] for x in batched])
             out.pop('batch_index', None)
             return (out,)
         return (functools.reduce(lambda x,y: x+y, batched),)
