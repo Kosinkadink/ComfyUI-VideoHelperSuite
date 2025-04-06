@@ -478,7 +478,8 @@ class VideoCombine:
                     raise Exception("Formats which require a pre_pass are incompatible with Batch Manager.")
                 images = [b''.join(images)]
                 os.makedirs(folder_paths.get_temp_directory(), exist_ok=True)
-                pre_pass_args = args[:13] + video_format['pre_pass']
+                in_args_len = args.index("-i") + 2 # The index after ["-i", "-"]
+                pre_pass_args = args[:in_args_len] + video_format['pre_pass']
                 merge_filter_args(pre_pass_args)
                 try:
                     subprocess.run(pre_pass_args, input=images[0], env=env,
@@ -487,7 +488,8 @@ class VideoCombine:
                     raise Exception("An error occurred in the ffmpeg prepass:\n" \
                             + e.stderr.decode(*ENCODE_ARGS))
             if "inputs_main_pass" in video_format:
-                args = args[:13] + video_format['inputs_main_pass'] + args[13:]
+                in_args_len = args.index("-i") + 2 # The index after ["-i", "-"]
+                args = args[:in_args_len] + video_format['inputs_main_pass'] + args[in_args_len:]
 
             if output_process is None:
                 if 'gifski_pass' in video_format:
