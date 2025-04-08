@@ -32,17 +32,44 @@ if len(folder_paths.folder_names_and_paths['VHS_video_formats'][1]) == 0:
     folder_paths.folder_names_and_paths["VHS_video_formats"][1].add(".json")
 audio_extensions = ['mp3', 'mp4', 'wav', 'ogg']
 
-def gen_format_widgets(video_format):
+def is_extended_widget_value(obj):
+    return isinstance(obj, dict) and "value" in obj
+
+def strip_format_widget_extensions(options):
+    stripped = []
+    for opt in options:
+        if is_extended_widget_value(opt):
+            stripped.append(opt["value"])
+        else:
+            stripped.append(opt)
+    return stripped
+
+def apply_format_values(video_format, values):
+    for k, v in values.items():
+        for vfk in video_format:
+            if not vfk.endswith("_pass"):
+                continue
+            try:
+                idx = video_format[vfk].index(k)
+                video_format[vfk][idx+1] = v
+            except ValueError:
+                pass
+
+def gen_format_widgets(video_format, strip_extensions):
     for k in video_format:
         if k.endswith("_pass"):
             for i in range(len(video_format[k])):
                 if isinstance(video_format[k][i], list):
                     item = [video_format[k][i]]
+                    if strip_extensions and isinstance(item[0][1], list):
+                        item[0][1] = strip_format_widget_extensions(item[0][1])
                     yield item
                     video_format[k][i] = item[0]
         else:
             if isinstance(video_format[k], list):
                 item = [video_format[k]]
+                if strip_extensions and isinstance(item[0][1], list):
+                    item[0][1] = strip_format_widget_extensions(item[0][1])
                 yield item
                 video_format[k] = item[0]
 
@@ -64,35 +91,50 @@ def get_video_formats():
         if "gifski_pass" in video_format and gifski_path is None:
             #Skip format
             continue
-        widgets = [w[0] for w in gen_format_widgets(video_format)]
+        widgets = [w[0] for w in gen_format_widgets(video_format, True)]
         formats.append("video/" + format_name)
         if (len(widgets) > 0):
             format_widgets["video/"+ format_name] = widgets
     return formats, format_widgets
 
-def apply_format_widgets(format_name, kwargs):
+def apply_format_widgets(format_name, kwargs, has_alpha):
     if os.path.exists(os.path.join(base_formats_dir, format_name + ".json")):
         video_format_path = os.path.join(base_formats_dir, format_name + ".json")
     else:
         video_format_path = folder_paths.get_full_path("VHS_video_formats", format_name)
     with open(video_format_path, 'r') as stream:
         video_format = json.load(stream)
-    for w in gen_format_widgets(video_format):
+    values = {}
+    for w in gen_format_widgets(video_format, False):
         if w[0][0] not in kwargs:
             if len(w[0]) > 2 and 'default' in w[0][2]:
                 default = w[0][2]['default']
             else:
                 if type(w[0][1]) is list:
-                    default = w[0][1][0]
+                    if is_extended_widget_value(w[0][1][0]):
+                        default = w[0][1][0]["value"]
+                    else:
+                        default = w[0][1][0]
                 else:
                     #NOTE: This doesn't respect max/min, but should be good enough as a fallback to a fallback to a fallback
                     default = {"BOOLEAN": False, "INT": 0, "FLOAT": 0, "STRING": ""}[w[0][1]]
             kwargs[w[0][0]] = default
             logger.warn(f"Missing input for {w[0][0]} has been set to {default}")
+        value = kwargs[w[0][0]]
+        if isinstance(w[0][1], list):
+            for opt in w[0][1]:
+                if is_extended_widget_value(opt) and opt["value"] == value:
+                    for effect in opt.get("effects", ()):
+                        active = ((has_alpha and effect.get("cond") == "has_alpha") or
+                                 (not has_alpha and effect.get("cond") == "no_alpha"))
+                        if active and "param" in effect and "value" in effect:
+                            values[effect["param"]] = effect["value"]
+                    break
         if len(w[0]) > 3:
-            w[0] = Template(w[0][3]).substitute(val=kwargs[w[0][0]])
+            w[0] = Template(w[0][3]).substitute(val=value)
         else:
-            w[0] = str(kwargs[w[0][0]])
+            w[0] = str(value)
+    apply_format_values(video_format, values)
     return video_format
 
 def tensor_to_int(tensor, bits):
@@ -403,8 +445,8 @@ class VideoCombine:
                 logger.warn("Format args can now be passed directly. The manual_format_widgets argument is now deprecated")
                 kwargs.update(manual_format_widgets)
 
-            video_format = apply_format_widgets(format_ext, kwargs)
             has_alpha = first_image.shape[-1] == 4
+            video_format = apply_format_widgets(format_ext, kwargs, has_alpha)
             dim_alignment = video_format.get("dim_alignment", 2)
             if (first_image.shape[1] % dim_alignment) or (first_image.shape[0] % dim_alignment):
                 #output frames must be padded
@@ -463,17 +505,6 @@ class VideoCombine:
                     "-color_trc", video_format.get("fake_trc", "iec61966-2-1"),
                     "-s", f"{dimensions[0]}x{dimensions[1]}", "-r", str(frame_rate), "-i", "-"] \
                     + loop_args
-
-            if video_format.get("name") == "ProRes":
-                o_pix_fmt = "yuv422p10le"
-                profile_idx = video_format["main_pass"].index("-profile:v")
-                profile = video_format["main_pass"][profile_idx+1]
-                if profile in ("4", "4444", "5", "4444xq"):
-                    if has_alpha:
-                        o_pix_fmt = "yuva444p10le"
-                    else:
-                        o_pix_fmt = "yuv444p10le"
-                args += ["-pix_fmt", o_pix_fmt]
 
             images = map(lambda x: x.tobytes(), images)
             env=os.environ.copy()

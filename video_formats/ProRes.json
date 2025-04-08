@@ -1,9 +1,34 @@
 {
-	"name": "ProRes",
     "main_pass":
     [
         "-n", "-c:v", "prores_ks",
-        "-profile:v", ["profile", ["lt", "standard", "hq", "4444", "4444xq"], {"default": "hq"}],
+        "-pix_fmt", "yuv422p10le",
+        "-profile:v",
+        [
+            "profile",
+            [
+                "lt",
+                "standard",
+                "hq",
+                {
+                    "value": "4444",
+                    "effects":
+                    [
+                        {"param": "-pix_fmt", "value": "yuva444p10le", "cond": "has_alpha"},
+                        {"param": "-pix_fmt", "value": "yuv444p10le", "cond": "no_alpha"}
+                    ]
+                },
+                {
+                    "value": "4444xq",
+                    "effects":
+                    [
+                        {"param": "-pix_fmt", "value": "yuva444p10le", "cond": "has_alpha"},
+                        {"param": "-pix_fmt", "value": "yuv444p10le", "cond": "no_alpha"}
+                    ]
+                }
+            ],
+            {"default": "hq"}
+        ],
         "-vf", "scale=out_color_matrix=bt709,setparams=colorspace=bt709",
         "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709"
     ],
