@@ -32,19 +32,24 @@ if len(folder_paths.folder_names_and_paths['VHS_video_formats'][1]) == 0:
     folder_paths.folder_names_and_paths["VHS_video_formats"][1].add(".json")
 audio_extensions = ['mp3', 'mp4', 'wav', 'ogg']
 
-def gen_format_widgets(video_format):
+def iterate_format(video_format, for_widgets=True):
+    """Provides an iterator over widgets, or arguments"""
+    def indirector(cont, index):
+        if isinstance(cont[index], list) and (not for_widgets
+          or len(cont[index])> 1 and not isinstance(cont[index][1], dict)):
+            inp = yield cont[index]
+            if inp is not None:
+                cont[index] = inp
+                yield
     for k in video_format:
-        if k.endswith("_pass"):
+        if k == "extra_widgets":
+            if for_widgets:
+                yield from video_format["extra_widgets"]
+        elif k.endswith("_pass"):
             for i in range(len(video_format[k])):
-                if isinstance(video_format[k][i], list):
-                    item = [video_format[k][i]]
-                    yield item
-                    video_format[k][i] = item[0]
+                yield from indirector(video_format[k], i)
         else:
-            if isinstance(video_format[k], list):
-                item = [video_format[k]]
-                yield item
-                video_format[k] = item[0]
+            yield from indirector(video_format, k)
 
 base_formats_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "video_formats")
 @cached(5)
@@ -64,7 +69,7 @@ def get_video_formats():
         if "gifski_pass" in video_format and gifski_path is None:
             #Skip format
             continue
-        widgets = [w[0] for w in gen_format_widgets(video_format)]
+        widgets = list(iterate_format(video_format))
         formats.append("video/" + format_name)
         if (len(widgets) > 0):
             format_widgets["video/"+ format_name] = widgets
@@ -77,22 +82,30 @@ def apply_format_widgets(format_name, kwargs):
         video_format_path = folder_paths.get_full_path("VHS_video_formats", format_name)
     with open(video_format_path, 'r') as stream:
         video_format = json.load(stream)
-    for w in gen_format_widgets(video_format):
-        if w[0][0] not in kwargs:
-            if len(w[0]) > 2 and 'default' in w[0][2]:
-                default = w[0][2]['default']
+    for w in iterate_format(video_format):
+        if w[0] not in kwargs:
+            if len(w) > 2 and 'default' in w[2]:
+                default = w[2]['default']
             else:
-                if type(w[0][1]) is list:
-                    default = w[0][1][0]
+                if type(w[1]) is list:
+                    default = w[1][0]
                 else:
                     #NOTE: This doesn't respect max/min, but should be good enough as a fallback to a fallback to a fallback
-                    default = {"BOOLEAN": False, "INT": 0, "FLOAT": 0, "STRING": ""}[w[0][1]]
-            kwargs[w[0][0]] = default
+                    default = {"BOOLEAN": False, "INT": 0, "FLOAT": 0, "STRING": ""}[w[1]]
+            kwargs[w[0]] = default
             logger.warn(f"Missing input for {w[0][0]} has been set to {default}")
-        if len(w[0]) > 3:
-            w[0] = Template(w[0][3]).substitute(val=kwargs[w[0][0]])
-        else:
-            w[0] = str(kwargs[w[0][0]])
+    wit = iterate_format(video_format, False)
+    for w in wit:
+        while isinstance(w, list):
+            if len(w) == 1:
+                w = Template(w[0]).substitute(**kwargs)
+            elif isinstance(w[1], dict):
+                w = w[1][str(kwargs[w[0]])]
+            elif len(w) > 3:
+                w = Template(w[3]).substitute(val=kwargs[w[0]])
+            else:
+                w = str(kwargs[w[0]])
+        wit.send(w)
     return video_format
 
 def tensor_to_int(tensor, bits):
@@ -403,8 +416,9 @@ class VideoCombine:
                 logger.warn("Format args can now be passed directly. The manual_format_widgets argument is now deprecated")
                 kwargs.update(manual_format_widgets)
 
-            video_format = apply_format_widgets(format_ext, kwargs)
             has_alpha = first_image.shape[-1] == 4
+            kwargs["has_alpha"] = has_alpha
+            video_format = apply_format_widgets(format_ext, kwargs)
             dim_alignment = video_format.get("dim_alignment", 2)
             if (first_image.shape[1] % dim_alignment) or (first_image.shape[0] % dim_alignment):
                 #output frames must be padded
