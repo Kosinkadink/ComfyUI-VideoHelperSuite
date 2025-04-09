@@ -919,7 +919,7 @@ function addVideoPreview(nodeType, isInput=true) {
         var timeout = null;
         this.updateParameters = (params, force_update) => {
             if (!previewWidget.value.params) {
-                if(typeof(previewWidget.value != 'object')) {
+                if(typeof(previewWidget.value) != 'object') {
                     previewWidget.value =  {hidden: false, paused: false}
                 }
                 previewWidget.value.params = {}
