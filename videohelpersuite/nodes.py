@@ -32,6 +32,15 @@ if len(folder_paths.folder_names_and_paths['VHS_video_formats'][1]) == 0:
     folder_paths.folder_names_and_paths["VHS_video_formats"][1].add(".json")
 audio_extensions = ['mp3', 'mp4', 'wav', 'ogg']
 
+def flatten_list(l):
+    ret = []
+    for e in l:
+        if isinstance(e, list):
+            ret.extend(e)
+        else:
+            ret.append(e)
+    return ret
+
 def iterate_format(video_format, for_widgets=True):
     """Provides an iterator over widgets, or arguments"""
     def indirector(cont, index):
@@ -48,6 +57,8 @@ def iterate_format(video_format, for_widgets=True):
         elif k.endswith("_pass"):
             for i in range(len(video_format[k])):
                 yield from indirector(video_format[k], i)
+            if not for_widgets:
+                video_format[k] = flatten_list(video_format[k])
         else:
             yield from indirector(video_format, k)
 
@@ -98,7 +109,9 @@ def apply_format_widgets(format_name, kwargs):
     for w in wit:
         while isinstance(w, list):
             if len(w) == 1:
-                w = Template(w[0]).substitute(**kwargs)
+                #TODO: mapping=kwargs should be safer, but results in key errors, investigate why
+                w = [Template(x).substitute(**kwargs) for x in w[0]]
+                break
             elif isinstance(w[1], dict):
                 w = w[1][str(kwargs[w[0]])]
             elif len(w) > 3:
