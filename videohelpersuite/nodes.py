@@ -627,14 +627,16 @@ class LoadAudio:
             "required": {
                 "audio_file": ("STRING", {"default": "input/", "vhs_path_extensions": ['wav','mp3','ogg','m4a','flac']}),
                 },
-            "optional" : {"seek_seconds": ("FLOAT", {"default": 0, "min": 0})}
+            "optional" : {"seek_seconds": ("FLOAT", {"default": 0, "min": 0}),
+                          "duration": ("FLOAT" , {"default": 0, "min": 0, "max": 10000000, "step": 0.01}),
+                          }
         }
 
     RETURN_TYPES = ("AUDIO",)
     RETURN_NAMES = ("audio",)
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢/audio"
     FUNCTION = "load_audio"
-    def load_audio(self, audio_file, seek_seconds):
+    def load_audio(self, audio_file, seek_seconds, duration):
         audio_file = strip_path(audio_file)
         if audio_file is None or validate_path(audio_file) != True:
             raise Exception("audio_file is not a valid path: " + audio_file)
@@ -642,7 +644,7 @@ class LoadAudio:
             audio_file = try_download_video(audio_file) or audio_file
         #Eagerly fetch the audio since the user must be using it if the
         #node executes, unlike Load Video
-        return (get_audio(audio_file, start_time=seek_seconds),)
+        return (get_audio(audio_file, start_time=seek_seconds, duration=duration),)
 
     @classmethod
     def IS_CHANGED(s, audio_file, seek_seconds):
