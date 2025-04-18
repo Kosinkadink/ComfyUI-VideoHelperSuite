@@ -441,7 +441,7 @@ function processDraggedItems(e) {
 }
 function allowDragFromWidget(widget) {
     widget.onPointerDown = function(pointer, node) {
-        pointer.onDragStart = (pointer) => startDraggingItems(node, pointer)
+        pointer.onDragStart = () => startDraggingItems(node, pointer)
         pointer.onDragEnd = processDraggedItems
         app.canvas.dirty_canvas = true
         return true
