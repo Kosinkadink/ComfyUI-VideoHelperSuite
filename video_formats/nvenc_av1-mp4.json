@@ -1,7 +1,7 @@
 {
     "main_pass":
     [
-        "-n", "-c:v", "h264_nvenc",
+        "-n", "-c:v", "av1_nvenc",
         "-pix_fmt", ["pix_fmt", ["yuv420p", "p010le"]],
         "-vf", "scale=out_color_matrix=bt709",
         "-color_range", "tv", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709"
