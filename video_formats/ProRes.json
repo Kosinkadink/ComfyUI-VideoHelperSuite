@@ -4,7 +4,7 @@
         "-n", "-c:v", "prores_ks",
         "-profile:v", [["$profile"]],
         ["profile", {
-            "lt": [[]], "1": [], "standard": [[]], "2": [[]], "hq": [[]], "3": [[]],
+            "lt": [[]], "1": [[]], "standard": [[]], "2": [[]], "hq": [[]], "3": [[]],
             "4": ["has_alpha", {"True": [["-pix_fmt", "yuva444p10le"]],
                 "False": [["-pix_fmt", "yuv444p10le"]]}],
             "4444": ["has_alpha", {"True": [["-pix_fmt", "yuva444p10le"]],
