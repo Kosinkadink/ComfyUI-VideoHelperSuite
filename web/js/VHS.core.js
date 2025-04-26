@@ -511,6 +511,9 @@ function applyVHSAudioLinksFix(nodeType, nodeData, audio_slot) {
     })
 }
 function addVAEOutputToggle(nodeType, nodeData) {
+    chainCallback(nodeType.prototype, "onNodeCreated", function() {
+        this.reject_ue_connection = (input) => input?.name == "vae"
+    })
     chainCallback(nodeType.prototype, "onConnectionsChange", function(contype, slot, iscon, linfo) {
         let slotType = this.inputs[slot]?.type
         if (contype == LiteGraph.INPUT && slotType == "VAE") {
@@ -543,6 +546,9 @@ function addVAEOutputToggle(nodeType, nodeData) {
     });
 }
 function addVAEInputToggle(nodeType, nodeData) {
+    chainCallback(nodeType.prototype, "onNodeCreated", function() {
+        this.reject_ue_connection = (input) => input?.name == "vae"
+    })
     chainCallback(nodeType.prototype, "onConnectionsChange", function(contype, slot, iscon, linf) {
         if (contype == LiteGraph.INPUT && slot == 3 && this.inputs[3].type == "VAE") {
             if (iscon && linf) {
@@ -2134,18 +2140,9 @@ app.registerExtension({
         }
     },
     async setup() {
-        //cg-use-everywhere link workaround
-        //particularly invasive, plan to remove
         let originalGraphToPrompt = app.graphToPrompt
         let graphToPrompt = async function() {
             let res = await originalGraphToPrompt.apply(this, arguments);
-            for (let n of app.graph._nodes) {
-                if (n?.type?.startsWith('VHS_LoadVideo')) {
-                    if (!n?.inputs[1]?.link && res?.output[n.id]?.inputs?.vae) {
-                        delete res.output[n.id].inputs.vae
-                    }
-                }
-            }
             res.workflow.extra['VHS_latentpreview'] = app.ui.settings.getSettingValue("VHS.LatentPreview")
             res.workflow.extra['VHS_latentpreviewrate'] = app.ui.settings.getSettingValue("VHS.LatentPreviewRate")
             res.workflow.extra['VHS_MetadataImage'] = app.ui.settings.getSettingValue("VHS.MetadataImage")
