@@ -1773,7 +1773,7 @@ app.registerExtension({
         category: ['🎥🅥🅗🅢', 'Output', 'MetadataImage'],
         name: 'Save png of first frame for metadata',
         type: 'boolean',
-        defaultValue: true,
+        defaultValue: false,
       },
       {
         id: 'VHS.KeepIntermediate',
