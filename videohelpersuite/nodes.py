@@ -450,14 +450,17 @@ class VideoCombine:
                 logger.warn("Output images were not of valid resolution and have had padding applied")
             else:
                 dimensions = (first_image.shape[1], first_image.shape[0])
-            if loop_count > 0:
-                loop_args = ["-vf", "loop=loop=" + str(loop_count)+":size=" + str(num_frames)]
-            else:
-                loop_args = []
             if pingpong:
                 if meta_batch is not None:
                     logger.error("pingpong is incompatible with batched output")
                 images = to_pingpong(images)
+                if num_frames > 2:
+                    num_frames += num_frames -2
+                    pbar.total = num_frames
+            if loop_count > 0:
+                loop_args = ["-vf", "loop=loop=" + str(loop_count)+":size=" + str(num_frames)]
+            else:
+                loop_args = []
             if video_format.get('input_color_depth', '8bit') == '16bit':
                 images = map(tensor_to_shorts, images)
                 if has_alpha:
