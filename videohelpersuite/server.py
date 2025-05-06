@@ -67,7 +67,7 @@ async def view_video(request):
         return web.Response(status=500)
     vfilters = []
     target_rate = float(query.get('force_rate', 0)) or base_fps
-    modified_rate = target_rate / float(query.get('select_every_nth',1) or 1)
+    modified_rate = target_rate / (float(query.get('select_every_nth',1)) or 1)
     start_time = 0
     if 'start_time' in query:
         start_time = float(query['start_time'])

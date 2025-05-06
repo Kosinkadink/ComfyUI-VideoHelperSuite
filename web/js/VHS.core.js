@@ -739,6 +739,8 @@ function initializeLoadFormat(nodeType, nodeData) {
 }
 
 function addUploadWidget(nodeType, nodeData, widgetName, type="video") {
+    let accept = {'video': ["video/webm","video/mp4","video/x-matroska","image/gif"],
+                  'audio': ["audio/mpeg","audio/wav","audio/x-wav","audio/ogg"]}
     chainCallback(nodeType.prototype, "onNodeCreated", function() {
         const pathWidget = this.widgets.find((w) => w.name === widgetName);
         const fileInput = document.createElement("input");
@@ -783,50 +785,44 @@ function addUploadWidget(nodeType, nodeData, widgetName, type="video") {
                     }
                 },
             });
-        } else if (type == "video") {
+        } else {
+            let accept = {'video': ["video/webm","video/mp4","video/x-matroska","image/gif"],
+                          'audio': ["audio/mpeg","audio/wav","audio/x-wav","audio/ogg"]}[type]
+            async function doUpload(file) {
+                let resp = await uploadFile(file)
+                if (resp.status != 200) {
+                    return false
+                }
+                const filename = (await resp.json()).name;
+                pathWidget.options.values.push(filename);
+                pathWidget.value = filename;
+                if (pathWidget.callback) {
+                    pathWidget.callback(filename)
+                }
+                return true
+            }
             Object.assign(fileInput, {
                 type: "file",
-                accept: "video/webm,video/mp4,video/x-matroska,image/gif",
+                accept: accept.join(','),
                 style: "display: none",
                 onchange: async () => {
                     if (fileInput.files.length) {
-                        let resp = await uploadFile(fileInput.files[0])
-                        if (resp.status != 200) {
-                            //upload failed and file can not be added to options
-                            return;
-                        }
-                        const filename = (await resp.json()).name;
-                        pathWidget.options.values.push(filename);
-                        pathWidget.value = filename;
-                        if (pathWidget.callback) {
-                            pathWidget.callback(filename)
-                        }
+                        return await doUpload(fileInput.files[0])
                     }
                 },
             });
-        } else if (type == "audio") {
-            Object.assign(fileInput, {
-                type: "file",
-                accept: "audio/mpeg,audio/wav,audio/x-wav,audio/ogg",
-                style: "display: none",
-                onchange: async () => {
-                    if (fileInput.files.length) {
-                        let resp = await uploadFile(fileInput.files[0])
-                        if (resp.status != 200) {
-                            //upload failed and file can not be added to options
-                            return;
-                        }
-                        const filename = (await resp.json()).name;
-                        pathWidget.options.values.push(filename);
-                        pathWidget.value = filename;
-                        if (pathWidget.callback) {
-                            pathWidget.callback(filename)
-                        }
-                    }
-                },
-            });
-        }else {
-            throw "Unknown upload type"
+            this.onDragOver = (e) => !!e?.dataTransfer?.types?.includes?.('Files')
+            this.onDragDrop = async function(e) {
+                if (!e?.dataTransfer?.types?.includes?.('Files')) {
+                    return false
+                }
+                //TODO: Allow dragging multiple files at once?
+                const item = e.dataTransfer?.files?.[0]
+                if (accept.includes(item?.type)) {
+                    return await doUpload(item)
+                }
+                return false
+            }
         }
         document.body.append(fileInput);
         let uploadWidget = this.addWidget("button", "choose " + type + " to upload", "image", () => {
@@ -836,6 +832,8 @@ function addUploadWidget(nodeType, nodeData, widgetName, type="video") {
             fileInput.click();
         });
         uploadWidget.options.serialize = false;
+
+
     });
 }
 
@@ -885,6 +883,12 @@ function addVideoPreview(nodeType, isInput=true) {
             e.preventDefault()
             return app.canvas._mouseup_callback(e)
         }, true);
+        element.addEventListener('dragover', (e) => {
+            //A little hacky, but allows drag events onto the preview itself
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+            app.dragOverNode = this
+        })
         previewWidget.value = {hidden: false, paused: false, params: {},
             muted: app.ui.settings.getSettingValue("VHS.DefaultMute")}
         previewWidget.parentEl = document.createElement("div");

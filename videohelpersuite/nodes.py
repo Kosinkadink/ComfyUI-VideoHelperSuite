@@ -647,7 +647,7 @@ class LoadAudio:
         return (get_audio(audio_file, start_time=seek_seconds, duration=duration),)
 
     @classmethod
-    def IS_CHANGED(s, audio_file, seek_seconds):
+    def IS_CHANGED(s, audio_file, **kwargs):
         return hash_path(audio_file)
 
     @classmethod
@@ -685,7 +685,7 @@ class LoadAudioUpload:
         return (get_audio(audio_file, start_time, duration),)
 
     @classmethod
-    def IS_CHANGED(s, audio, start_time, duration):
+    def IS_CHANGED(s, audio, **kwargs):
         audio_file = folder_paths.get_annotated_filepath(strip_path(audio))
         return hash_path(audio_file)
 
