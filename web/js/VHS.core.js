@@ -1179,8 +1179,27 @@ function addFormatWidgets(nodeType, nodeData) {
             }
             let removed = this.widgets.splice(formatWidgetIndex,
                                             formatWidgetsCount, ...newWidgets);
+            let newNames = new Set(newWidgets.map((w) => w.name))
             for (let w of removed) {
                 w?.onRemove?.()
+                if (w.name in newNames) {
+                    continue
+                }
+                //I do not like the performance of this, but it's safe
+                let slot = this.inputs.findIndex((i) => i.name == w.name)
+                if (slot >= 0) {
+                    this.removeInput(slot)
+                }
+            }
+            for (let w of newWidgets) {
+                let existingInput = this.inputs.find((i) => i.name == w.name)
+                if (existingInput) {
+                    setWidgetConfig(existingInput, w.config)
+                    //TODO: Consider forcing disconnection if props change?
+                } else {
+                    //NOTE: config is applied in wrapped addInput call
+                    this.addInput(w.name, w.config[0], {widget: {name: w.name}})
+                }
             }
             fitHeight(this);
             formatWidgetsCount = newWidgets.length;
