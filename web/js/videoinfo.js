@@ -31,7 +31,7 @@ function getVideoMetadata(file) {
                             if (n_octets < 4) {//250MB sanity cutoff
                                 let length = (vint >> (8*(4-n_octets))) & ~(1 << (7*n_octets));
                                 const content = decoder.decode(videoData.slice(offset+2+n_octets, offset+2+n_octets+length));
-                                const json = JSON.parse(content);
+                                let json = JSON.parse(content);
                                 r(json);
                                 return;
                             }
@@ -61,10 +61,9 @@ function getVideoMetadata(file) {
                 }
             } else {
                 console.error("Unknown magic: " + dataView.getUint32(0))
-                r();
-                return;
             }
-
+            r();
+            return;
         };
 
         reader.readAsArrayBuffer(file);
@@ -83,20 +82,17 @@ function isVideoFile(file) {
 
 let originalHandleFile = app.handleFile;
 app.handleFile = handleFile;
+let fileInput = document.getElementById("comfy-file-input")
+//hijack comfy-file-input to allow webm/mp4
+fileInput.accept += ",video/webm,video/mp4";
+
 async function handleFile(file) {
     if (file?.type?.startsWith("video/") || isVideoFile(file)) {
         const videoInfo = await getVideoMetadata(file);
-        if (videoInfo) {
-            if (videoInfo.workflow) {
-
-                app.loadGraphData(videoInfo.workflow);
-            }
-            //Potentially check for/parse A1111 metadata here.
+        if (videoInfo?.workflow) {
+            await app.loadGraphData(videoInfo.workflow);
+            return
         }
-    } else {
-        return await originalHandleFile.apply(this, arguments);
     }
+    return await originalHandleFile.apply(this, arguments);
 }
-
-//hijack comfy-file-input to allow webm/mp4
-document.getElementById("comfy-file-input").accept += ",video/webm,video/mp4";

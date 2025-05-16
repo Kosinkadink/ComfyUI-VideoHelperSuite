@@ -1,7 +1,9 @@
 {
     "main_pass":
     [
-        "-pix_fmt", "yuv420p"
+        "-pix_fmt", "yuv444p",
+        "-vf", "scale=out_color_matrix=bt709:out_range=pc",
+        "-color_range", "pc"
     ],
     "extension": "gif",
     "gifski_pass": [
