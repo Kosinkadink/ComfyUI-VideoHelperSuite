@@ -2243,49 +2243,64 @@ api.addEventListener('VHS_latentpreview', ({ detail }) => {
     if (id == null) {
         return
     }
-    let previewNode = app.graph.getNodeById(id)
-    latentPreviewNodes.add(previewNode)
-    let previewWidget = previewNode.widgets.find((w) => w.name == "vhslatentpreview")
-    if (!previewWidget) {
-        let canvasEl = document.createElement("canvas")
-        previewWidget = previewNode.addDOMWidget("vhslatentpreview", "vhscanvas", canvasEl, {
-            serialize: false,
-            hideOnZoom: false,
-        });
-        allowDragFromWidget(previewWidget)
-        canvasEl.addEventListener('contextmenu', (e)  => {
-            e.preventDefault()
-            return app.canvas._mousedown_callback(e)
-        }, true);
-        canvasEl.addEventListener('pointerdown', (e)  => {
-            e.preventDefault()
-            return app.canvas._mousedown_callback(e)
-        }, true);
-        canvasEl.addEventListener('mousewheel', (e)  => {
-            e.preventDefault()
-            return app.canvas._mousewheel_callback(e)
-        }, true);
-        canvasEl.addEventListener('pointermove', (e)  => {
-            e.preventDefault()
-            return app.canvas._mousemove_callback(e)
-        }, true);
-        canvasEl.addEventListener('pointerup', (e)  => {
-            e.preventDefault()
-            return app.canvas._mouseup_callback(e)
-        }, true);
+    /** Important: this needs to be a getter or we will not know when the node has lost its widget due to workflow switching */
+    let getPreviewNode = () => app.graph.getNodeById(id)
+    latentPreviewNodes.add(getPreviewNode())
+    /** Important: this needs to be a getter or we will not know when the node has lost its widget due to workflow switching */
+    let getPreviewWidget = () => getPreviewNode()?.widgets.find((w) => w.name == "vhslatentpreview")
 
-        previewWidget.computeSize = function(width) {
-            if (this.aspectRatio) {
-                let height = (previewNode.size[0]-20)/ this.aspectRatio + 10;
-                if (!(height > 0)) {
-                    height = 0;
-                }
-                this.computedHeight = height + 10;
-                return [width, height];
-            }
-            return [width, -4];//no loaded src, widget should not display
+    /** @returns {('HadToAddPreviewWidget'|'WidgetAlreadyPresent'|'SwitchedToWorkflowWithoutPreviewNode')} */
+    const addPreviewWidgetIfMissing = () => {
+        const previewNode = getPreviewNode()
+        if (!previewNode) {
+            return 'SwitchedToWorkflowWithoutPreviewNode'
         }
+        latentPreviewNodes.add(previewNode)
+        const previewWidget = getPreviewWidget()
+        if (!previewWidget) {
+            let canvasEl = document.createElement("canvas")
+            const newlyCreatedPreviewWidget = previewNode.addDOMWidget("vhslatentpreview",
+                "vhscanvas",
+                canvasEl,
+                { serialize: false, hideOnZoom: false, }
+            );
+            allowDragFromWidget(getPreviewWidget())
+            canvasEl.addEventListener('contextmenu', (e)  => {
+                e.preventDefault()
+                return app.canvas._mousedown_callback(e)
+            }, true);
+            canvasEl.addEventListener('pointerdown', (e)  => {
+                e.preventDefault()
+                return app.canvas._mousedown_callback(e)
+            }, true);
+            canvasEl.addEventListener('mousewheel', (e)  => {
+                e.preventDefault()
+                return app.canvas._mousewheel_callback(e)
+            }, true);
+            canvasEl.addEventListener('pointermove', (e)  => {
+                e.preventDefault()
+                return app.canvas._mousemove_callback(e)
+            }, true);
+            canvasEl.addEventListener('pointerup', (e)  => {
+                e.preventDefault()
+                return app.canvas._mouseup_callback(e)
+            }, true);
+            newlyCreatedPreviewWidget.computeSize = function(width) {
+                if (this.aspectRatio) {
+                    let height = (getPreviewNode().size[0]-20)/ this.aspectRatio + 10;
+                    if (!(height > 0)) {
+                        height = 0;
+                    }
+                    this.computedHeight = height + 10;
+                    return [width, height];
+                }
+                return [width, -4];//no loaded src, widget should not display
+            }
+            return 'HadToAddPreviewWidget'
+        }
+        return 'WidgetAlreadyPresent'
     }
+    addPreviewWidgetIfMissing()
     let firstPreview = true
     let ctx
     previewImages = []
@@ -2303,8 +2318,14 @@ api.addEventListener('VHS_latentpreview', ({ detail }) => {
         if (!previewImages[displayIndex]) {
             return
         }
-        let canvasEl = previewWidget.element
-        if (!ctx) {
+        const previewWidgetUpdateResult = addPreviewWidgetIfMissing()
+        const previewNode = getPreviewNode()
+        const previewWidget = getPreviewWidget()
+        let canvasEl = previewWidget?.element
+        if (!canvasEl) {
+            return
+        }
+        if (!ctx || previewWidgetUpdateResult === 'HadToAddPreviewWidget') {
             previewWidget.aspectRatio = previewImages[displayIndex].width / previewImages[displayIndex].height
             canvasEl.width = previewImages[displayIndex].width
             canvasEl.height = previewImages[displayIndex].height
