@@ -630,8 +630,9 @@ class LoadAudio:
             "required": {
                 "audio_file": ("STRING", {"default": "input/", "vhs_path_extensions": ['wav','mp3','ogg','m4a','flac']}),
                 },
-            "optional" : {"seek_seconds": ("FLOAT", {"default": 0, "min": 0}),
-                          "duration": ("FLOAT" , {"default": 0, "min": 0, "max": 10000000, "step": 0.01}),
+            "optional" : {
+                "seek_seconds": ("FLOAT", {"default": 0, "min": 0, "widgetType": "VHSTIMESTAMP"}),
+                "duration": ("FLOAT" , {"default": 0, "min": 0, "max": 10000000, "step": 0.01, "widgetType": "VHSTIMESTAMP"}),
                           }
         }
 
@@ -639,7 +640,7 @@ class LoadAudio:
     RETURN_NAMES = ("audio",)
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢/audio"
     FUNCTION = "load_audio"
-    def load_audio(self, audio_file, seek_seconds, duration):
+    def load_audio(self, audio_file, seek_seconds=0, duration=0):
         audio_file = strip_path(audio_file)
         if audio_file is None or validate_path(audio_file) != True:
             raise Exception("audio_file is not a valid path: " + audio_file)
@@ -668,9 +669,10 @@ class LoadAudioUpload:
                 if len(file_parts) > 1 and (file_parts[-1] in audio_extensions):
                     files.append(f)
         return {"required": {
-                    "audio": (sorted(files),),
-                    "start_time": ("FLOAT" , {"default": 0, "min": 0, "max": 10000000, "step": 0.01}),
-                    "duration": ("FLOAT" , {"default": 0, "min": 0, "max": 10000000, "step": 0.01}),
+                    "audio": (sorted(files),),},
+                "optional": {
+                    "start_time": ("FLOAT" , {"default": 0, "min": 0, "max": 10000000, "step": 0.01, "widgetType": "VHSTIMESTAMP"}),
+                    "duration": ("FLOAT" , {"default": 0, "min": 0, "max": 10000000, "step": 0.01, "widgetType": "VHSTIMESTAMP"}),
                      },
                 }
 
@@ -680,7 +682,7 @@ class LoadAudioUpload:
     RETURN_NAMES = ("audio",)
     FUNCTION = "load_audio"
 
-    def load_audio(self, start_time, duration, **kwargs):
+    def load_audio(self, start_time=0, duration=0, **kwargs):
         audio_file = folder_paths.get_annotated_filepath(strip_path(kwargs['audio']))
         if audio_file is None or validate_path(audio_file) != True:
             raise Exception("audio_file is not a valid path: " + audio_file)
