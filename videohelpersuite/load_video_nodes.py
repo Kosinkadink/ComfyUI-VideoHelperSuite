@@ -526,7 +526,7 @@ class LoadVideoFFmpegUpload:
                     "custom_width": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
                     "custom_height": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
                     "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1, "disable": 0}),
-                    "start_time": ("FLOAT", {"default": 0, "min": 0, "max": BIGMAX, "step": .001}),
+                    "start_time": ("FLOAT", {"default": 0, "min": 0, "max": BIGMAX, "step": .001, "widgetType": "VHSTIMESTAMP"}),
                     },
                 "optional": {
                     "meta_batch": ("VHS_BatchManager",),
@@ -576,7 +576,7 @@ class LoadVideoFFmpegPath:
                 "custom_width": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
                 "custom_height": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
                 "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1, "disable": 0}),
-                "start_time": ("FLOAT", {"default": 0, "min": 0, "max": BIGMAX, "step": .001}),
+                "start_time": ("FLOAT", {"default": 0, "min": 0, "max": BIGMAX, "step": .001, "widgetType": "VHSTIMESTAMP"}),
             },
             "optional": {
                 "meta_batch": ("VHS_BatchManager",),

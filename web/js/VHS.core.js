@@ -1236,7 +1236,6 @@ function addLoadCommon(nodeType, nodeData) {
         }
         const offsetWidget = this.widgets.find((w) => w.name === "start_time");
         if (offsetWidget) {
-            makeTimestamp(offsetWidget)
             Object.defineProperty(offsetWidget.options, "step2", {
                 set : (value) => {},
                 get : () => {
@@ -1916,16 +1915,8 @@ app.registerExtension({
         } else if (nodeData?.name == "VHS_LoadAudioUpload") {
             addUploadWidget(nodeType, nodeData, "audio", "audio");
             applyVHSAudioLinksFix(nodeType, nodeData, 0)
-            chainCallback(nodeType.prototype, "onNodeCreated", function() {
-                const w = this.widgets.find((w) => w.name === "start_time");
-                makeTimestamp(w)
-            })
         } else if (nodeData?.name == "VHS_LoadAudio"){
             applyVHSAudioLinksFix(nodeType, nodeData, 0)
-            chainCallback(nodeType.prototype, "onNodeCreated", function() {
-                const w = this.widgets.find((w) => w.name === "seek_seconds");
-                makeTimestamp(w)
-            })
         } else if (nodeData?.name == "VHS_LoadVideoPath" || nodeData?.name == "VHS_LoadVideoFFmpegPath") {
             chainCallback(nodeType.prototype, "onNodeCreated", function() {
                 const pathWidget = this.widgets.find((w) => w.name === "video");
@@ -2135,16 +2126,17 @@ app.registerExtension({
                 return w;
             },
             VHSFLOAT(node, inputName, inputData) {
-                let w = app.widgets.FLOAT(node, inputName, inputData, app)
-                return makeAnnotated(w, inputData);
+                let {widget} = app.widgets.FLOAT(node, inputName, inputData, app)
+                return makeAnnotated(widget, inputData);
             },
             VHSINT(node, inputName, inputData) {
-                let w = app.widgets.INT(node, inputName, inputData, app)
-                return makeAnnotated(w, inputData);
+                let {widget} = app.widgets.INT(node, inputName, inputData, app)
+                return makeAnnotated(widget, inputData);
             },
             VHSTIMESTAMP(node, inputName, inputData) {
-                let w = app.widgets.FLOAT(node, inputName, inputData, app)
-                return makeTimestamp(w, inputData)
+                inputData = ["FLOAT", {...inputData[1], type: "FLOAT"}]
+                let {widget} = app.widgets.FLOAT(node, inputName, inputData, app)
+                return makeTimestamp(widget, inputData)
             },
         }
     },
