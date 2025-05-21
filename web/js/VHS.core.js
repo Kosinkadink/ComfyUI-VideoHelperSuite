@@ -1482,21 +1482,32 @@ function drawAnnotated(ctx, node, widget_width, y, H) {
   else ctx.rect(margin, y, widget_width - margin * 2, H)
   ctx.fill()
   if (show_text) {
-    const monospace_font = ctx.font.split(' ')[0] + ' monospace'
     if (!this.disabled) ctx.stroke()
     const button = button_action(this)
     if (button != 'None') {
       ctx.save()
-      ctx.font = monospace_font
       if (button.startsWith('No ')) {
         ctx.fillStyle = litegraph_base.WIDGET_OUTLINE_COLOR
+        ctx.strokeStyle = litegraph_base.WIDGET_OUTLINE_COLOR
       } else {
         ctx.fillStyle = litegraph_base.WIDGET_TEXT_COLOR
+        ctx.strokeStyle = litegraph_base.WIDGET_TEXT_COLOR
       }
+      ctx.beginPath()
       if (button.endsWith('Reset')) {
-        ctx.fillText('\u21ba', widget_width - margin - 33, y + H * 0.7)
+        ctx.arc(widget_width - margin - 26, y + H/2, 4, Math.PI*3/2, Math.PI)
+        ctx.stroke()
+        ctx.beginPath()
+        ctx.moveTo(widget_width - margin - 26, y + H/2 - 1.5)
+        ctx.lineTo(widget_width - margin - 26, y + H/2 - 6.5)
+        ctx.lineTo(widget_width - margin - 30, y + H/2 - 3.5)
+        ctx.fill()
       } else {
-        ctx.fillText('\u2298', widget_width - margin - 33, y + H * 0.7)
+        ctx.arc(widget_width - margin - 26, y + H/2, 4, Math.PI*2/3, Math.PI*8/3)
+        //approx 4*sin(PI*2/3), 4*cos(PI*2/3)
+        ctx.moveTo(widget_width - margin - 26 - 3.5, y + H/2 + 2)
+        ctx.lineTo(widget_width - margin - 26 + 3.5, y + H/2 - 2)
+        ctx.stroke()
       }
       ctx.restore()
     }
@@ -1521,7 +1532,6 @@ function drawAnnotated(ctx, node, widget_width, y, H) {
     let value_offset = margin * 2 + 20
     if (this.options.unit) {
       ctx.save()
-      ctx.font = monospace_font
       ctx.fillStyle = litegraph_base.WIDGET_OUTLINE_COLOR
       ctx.fillText(this.options.unit, widget_width - value_offset, y + H * 0.7)
       value_offset += ctx.measureText(this.options.unit).width
