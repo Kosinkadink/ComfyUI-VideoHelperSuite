@@ -1504,9 +1504,8 @@ function drawAnnotated(ctx, node, widget_width, y, H) {
         ctx.fill()
       } else {
         ctx.arc(widget_width - margin - 26, y + H/2, 4, Math.PI*2/3, Math.PI*8/3)
-        //approx 4*sin(PI*2/3), 4*cos(PI*2/3)
-        ctx.moveTo(widget_width - margin - 26 - 3.5, y + H/2 + 2)
-        ctx.lineTo(widget_width - margin - 26 + 3.5, y + H/2 - 2)
+        ctx.moveTo(widget_width - margin - 26 - 8 ** .5, y + H/2 + 8 ** .5)
+        ctx.lineTo(widget_width - margin - 26 + 8 ** .5, y + H/2 - 8 ** .5)
         ctx.stroke()
       }
       ctx.restore()
@@ -1570,17 +1569,21 @@ function drawAnnotated(ctx, node, widget_width, y, H) {
   }
 }
 function mouseAnnotated(event, [x, y], node) {
-    const button = button_action(this)
+    //NOTE: Mouse actions contain no history element.
+    //This can cause overlapping actions since each triggers on different event type (down/move/up)
+    //TODO: Consider further rework
     const widget_width = this.width || node.size[0]
     const old_value = this.value
-    const delta = x < 40 ? -1 : x > widget_width - 48 ? 1 : 0
     const margin = 15
-    var allow_scroll = true
-    if (delta) {
-        if (x > -3 && x < widget_width + 3) {
-            allow_scroll = false
-        }
+    let isButton = 0
+    if (x > margin + 6 && x < margin + 16) {
+        isButton = -1
+    } else if (x > widget_width - margin - 16 & x < widget_width - margin - 6) {
+        isButton = 1
+    } else if (x > widget_width - margin - 34 && x < widget_width - margin - 18) {
+        isButton = 2
     }
+    var allow_scroll = true
     if (allow_scroll && event.type == 'pointermove') {
         if (event.deltaX)
             this.value += event.deltaX * 0.1 * (this.options.step || 1)
@@ -1591,14 +1594,15 @@ function mouseAnnotated(event, [x, y], node) {
             this.value = this.options.max
         }
     } else if (event.type == 'pointerdown') {
-        if (x > widget_width - margin - 34 && x < widget_width - margin - 18) {
-            if (button == 'Reset') {
+        const buttonType = button_action(this)
+        if (isButton == 2) {
+            if (buttonType == 'Reset') {
                 this.value = this.options.reset
-            } else if (button == 'Disable') {
+            } else if (buttonType == 'Disable') {
                 this.value = this.options.disable
             }
         } else {
-            this.value += delta * 0.1 * (this.options.step || 1)
+            this.value += isButton * 0.1 * (this.options.step || 1)
             if (this.options.min != null && this.value < this.options.min) {
                 this.value = this.options.min
             }
@@ -1608,7 +1612,7 @@ function mouseAnnotated(event, [x, y], node) {
         }
     } //end mousedown
     else if (event.type == 'pointerup') {
-        if (event.click_time < 200 && delta == 0) {
+        if (event.click_time < 200 && !isButton) {
             const d_callback = (v) => {
                 this.value = this.parseValue?.(v) ?? Number(v)
                 inner_value_change(this, this.value, node, [x, y])
