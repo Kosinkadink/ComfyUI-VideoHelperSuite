@@ -1822,7 +1822,8 @@ app.registerExtension({
         onChange(value) {
             if (!value) {
                 //Remove any previewWidgets
-                for (let n of latentPreviewNodes) {
+                for (let id of latentPreviewNodes) {
+                    let n = app.graph.getNodeById(id)
                     let i = n?.widgets?.findIndex((w) => w.name == 'vhslatentpreview')
                     if (i >= 0) {
                         n.widgets.splice(i,1)[0].onRemove()
@@ -2287,21 +2288,16 @@ api.addEventListener('executing', ({ detail }) => {
         }
     }
 })
-api.addEventListener('VHS_latentpreview', ({ detail }) => {
-    let setting = app.ui.settings.getSettingValue("VHS.LatentPreview")
-    if (!setting) {
-        return
+function getLatentPreviewCtx(id, width, height) {
+    const node = app.graph.getNodeById(id)
+    if (!node) {
+        return undefined
     }
-    let id = app.runningNodeId
-    if (id == null) {
-        return
-    }
-    let previewNode = app.graph.getNodeById(id)
-    latentPreviewNodes.add(previewNode)
-    let previewWidget = previewNode.widgets.find((w) => w.name == "vhslatentpreview")
+
+    let previewWidget = node.widgets.find((w) => w.name == "vhslatentpreview")
     if (!previewWidget) {
         let canvasEl = document.createElement("canvas")
-        previewWidget = previewNode.addDOMWidget("vhslatentpreview", "vhscanvas", canvasEl, {
+        previewWidget = node.addDOMWidget("vhslatentpreview", "vhscanvas", canvasEl, {
             serialize: false,
             hideOnZoom: false,
         });
@@ -2329,7 +2325,7 @@ api.addEventListener('VHS_latentpreview', ({ detail }) => {
 
         previewWidget.computeSize = function(width) {
             if (this.aspectRatio) {
-                let height = (previewNode.size[0]-20)/ this.aspectRatio + 10;
+                let height = (node.size[0]-20)/ this.aspectRatio + 10;
                 if (!(height > 0)) {
                     height = 0;
                 }
@@ -2339,8 +2335,27 @@ api.addEventListener('VHS_latentpreview', ({ detail }) => {
             return [width, -4];//no loaded src, widget should not display
         }
     }
-    let firstPreview = true
-    let ctx
+    let canvasEl = previewWidget.element
+    if (!previewWidget.ctx || canvasEl.width != width
+        || canvasEl.height != height) {
+        previewWidget.aspectRatio = width / height
+        canvasEl.width = width
+        canvasEl.height = height
+        fitHeight(node)
+    }
+    return canvasEl.getContext("2d")
+}
+api.addEventListener('VHS_latentpreview', ({ detail }) => {
+    let setting = app.ui.settings.getSettingValue("VHS.LatentPreview")
+    if (!setting) {
+        return
+    }
+    let id = app.runningNodeId
+    if (id == null) {
+        return
+    }
+    latentPreviewNodes.add(id)
+
     previewImages = []
     previewImages.length = detail.length
     let displayIndex = 0
@@ -2356,15 +2371,8 @@ api.addEventListener('VHS_latentpreview', ({ detail }) => {
         if (!previewImages[displayIndex]) {
             return
         }
-        let canvasEl = previewWidget.element
-        if (!ctx) {
-            previewWidget.aspectRatio = previewImages[displayIndex].width / previewImages[displayIndex].height
-            canvasEl.width = previewImages[displayIndex].width
-            canvasEl.height = previewImages[displayIndex].height
-            ctx = canvasEl.getContext("2d")
-            fitHeight(previewNode)
-        }
-        ctx.drawImage(previewImages[displayIndex],0,0)
+        getLatentPreviewCtx(id, previewImages[displayIndex].width,
+            previewImages[displayIndex].height)?.drawImage?.(previewImages[displayIndex],0,0)
         displayIndex = (displayIndex + 1) % previewImages.length
     }, 1000/detail.rate);
 });
