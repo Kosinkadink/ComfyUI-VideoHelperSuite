@@ -1460,6 +1460,46 @@ function button_action(widget) {
   }
   return 'No Disable'
 }
+function fitText(ctx, text, maxLength) {
+    if (maxLength <= 0) {
+        return ['', 0]
+    }
+    let fullLength = ctx.measureText(text).width
+    if (fullLength < maxLength) {
+        return [text, fullLength]
+    }
+    //determine approx safe cutoff
+    let cutoff = maxLength / fullLength * text.length | 0
+    let shortened = text.slice(0, Math.max(0, cutoff - 2)) + '…'
+    return [shortened, ctx.measureText(shortened).width]
+}
+function fitPath(ctx, path, maxLength) {
+    let fullLength = ctx.measureText(path).width
+    if (fullLength < maxLength) {
+        return [path, fullLength]
+    }
+    //determine approx safe cutoff
+    let len = (maxLength / fullLength * path.length | 0) -2
+
+    let displayPath = ''
+    let filename = path_stem(path)[1]
+    if (filename.length > len-2) {
+        //may all fit, but can't squeeze more info
+         displayPath = filename.substr(0,len);
+    } else {
+        //TODO: find solution for windows, path[1] == ':'?
+        let isAbs = path[0] == '/';
+        let partial = path.substr(path.length - (isAbs ? len-2:len-1))
+        let cutoff = partial.indexOf('/');
+        if (cutoff < 0) {
+            //Can occur, but there isn't a nicer way to format
+            displayPath = path.substr(path.length-len);
+        } else {
+            displayPath = (isAbs ? '/…':'…') + partial.substr(cutoff);
+        }
+    }
+    return [displayPath, ctx.measureText(displayPath).width]
+}
 function inner_value_change(widget, value, node, pos) {
   widget.value = value
   if (widget.options?.property && widget.options.property in node.properties) {
@@ -1473,7 +1513,6 @@ function drawAnnotated(ctx, node, widget_width, y, H) {
   const litegraph_base = LiteGraph
   const show_text = app.canvas.ds.scale >= (app.canvas.low_quality_zoom_threshold ?? 0.5)
   const margin = 15
-  ctx.textAlign = 'left'
   ctx.strokeStyle = litegraph_base.WIDGET_OUTLINE_COLOR
   ctx.fillStyle = litegraph_base.WIDGET_BGCOLOR
   ctx.beginPath()
@@ -1523,29 +1562,37 @@ function drawAnnotated(ctx, node, widget_width, y, H) {
       ctx.lineTo(widget_width - margin - 16, y + H - 5)
       ctx.fill()
     }
-    ctx.fillStyle = litegraph_base.WIDGET_SECONDARY_TEXT_COLOR
-    ctx.fillText(this.label || this.name, margin * 2 + 5, y + H * 0.7)
-    ctx.fillStyle = litegraph_base.WIDGET_TEXT_COLOR
-    ctx.textAlign = 'right'
-    const text = this.displayValue()
-    let value_offset = margin * 2 + 20
-    if (this.options.unit) {
-      ctx.save()
-      ctx.fillStyle = litegraph_base.WIDGET_OUTLINE_COLOR
-      ctx.fillText(this.options.unit, widget_width - value_offset, y + H * 0.7)
-      value_offset += ctx.measureText(this.options.unit).width
-      ctx.restore()
-    }
-    ctx.fillText(text, widget_width - value_offset, y + H * 0.7)
+    let freeWidth = widget_width - (40 + margin * 2 + 20)
+    let [valueText, valueWidth] = fitText(ctx, this.displayValue(), freeWidth)
+    freeWidth -= valueWidth
 
-    const value_width = ctx.measureText(text).width
-    const name_width = ctx.measureText(this.label || this.name).width
-    const free_width =
-      widget_width - (value_width + name_width + value_offset + 40)
+    ctx.textAlign = 'left'
+    ctx.fillStyle = litegraph_base.WIDGET_SECONDARY_TEXT_COLOR
+    if (freeWidth > 20) {
+      let [name, nameWidth] = fitText(ctx, this.label || this.name, freeWidth)
+      freeWidth -= nameWidth
+      ctx.fillText(name, margin * 2 + 5, y + H * 0.7)
+    }
+
+    let value_offset = margin * 2 + 20
+    ctx.textAlign = 'right'
+    if (this.options.unit) {
+      ctx.fillStyle = litegraph_base.WIDGET_OUTLINE_COLOR
+      let [unitText, unitWidth] = fitText(ctx, this.options.unit, freeWidth)
+      if (unitText == this.options.unit) {
+        ctx.fillText(this.options.unit, widget_width - value_offset, y + H * 0.7)
+        value_offset += unitWidth
+        freeWidth -= unitWidth
+      }
+    }
+    ctx.fillStyle = litegraph_base.WIDGET_TEXT_COLOR
+    ctx.fillText(valueText, widget_width - value_offset, y + H * 0.7)
+    ctx.fillStyle = litegraph_base.WIDGET_SECONDARY_TEXT_COLOR
+
 
     let annotation = ''
     if (this.annotation) {
-      annotation = this.annotation(this.value, free_width)
+      annotation = this.annotation(this.value, freeWidth)
     } else if (
       this.options.annotation &&
       this.value in this.options.annotation
@@ -1554,15 +1601,10 @@ function drawAnnotated(ctx, node, widget_width, y, H) {
     }
     if (annotation) {
       ctx.fillStyle = litegraph_base.WIDGET_OUTLINE_COLOR
-      const annotation_width = ctx.measureText(annotation).width
-      if (free_width < annotation_width) {
-        //Enforcing a widget's requested minimum width seems ill supported
-        //hiding annotation is best, but existence should still be indicated
-        annotation = '…'
-      }
+      let [annoDisplay, annoWidth] = fitText(ctx, annotation, freeWidth)
       ctx.fillText(
-        annotation,
-        widget_width - 5 - value_width - value_offset,
+        annoDisplay,
+        widget_width - 5 - valueWidth - value_offset,
         y + H * 0.7
       )
     }
@@ -2090,41 +2132,23 @@ app.registerExtension({
                             ctx.clip();
 
                             //ctx.stroke();
+                            let freeWidth = widget_width - (margin * 2 + 20)
                             ctx.fillStyle = secondary_text_color;
                             const label = this.label || this.name;
                             if (label != null) {
-                                ctx.fillText(label, margin * 2, y + H * 0.7);
+                                let [labelDisplay, labelWidth] = fitText(ctx, label, freeWidth)
+                                freeWidth -= labelWidth
+                                ctx.fillText(labelDisplay, margin * 2, y + H * 0.7);
                             }
                             ctx.fillStyle = this.value ? text_color : '#777';
                             ctx.textAlign = "right";
-                            let disp_text = this.format_path(String(this.value || this.options.placeholder))
-                            ctx.fillText(disp_text, widget_width - margin * 2, y + H * 0.7); //30 chars max
+                            let disp_text = fitPath(ctx, String(this.value || this.options.placeholder), freeWidth)[0]
+                            ctx.fillText(disp_text, widget_width - margin * 2, y + H * 0.7);
                             ctx.restore();
                         }
                     },
                     mouse : searchBox,
                     options : {},
-                    format_path : function(path, len=30) {
-                        //Formats the full path to be under 30 characters
-                        if (path.length <= len) {
-                            return path;
-                        }
-                        let filename = path_stem(path)[1]
-                        if (filename.length > len-2) {
-                            //may all fit, but can't squeeze more info
-                            return filename.substr(0,len);
-                        }
-                        //TODO: find solution for windows, path[1] == ':'?
-                        let isAbs = path[0] == '/';
-                        let partial = path.substr(path.length - (isAbs ? len-2:len-1))
-                        let cutoff = partial.indexOf('/');
-                        if (cutoff < 0) {
-                            //Can occur, but there isn't a nicer way to format
-                            return path.substr(path.length-len);
-                        }
-                        return (isAbs ? '/…':'…') + partial.substr(cutoff);
-
-                    }
                 };
                 if (inputData.length > 1) {
                     w.options = inputData[1]
