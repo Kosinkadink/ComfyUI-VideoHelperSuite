@@ -43,20 +43,52 @@ Provides a way to load standalone audio files.
 - seek_seconds: An optional start time for the audio file in seconds.
 
 ## Latent/Image Nodes
+
 A number of utility nodes exist for managing latents. For each, there is an equivalent node which works on images.
+
 ### Split Batch
+
 Divides the latents into two sets. The first `split_index` latents go to output A and the remainder to output B. If less then `split_index` latents are provided as input, all are passed to output A and output B is empty.
+
 ### Merge Batch
 Combines two groups of latents into a single output. The order of the output is the latents in A followed by the latents in B.  
 If the input groups are not the same size, the node provides options for rescaling the latents before merging.
 ### Select Every Nth
-The first of every `select_every_nth` input is passed and the remainder are discarded
+
+The first of every `select_every_nth` input is passed and the remainder are discarded.
+
 ### Get Count
+
 ### Duplicate Batch
 
+### Extract Frames
+
+Extracts the first and last frames from a sequence of images.
+
+- images: Input image sequence (tensor list)
+- Output includes:
+  - first_frame: The first frame of the sequence
+  - last_frame: The last frame of the sequence
+
+This node is useful for analyzing the beginning and end of video sequences without processing all frames.
+
+### Merge Frames
+
+Combines multiple image sequences in sequential order.
+
+- frames_1: First image sequence (required)
+- frames_2 to frames_5: Additional optional image sequences
+- Output includes:
+  - merged_frames: All input frames combined in sequential order (compatible with Video Combine)
+  - frame_count: Total number of frames in the merged sequence
+
+This node is ideal for concatenating video segments in a specific order before final video creation.
+
 ## Video Previews
+
 Load Video (Upload), Load Video (Path), Load Images (Upload), Load Images (Path) and Video Combine provide animated previews.  
 Nodes with previews provide additional functionality when right clicked
+
 - Open preview
 - Save preview
 - Pause preview: Can improve performance with very large videos
@@ -64,8 +96,10 @@ Nodes with previews provide additional functionality when right clicked
 - Sync preview: Restarts all previews for side-by-side comparisons
 
 ### Advanced Previews
+
 Advanced Previews must be manually enabled by clicking the settings gear next to Queue Prompt and checking the box for VHS Advanced Previews.  
 If enabled, videos which are displayed in the ui will be converted with ffmpeg on request. This has several benefits
+
 - Previews for Load Video nodes will reflect the settings on the node such as skip_first_frames and frame_load_cap
   - This makes it easy to select an exact portion of an input video and sync it with outputs
 - It can use substantially less bandwidth if running the server remotely
