@@ -20,6 +20,8 @@ from .image_latent_nodes import *
 from .load_video_nodes import LoadVideoUpload, LoadVideoPath, LoadVideoFFmpegUpload, LoadVideoFFmpegPath, LoadImagePath
 from .load_images_nodes import LoadImagesFromDirectoryUpload, LoadImagesFromDirectoryPath
 from .batched_nodes import VAEEncodeBatched, VAEDecodeBatched
+from .frame_tools import NODE_CLASS_MAPPINGS as FRAME_TOOLS_NODE_CLASS_MAPPINGS
+from .frame_tools import NODE_DISPLAY_NAME_MAPPINGS as FRAME_TOOLS_NODE_DISPLAY_NAME_MAPPINGS
 from .utils import ffmpeg_path, get_audio, hash_path, validate_path, requeue_workflow, \
         gifski_path, calculate_file_hash, strip_path, try_download_video, is_url, \
         imageOrLatent, BIGMAX, merge_filter_args, ENCODE_ARGS, floatOrInt, cached, \
@@ -1055,6 +1057,8 @@ NODE_CLASS_MAPPINGS = {
     "VHS_Unbatch": Unbatch,
     "VHS_SelectLatest": SelectLatest,
 }
+
+NODE_CLASS_MAPPINGS.update(FRAME_TOOLS_NODE_CLASS_MAPPINGS)
 NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_VideoCombine": "Video Combine 🎥🅥🅗🅢",
     "VHS_LoadVideo": "Load Video (Upload) 🎥🅥🅗🅢",
@@ -1099,3 +1103,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_Unbatch":  "Unbatch 🎥🅥🅗🅢",
     "VHS_SelectLatest": "Select Latest 🎥🅥🅗🅢",
 }
+
+NODE_DISPLAY_NAME_MAPPINGS.update(FRAME_TOOLS_NODE_DISPLAY_NAME_MAPPINGS)
