@@ -2112,6 +2112,7 @@ app.registerExtension({
                 let w = {
                     name: inputName,
                     type: "VHS.ANNOTATED",
+                    value: inputData[1]?.default ?? 0,
                     draw: drawAnnotated,
                     mouse: mouseAnnotated,
                     computeSize(width) {
@@ -2153,6 +2154,12 @@ app.registerExtension({
                         return [width, 20]
                     },
                     callback(v) {
+                        if (this.options.max && v > this.options.max) {
+                            v = this.options.max
+                        }
+                        if (this.options.min && v < this.options.max) {
+                            v = this.options.min
+                        }
                         if (v == 0) {
                             return
                         }
