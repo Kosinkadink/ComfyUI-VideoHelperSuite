@@ -1164,15 +1164,12 @@ function addFormatWidgets(nodeType, nodeData) {
             if (formats?.[value]) {
                 let formatWidgets = formats[value]
                 for (let wDef of formatWidgets) {
-                    let type = wDef[1]
+                    let type = wDef[2]?.widgetType ?? wDef[1]
                     if (Array.isArray(type)) {
                         type = "COMBO"
                     }
                     app.widgets[type](this, wDef[0], wDef.slice(1), app)
                     let w = this.widgets.pop()
-                    if (['INT', 'FLOAT'].includes(type)) {
-                        makeAnnotated(w, wDef.slice(1))
-                    }
                     w.config = wDef.slice(1)
                     newWidgets.push(w)
                 }
@@ -1500,6 +1497,21 @@ function fitPath(ctx, path, maxLength) {
     }
     return [displayPath, ctx.measureText(displayPath).width]
 }
+function roundToPrecision(num, precision) {
+    let strnum = Number(num).toFixed(precision)
+    let deci = strnum.indexOf('.')
+    if (deci > 0) {
+        let i = strnum.length - 1
+        while (i > deci && strnum[i] == '0') {
+            i--
+        }
+        if (i == deci) {
+            i--
+        }
+        return strnum.slice(0, i+1)
+    }
+    return strnum
+}
 function inner_value_change(widget, value, node, pos) {
   widget.value = value
   if (widget.options?.property && widget.options.property in node.properties) {
@@ -1696,81 +1708,6 @@ function mouseAnnotated(event, [x, y], node) {
         )
     return true
 }
-function makeAnnotated(widget, inputData) {
-    const callback_orig = widget.callback
-    Object.assign(widget, {
-        type: "BOOLEAN",//Horrific, not namespaced, nonsensical, easier than upstreaming
-        draw: drawAnnotated,
-        mouse: mouseAnnotated,
-        computeSize(width) {
-            return [width, 20]
-        },
-        callback(v) {
-            if (v == 0) {
-                return
-            }
-            if (this.options?.mod == undefined) {
-                return callback_orig.apply(this, arguments);
-            }
-            const s = this.options.step / 10
-            let sh = this.options.mod
-            this.value = Math.round((v - sh) / s) * s + sh
-        },
-        config: inputData,
-        displayValue: function() {
-            return Number(this.value).toFixed(this.options.precision !==
-                undefined ? this.options.precision : 3)
-        },
-        options: Object.assign({},  inputData[1], widget.options)
-    })
-    return widget
-}
-function makeTimestamp(widget, inputData=["FLOAT",{"disable": 0}]) {
-    Object.assign(widget, {
-        type: "BOOLEAN",
-        draw: drawAnnotated,
-        mouse: mouseAnnotated,
-        computeSize(width) {
-            return [width, 20]
-        },
-        parseValue(v) {
-            if (typeof(v) == "string") {
-                let val = 0
-                for (let chunk of  v.split(":")) {
-                    val = val * 60 + parseFloat(chunk)
-                }
-                return val
-            }
-        },
-        callback(v) {},
-        config: inputData,
-        options: Object.assign({}, inputData[1], widget.options),
-        displayValue() {
-            let seconds = this.value
-            let hours = seconds / 3600 | 0
-            seconds -= 3600 * hours
-            let minutes = seconds / 60 | 0
-            seconds -= 60 * minutes
-            let display = ""
-            if (hours > 0) {
-                display += hours + ":"
-            }
-            if (hours > 0 || minutes > 0) {
-                if (hours > 0) {
-                    minutes = (''+minutes).padStart(2,'0')
-                }
-                display += minutes + ":"
-            }
-            seconds = seconds.toFixed(4)
-            if (seconds[1] == '.' && (minutes > 0 || hours > 0)) {
-                seconds = '0'+seconds
-            }
-            display += seconds
-            return display
-        }
-    })
-    return widget
-}
 let latentPreviewNodes = new Set()
 app.registerExtension({
     name: "VideoHelperSuite.Core",
@@ -1883,6 +1820,15 @@ app.registerExtension({
                     this.setSize(this.computeSize())
                 })
             }
+            //set widgetType to use VHS widgets where possible
+            for(let inp of Object.values({...nodeData.input?.required, ...nodeData.input?.optional})) {
+                if (["INT", "FLOAT"].includes(inp[0])) {
+                    if (!inp[1]) {
+                        inp[1] = {}
+                    }
+                    inp[1].widgetType ??= "VHS" + inp[0]
+                }
+            }
             chainCallback(nodeType.prototype, "onNodeCreated", function () {
                 let new_widgets = []
                 if (this.widgets) {
@@ -1894,8 +1840,6 @@ app.registerExtension({
                         }
                         if (w?.type == "text" && config[1].vhs_path_extensions) {
                             new_widgets.push(app.widgets.VHSPATH({}, w.name, ["VHSPATH", config[1]]));
-                        } else if (w?.type == "number") {
-                            new_widgets.push(makeAnnotated(w, config))
                         } else {
                             new_widgets.push(w)
                         }
@@ -2165,17 +2109,120 @@ app.registerExtension({
                 return w;
             },
             VHSFLOAT(node, inputName, inputData) {
-                let {widget} = app.widgets.FLOAT(node, inputName, inputData, app)
-                return makeAnnotated(widget, inputData);
+                let w = {
+                    name: inputName,
+                    type: "VHS.ANNOTATED",
+                    draw: drawAnnotated,
+                    mouse: mouseAnnotated,
+                    computeSize(width) {
+                        return [width, 20]
+                    },
+                    callback(v) {
+                        if (this.options.round) {
+                            v = Math.round((v + Number.EPSILON) /
+                                this.options.round) * this.options.round
+                        }
+                        if (this.options.max && v > this.options.max) {
+                            v = this.options.max
+                        }
+                        if (this.options.min && v < this.options.max) {
+                            v = this.options.min
+                        }
+                        this.value = v
+                    },
+                    config: inputData,
+                    displayValue: function() {
+                        return roundToPrecision(this.value, this.options.precision ?? 3)
+                    },
+                    options: Object.assign({},  inputData[1])
+                }
+                if (!node.widgets) {
+                    node.widgets = []
+                }
+                node.widgets.push(w)
+                return w
             },
             VHSINT(node, inputName, inputData) {
-                let {widget} = app.widgets.INT(node, inputName, inputData, app)
-                return makeAnnotated(widget, inputData);
+                let w = {
+                    name: inputName,
+                    type: "VHS.ANNOTATED",
+                    value: inputData[1]?.default ?? 0,
+                    draw: drawAnnotated,
+                    mouse: mouseAnnotated,
+                    computeSize(width) {
+                        return [width, 20]
+                    },
+                    callback(v) {
+                        if (v == 0) {
+                            return
+                        }
+                        const s = this.options.step / 10
+                        let sh = this.options.mod ?? 1
+                        this.value = Math.round((v - sh) / s) * s + sh
+                    },
+                    config: inputData,
+                    displayValue: function() {
+                        return this.value | 0
+                    },
+                    options: Object.assign({},  inputData[1])
+                }
+                if (!node.widgets) {
+                    node.widgets = []
+                }
+                node.widgets.push(w)
+                return w
             },
             VHSTIMESTAMP(node, inputName, inputData) {
-                inputData = ["FLOAT", {...inputData[1], type: "FLOAT"}]
-                let {widget} = app.widgets.FLOAT(node, inputName, inputData, app)
-                return makeTimestamp(widget, inputData)
+                let w = {
+                    name: inputName,
+                    type: "VHS.TIMESTAMP",
+                    value: inputData[1]?.default ?? 0,
+                    draw: drawAnnotated,
+                    mouse: mouseAnnotated,
+                    computeSize(width) {
+                        return [width, 20]
+                    },
+                    parseValue(v) {
+                        if (typeof(v) == "string") {
+                            let val = 0
+                            for (let chunk of  v.split(":")) {
+                                val = val * 60 + parseFloat(chunk)
+                            }
+                            return val
+                        }
+                    },
+                    callback(v) {},
+                    config: inputData,
+                    options: Object.assign({}, inputData[1]),
+                    displayValue() {
+                        let seconds = this.value
+                        let hours = seconds / 3600 | 0
+                        seconds -= 3600 * hours
+                        let minutes = seconds / 60 | 0
+                        seconds -= 60 * minutes
+                        let display = ""
+                        if (hours > 0) {
+                            display += hours + ":"
+                        }
+                        if (hours > 0 || minutes > 0) {
+                            if (hours > 0) {
+                                minutes = (''+minutes).padStart(2,'0')
+                            }
+                            display += minutes + ":"
+                        }
+                        seconds = roundToPrecision(seconds, 4)
+                        if (seconds[1] == '.' && (minutes > 0 || hours > 0)) {
+                            seconds = '0'+seconds
+                        }
+                        display += seconds
+                        return display
+                    }
+                }
+                if (!node.widgets) {
+                    node.widgets = []
+                }
+                node.widgets.push(w)
+                return w
             },
         }
     },
