@@ -35,7 +35,7 @@ async def view_video(request):
         select_every_nth = int(query.get('select_every_nth', 1)) or 1
         valid_images = get_sorted_dir_files_from_directory(file, skip_first_images, select_every_nth, FolderOfImages.IMG_EXTENSIONS)
         if len(valid_images) == 0:
-            return web.Response(status=400)
+            return web.Response(status=204)
         with open(concat_file, "w") as f:
             f.write("ffconcat version 1.0\n")
             for path in valid_images:
@@ -191,7 +191,7 @@ async def query_video(request):
 
 async def resolve_path(query):
     if "filename" not in query:
-        return web.Response(status=404)
+        return web.Response(status=204)
     filename = query["filename"]
 
     #Path code misformats urls on windows and must be skipped
@@ -211,10 +211,10 @@ async def resolve_path(query):
             output_dir = folder_paths.get_directory_by_type(type)
 
         if output_dir is None:
-            return web.Response(status=400)
+            return web.Response(status=204)
 
         if not is_safe_path(output_dir):
-            return web.Response(status=403)
+            return web.Response(status=204)
 
         if "subfolder" in query:
             output_dir = os.path.join(output_dir, query["subfolder"])
@@ -224,10 +224,10 @@ async def resolve_path(query):
 
         if query.get('format', 'video') == 'folder':
             if not os.path.isdir(file):
-                return web.Response(status=404)
+                return web.Response(status=204)
         else:
             if not os.path.isfile(file) and not validate_sequence(file):
-                    return web.Response(status=404)
+                    return web.Response(status=204)
         return file, filename, output_dir
 
 @server.PromptServer.instance.routes.get("/vhs/getpath")
@@ -235,7 +235,7 @@ async def resolve_path(query):
 async def get_path(request):
     query = request.rel_url.query
     if "path" not in query:
-        return web.Response(status=404)
+        return web.Response(status=204)
     #NOTE: path always ends in `/`, so this is functionally an lstrip
     path = os.path.abspath(strip_path(query["path"]))
 
