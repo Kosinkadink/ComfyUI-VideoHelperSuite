@@ -1476,7 +1476,7 @@ function fitPath(ctx, path, maxLength) {
         return [path, fullLength]
     }
     //determine approx safe cutoff
-    let len = (maxLength / fullLength * path.length | 0) -2
+    let len = (maxLength / fullLength * path.length | 0) - 1
 
     let displayPath = ''
     let filename = path_stem(path)[1]
@@ -2077,7 +2077,7 @@ app.registerExtension({
                             ctx.clip();
 
                             //ctx.stroke();
-                            let freeWidth = widget_width - (margin * 2 + 20)
+                            let freeWidth = widget_width - (margin * 2 + 40)
                             ctx.fillStyle = secondary_text_color;
                             const label = this.label || this.name;
                             if (label != null) {
