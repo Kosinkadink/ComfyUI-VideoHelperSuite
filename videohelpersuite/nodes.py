@@ -636,8 +636,8 @@ class LoadAudio:
                           }
         }
 
-    RETURN_TYPES = ("AUDIO",)
-    RETURN_NAMES = ("audio",)
+    RETURN_TYPES = ("AUDIO", "FLOAT")
+    RETURN_NAMES = ("audio", "duration")
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢/audio"
     FUNCTION = "load_audio"
     def load_audio(self, audio_file, seek_seconds=0, duration=0):
@@ -648,7 +648,9 @@ class LoadAudio:
             audio_file = try_download_video(audio_file) or audio_file
         #Eagerly fetch the audio since the user must be using it if the
         #node executes, unlike Load Video
-        return (get_audio(audio_file, start_time=seek_seconds, duration=duration),)
+        audio = get_audio(audio_file, start_time=seek_seconds, duration=duration)
+        loaded_duration = audio['waveform'].size(2)/audio['sample_rate']
+        return (audio, loaded_duration)
 
     @classmethod
     def IS_CHANGED(s, audio_file, **kwargs):
@@ -678,8 +680,8 @@ class LoadAudioUpload:
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢/audio"
 
-    RETURN_TYPES = ("AUDIO", )
-    RETURN_NAMES = ("audio",)
+    RETURN_TYPES = ("AUDIO", "FLOAT")
+    RETURN_NAMES = ("audio", "duration")
     FUNCTION = "load_audio"
 
     def load_audio(self, start_time=0, duration=0, **kwargs):
@@ -687,7 +689,9 @@ class LoadAudioUpload:
         if audio_file is None or validate_path(audio_file) != True:
             raise Exception("audio_file is not a valid path: " + audio_file)
         
-        return (get_audio(audio_file, start_time, duration),)
+        audio = get_audio(audio_file, start_time, duration)
+        loaded_duration = audio['waveform'].size(2)/audio['sample_rate']
+        return (audio, loaded_duration)
 
     @classmethod
     def IS_CHANGED(s, audio, **kwargs):
