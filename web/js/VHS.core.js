@@ -2157,7 +2157,7 @@ app.registerExtension({
                         if (this.options.max && v > this.options.max) {
                             v = this.options.max
                         }
-                        if (this.options.min && v < this.options.max) {
+                        if (this.options.min && v < this.options.min) {
                             v = this.options.min
                         }
                         if (v == 0) {
