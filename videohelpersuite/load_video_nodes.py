@@ -467,26 +467,25 @@ class LoadVideoUpload:
 class LoadVideoPath:
     @classmethod
     def INPUT_TYPES(s):
-        return {
-            "required": {
-                "video": ("STRING", {"placeholder": "X://insert/path/here.mp4", "vhs_path_extensions": video_extensions}),
-                "force_rate": (floatOrInt, {"default": 0, "min": 0, "max": 60, "step": 1, "disable": 0}),
-                "custom_width": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
-                "custom_height": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
-                "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1, "disable": 0}),
-                "skip_first_frames": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
-                "select_every_nth": ("INT", {"default": 1, "min": 1, "max": BIGMAX, "step": 1}),
-            },
-            "optional": {
-                "meta_batch": ("VHS_BatchManager",),
-                "vae": ("VAE",),
-                "format": get_load_formats(),
-            },
-            "hidden": {
-                "force_size": "STRING",
-                "unique_id": "UNIQUE_ID"
-            },
-        }
+        return {"required": {
+                    "video": ("STRING", {"placeholder": "X://insert/path/here.mp4", "vhs_path_extensions": video_extensions}),
+                    "force_rate": (floatOrInt, {"default": 0, "min": 0, "max": 60, "step": 1, "disable": 0}),
+                    "custom_width": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
+                    "custom_height": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
+                    "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1, "disable": 0}),
+                    "skip_first_frames": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
+                    "select_every_nth": ("INT", {"default": 1, "min": 1, "max": BIGMAX, "step": 1}),
+                },
+                "optional": {
+                    "meta_batch": ("VHS_BatchManager",),
+                    "vae": ("VAE",),
+                    "format": get_load_formats(),
+                },
+                "hidden": {
+                    "force_size": "STRING",
+                    "unique_id": "UNIQUE_ID"
+                },
+                }
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
 
@@ -510,6 +509,7 @@ class LoadVideoPath:
     def VALIDATE_INPUTS(s, video):
         return validate_path(video, allow_none=True)
 
+
 class LoadVideoFFmpegUpload:
     @classmethod
     def INPUT_TYPES(s):
@@ -527,7 +527,7 @@ class LoadVideoFFmpegUpload:
                     "custom_height": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
                     "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1, "disable": 0}),
                     "start_time": ("FLOAT", {"default": 0, "min": 0, "max": BIGMAX, "step": .001}),
-                    },
+                },
                 "optional": {
                     "meta_batch": ("VHS_BatchManager",),
                     "vae": ("VAE",),
@@ -660,3 +660,63 @@ class LoadImagePath:
     @classmethod
     def VALIDATE_INPUTS(s, image):
         return validate_path(image, allow_none=True)
+
+class LoadVideoPathPreview:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "video": ("STRING", {"placeholder": "X://insert/path/here.mp4", "vhs_path_extensions": video_extensions}),
+                "force_rate": (floatOrInt, {"default": 0, "min": 0, "max": 60, "step": 1, "disable": 0}),
+                "custom_width": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
+                "custom_height": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
+                "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1, "disable": 0}),
+                "skip_first_frames": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
+                "select_every_nth": ("INT", {"default": 1, "min": 1, "max": BIGMAX, "step": 1}),
+            },
+            "optional": {
+                "meta_batch": ("VHS_BatchManager",),
+                "vae": ("VAE",),
+                "format": get_load_formats(),
+            },
+            "hidden": {
+                "force_size": "STRING",
+                "unique_id": "UNIQUE_ID"
+            },
+        }
+
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
+
+    RETURN_TYPES = (imageOrLatent, "INT", "AUDIO", "VHS_VIDEOINFO")
+    RETURN_NAMES = ("IMAGE", "frame_count", "audio", "video_info")
+
+    FUNCTION = "load_video"
+
+    def load_video(self, **kwargs):
+        if kwargs['video'] is None or validate_path(kwargs['video']) != True:
+            raise Exception("video is not a valid path: " + kwargs['video'])
+        if is_url(kwargs['video']):
+            kwargs['video'] = try_download_video(kwargs['video']) or kwargs['video']
+            
+        # Get standard video loading results
+        result = load_video(**kwargs)
+        
+        # Create a preview of the video for UI
+        preview = {
+            "filename": os.path.basename(kwargs['video']),
+            "subfolder": "",
+            "type": "input",
+            "format": "video",
+            "fullpath": kwargs['video'],
+        }
+        
+        # Return both the regular result and UI preview
+        return {"ui": {"videos": [preview]}, "result": result}
+
+    @classmethod
+    def IS_CHANGED(s, video, **kwargs):
+        return hash_path(video)
+
+    @classmethod
+    def VALIDATE_INPUTS(s, video):
+        return validate_path(video, allow_none=True)
