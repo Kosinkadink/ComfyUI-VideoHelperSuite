@@ -4,7 +4,8 @@
         "-n",
         "-pix_fmt", ["pix_fmt",["yuv420p","yuva420p"]],
         "-crf", ["crf","INT", {"default": 20, "min": 0, "max": 100, "step": 1}],
-        "-b:v", "0",
+        "-b:v", ["bitrate", "STRING", {"default": "0"}],
+        "-c:v", ["codec", ["libvpx", "libvpx-vp9"]],
         "-vf", "scale=out_color_matrix=bt709",
         "-color_range", "tv", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709"
     ],

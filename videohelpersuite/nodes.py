@@ -105,6 +105,13 @@ def apply_format_widgets(format_name, kwargs):
                     default = {"BOOLEAN": False, "INT": 0, "FLOAT": 0, "STRING": ""}[w[1]]
             kwargs[w[0]] = default
             logger.warn(f"Missing input for {w[0][0]} has been set to {default}")
+
+    # VP8 transparency compatibility fix
+    if format_name == "webm" and kwargs.get('codec') == 'libvpx' and kwargs.get('pix_fmt') == 'yuva420p':
+        # VP8 needs auto-alt-ref disabled for transparency support
+        video_format['main_pass'].extend(['-auto-alt-ref', '0'])
+        logger.info("VP8 transparency mode: auto-alt-ref disabled for compatibility")
+
     wit = iterate_format(video_format, False)
     for w in wit:
         while isinstance(w, list):
@@ -681,7 +688,7 @@ class LoadAudioUpload:
         audio_file = folder_paths.get_annotated_filepath(strip_path(kwargs['audio']))
         if audio_file is None or validate_path(audio_file) != True:
             raise Exception("audio_file is not a valid path: " + audio_file)
-        
+
         return (get_audio(audio_file, start_time, duration),)
 
     @classmethod
@@ -885,7 +892,7 @@ class VideoInfo:
 
     def get_video_info(self, video_info):
         keys = ["fps", "frame_count", "duration", "width", "height"]
-        
+
         source_info = []
         loaded_info = []
 
@@ -919,7 +926,7 @@ class VideoInfoSource:
 
     def get_video_info(self, video_info):
         keys = ["fps", "frame_count", "duration", "width", "height"]
-        
+
         source_info = []
 
         for key in keys:
@@ -951,7 +958,7 @@ class VideoInfoLoaded:
 
     def get_video_info(self, video_info):
         keys = ["fps", "frame_count", "duration", "width", "height"]
-        
+
         loaded_info = []
 
         for key in keys:
