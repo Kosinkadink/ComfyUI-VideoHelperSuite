@@ -339,19 +339,7 @@ class VideoCombine:
         ) = folder_paths.get_save_image_path(filename_prefix, output_dir)
         output_files = []
 
-        metadata = PngInfo()
-        video_metadata = {}
-        if prompt is not None:
-            metadata.add_text("prompt", json.dumps(prompt))
-            video_metadata["prompt"] = json.dumps(prompt)
-        if extra_pnginfo is not None:
-            for x in extra_pnginfo:
-                metadata.add_text(x, json.dumps(extra_pnginfo[x]))
-                video_metadata[x] = extra_pnginfo[x]
-            extra_options = extra_pnginfo.get('workflow', {}).get('extra', {})
-        else:
-            extra_options = {}
-        metadata.add_text("CreationTime", datetime.datetime.now().isoformat(" ")[:19])
+        extra_options = extra_pnginfo.get('workflow', {}).get('extra', {}) if extra_pnginfo else {}
 
         if meta_batch is not None and unique_id in meta_batch.outputs:
             (counter, output_process) = meta_batch.outputs[unique_id]
@@ -375,18 +363,74 @@ class VideoCombine:
             counter = max_counter + 1
             output_process = None
 
-        # save first frame as png to keep metadata
+        # We must determine the final filenames FIRST,
+        # update the extra_pnginfo in memory, and only THEN create the metadata objects that will be saved.
+        format_type, format_ext = format.split("/")
+        
+        # This has to be done early to get the correct file extension for video formats.
+        if format_type != "image":
+            if manual_format_widgets is not None:
+                logger.warn("Format args can now be passed directly. The manual_format_widgets argument is now deprecated")
+                kwargs.update(manual_format_widgets)
+            has_alpha = first_image.shape[-1] == 4
+            kwargs["has_alpha"] = has_alpha
+            video_format = apply_format_widgets(format_ext, kwargs)
+            video_format_extension = video_format['extension']
+        else:
+            video_format_extension = format_ext
+            video_format = {} # Ensure video_format exists
+
+        # 1. Determine all final output filenames and paths *before* creating metadata.
+        file = f"{filename}_{counter:05}.{video_format_extension}"
+        file_path = os.path.join(full_output_folder, file)
         first_image_file = f"{filename}_{counter:05}.png"
-        file_path = os.path.join(full_output_folder, first_image_file)
+
+        # 2. Create the 'preview' dictionary with the fresh, correct data for the current run.
+        preview = {
+                "filename": file,
+                "subfolder": subfolder,
+                "type": "output" if save_output else "temp",
+                "format": format,
+                "frame_rate": frame_rate,
+                "workflow": first_image_file,
+                "fullpath": file_path,
+            }
+
+        # 3. Update the extra_pnginfo dictionary IN-MEMORY before it is used to create file metadata.
+        if extra_pnginfo and 'workflow' in extra_pnginfo and unique_id is not None:
+            workflow = extra_pnginfo['workflow']
+            node = next((n for n in workflow['nodes'] if str(n['id']) == str(unique_id)), None)
+            if node:
+                if 'widgets_values' not in node:
+                    node['widgets_values'] = {}
+                # Update the 'videopreview' widget's value with the correct params for this run.
+                if 'videopreview' not in node['widgets_values']:
+                     node['widgets_values']['videopreview'] = {}
+                node['widgets_values']['videopreview']['params'] = preview
+
+        # 4. Now, create the metadata objects using the UPDATED extra_pnginfo.
+        metadata = PngInfo()
+        video_metadata = {}
+        if prompt is not None:
+            metadata.add_text("prompt", json.dumps(prompt))
+            video_metadata["prompt"] = json.dumps(prompt)
+        if extra_pnginfo is not None:
+            for x in extra_pnginfo:
+                # The 'workflow' object within extra_pnginfo is now up-to-date
+                metadata.add_text(x, json.dumps(extra_pnginfo[x]))
+                video_metadata[x] = extra_pnginfo[x]
+        metadata.add_text("CreationTime", datetime.datetime.now().isoformat(" ")[:19])
+        
+        # 5. Save the first frame as a PNG with the now-correct metadata.
+        png_file_path = os.path.join(full_output_folder, first_image_file)
         if extra_options.get('VHS_MetadataImage', True) != False:
             Image.fromarray(tensor_to_bytes(first_image)).save(
-                file_path,
+                png_file_path,
                 pnginfo=metadata,
                 compress_level=4,
             )
-        output_files.append(file_path)
+        output_files.append(png_file_path)
 
-        format_type, format_ext = format.split("/")
         if format_type == "image":
             if meta_batch is not None:
                 raise Exception("Pillow('image/') formats are not compatible with batched output")
@@ -399,8 +443,7 @@ class VideoCombine:
                 exif[ExifTags.IFD.Exif] = {36867: datetime.datetime.now().isoformat(" ")[:19]}
                 image_kwargs['exif'] = exif
                 image_kwargs['lossless'] = kwargs.get("lossless", True)
-            file = f"{filename}_{counter:05}.{format_ext}"
-            file_path = os.path.join(full_output_folder, file)
+            # Filename and path are already correctly defined above
             if pingpong:
                 images = to_pingpong(images)
             def frames_gen(images):
@@ -424,14 +467,8 @@ class VideoCombine:
             # Use ffmpeg to save a video
             if ffmpeg_path is None:
                 raise ProcessLookupError(f"ffmpeg is required for video outputs and could not be found.\nIn order to use video outputs, you must either:\n- Install imageio-ffmpeg with pip,\n- Place a ffmpeg executable in {os.path.abspath('')}, or\n- Install ffmpeg and add it to the system path.")
-
-            if manual_format_widgets is not None:
-                logger.warn("Format args can now be passed directly. The manual_format_widgets argument is now deprecated")
-                kwargs.update(manual_format_widgets)
-
-            has_alpha = first_image.shape[-1] == 4
-            kwargs["has_alpha"] = has_alpha
-            video_format = apply_format_widgets(format_ext, kwargs)
+            
+            # All format widget logic has been moved up
             dim_alignment = video_format.get("dim_alignment", 2)
             if (first_image.shape[1] % dim_alignment) or (first_image.shape[0] % dim_alignment):
                 #output frames must be padded
@@ -473,8 +510,7 @@ class VideoCombine:
                     i_pix_fmt = 'rgba'
                 else:
                     i_pix_fmt = 'rgb24'
-            file = f"{filename}_{counter:05}.{video_format['extension']}"
-            file_path = os.path.join(full_output_folder, file)
+            # Filename and path are already correctly defined above
             bitrate_arg = []
             bitrate = video_format.get('bitrate')
             if bitrate is not None:
@@ -529,6 +565,7 @@ class VideoCombine:
                 else:
                     args += video_format['main_pass'] + bitrate_arg
                     merge_filter_args(args)
+                    # The 'video_metadata' object used here is now correct because it was created after updating extra_pnginfo.
                     output_process = ffmpeg_process(args, video_format, video_metadata, file_path, env)
                 #Proceed to first yield
                 output_process.send(None)
@@ -604,23 +641,23 @@ class VideoCombine:
                 output_files.append(output_file_with_audio_path)
                 #Return this file with audio to the webui.
                 #It will be muted unless opened or saved with right click
-                file = output_file_with_audio
+                preview['filename'] = output_file_with_audio
+                preview['fullpath'] = output_file_with_audio_path
+        
         if extra_options.get('VHS_KeepIntermediate', True) == False:
-            for intermediate in output_files[1:-1]:
-                if os.path.exists(intermediate):
+            # We determine the final output file to avoid deleting it if it's the only one.
+            final_output_file = preview['fullpath']
+            for intermediate in output_files:
+                if intermediate != final_output_file and os.path.exists(intermediate):
                     os.remove(intermediate)
-        preview = {
-                "filename": file,
-                "subfolder": subfolder,
-                "type": "output" if save_output else "temp",
-                "format": format,
-                "frame_rate": frame_rate,
-                "workflow": first_image_file,
-                "fullpath": output_files[-1],
-            }
+            # Update output_files to only contain the final file if intermediates are removed.
+            output_files = [f for f in output_files if f == final_output_file or not os.path.exists(f)]
+
+
         if num_frames == 1 and 'png' in format and '%03d' in file:
             preview['format'] = 'image/png'
             preview['filename'] = file.replace('%03d', '001')
+
         return {"ui": {"gifs": [preview]}, "result": ((save_output, output_files),)}
 
 class LoadAudio:
