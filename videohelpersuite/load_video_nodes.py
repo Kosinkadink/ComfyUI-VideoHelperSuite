@@ -180,6 +180,15 @@ def ffmpeg_frame_generator(video, force_rate, frame_load_cap, start_time,
         raise Exception("An error occurred in the ffmpeg subprocess:\n" \
                 + e.stderr.decode(*ENCODE_ARGS))
     lines = dummy_res.stderr.decode(*ENCODE_ARGS)
+    if "Video: vp9 " in lines:
+        args_dummy = args_dummy[:1] + ["-c:v", "libvpx-vp9"] + args_dummy[1:]
+        try:
+            dummy_res = subprocess.run(args_dummy, stdout=subprocess.DEVNULL,
+                                     stderr=subprocess.PIPE, check=True)
+        except subprocess.CalledProcessError as e:
+            raise Exception("An error occurred in the ffmpeg subprocess:\n" \
+                    + e.stderr.decode(*ENCODE_ARGS))
+        lines = dummy_res.stderr.decode(*ENCODE_ARGS)
 
     for line in lines.split('\n'):
         match = re.search("^ *Stream .* Video.*, ([1-9]|\\d{2,})x(\\d+)", line)
