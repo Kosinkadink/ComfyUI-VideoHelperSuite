@@ -448,8 +448,7 @@ function allowDragFromWidget(widget) {
     }
 }
 
-async function uploadFile(file) {
-    //TODO: Add uploaded file to cache with Cache.put()?
+async function uploadFile(file, progressCallback) {
     try {
         // Wrap file in formdata so it includes filename
         const body = new FormData();
@@ -463,16 +462,19 @@ async function uploadFile(file) {
         if (i > 0) {
             body.append("subfolder", subfolder);
         }
-        const resp = await api.fetchApi("/upload/image", {
-            method: "POST",
-            body,
-        });
+        const url = api.apiURL("/upload/image")
+        const resp = await new Promise((resolve) => {
+            let req = new XMLHttpRequest()
+            req.upload.onprogress = (e) => progressCallback?.(e.loaded/e.total)
+            req.onload = () => resolve(req)
+            req.open('post', url, true)
+            req.send(body)
+        })
 
-        if (resp.status === 200) {
-            return resp
-        } else {
+        if (resp.status !== 200) {
             alert(resp.status + " - " + resp.statusText);
         }
+        return resp
     } catch (error) {
         alert(error);
     }
@@ -762,10 +764,12 @@ function addUploadWidget(nodeType, nodeData, widgetName, type="video") {
                         return;
                     }
                     let successes = 0;
+                    const onProg = (p) => this.progress = (successes + p) / fileInput.files.length
                     for(const file of fileInput.files) {
-                        if ((await uploadFile(file)).status == 200) {
+                        if ((await uploadFile(file, onProg)).status == 200) {
                             successes++;
                         } else {
+                            this.progress = undefined
                             //Upload failed, but some prior uploads may have succeeded
                             //Stop future uploads to prevent cascading failures
                             //and only add to list if an upload has succeeded
@@ -776,6 +780,7 @@ function addUploadWidget(nodeType, nodeData, widgetName, type="video") {
                             }
                         }
                     }
+                    this.progress = undefined
                     pathWidget.options.values.push(path);
                     pathWidget.value = path;
                     if (pathWidget.callback) {
@@ -790,7 +795,9 @@ function addUploadWidget(nodeType, nodeData, widgetName, type="video") {
                 style: "display: none",
                 onchange: async () => {
                     if (fileInput.files.length) {
-                        let resp = await uploadFile(fileInput.files[0])
+                        let resp = await uploadFile(fileInput.files[0],
+                                                    (p) => this.progress = p)
+                        this.progress = undefined
                         if (resp.status != 200) {
                             //upload failed and file can not be added to options
                             return;
@@ -811,7 +818,8 @@ function addUploadWidget(nodeType, nodeData, widgetName, type="video") {
                 style: "display: none",
                 onchange: async () => {
                     if (fileInput.files.length) {
-                        let resp = await uploadFile(fileInput.files[0])
+                        let resp = await uploadFile(fileInput.files[0],
+                                                    (p) => this.progress = p)
                         if (resp.status != 200) {
                             //upload failed and file can not be added to options
                             return;
@@ -1855,7 +1863,6 @@ app.registerExtension({
             });
             addLoadCommon(nodeType, nodeData);
         } else if (nodeData?.name == "VHS_LoadImagesPath") {
-            addUploadWidget(nodeType, nodeData, "directory", "folder");
             chainCallback(nodeType.prototype, "onNodeCreated", function() {
                 const pathWidget = this.widgets.find((w) => w.name === "directory");
                 chainCallback(pathWidget, "callback", (value) => {
