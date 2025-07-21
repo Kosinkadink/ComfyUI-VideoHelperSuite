@@ -17,7 +17,7 @@ from .logger import logger
 from .utils import BIGMAX, DIMMAX, calculate_file_hash, get_sorted_dir_files_from_directory,\
         lazy_get_audio, hash_path, validate_path, strip_path, try_download_video,  \
         is_url, imageOrLatent, ffmpeg_path, ENCODE_ARGS, floatOrInt
-
+from floyo import floyo
 
 video_extensions = ['webm', 'mp4', 'mkv', 'gif', 'mov']
 
@@ -416,7 +416,7 @@ class LoadVideoUpload:
     def INPUT_TYPES(s):
         input_dir = folder_paths.get_input_directory()
         files = []
-        for f in os.listdir(input_dir):
+        for f in floyo.find_files_recursively(input_dir):
             if os.path.isfile(os.path.join(input_dir, f)):
                 file_parts = f.split('.')
                 if len(file_parts) > 1 and (file_parts[-1].lower() in video_extensions):
@@ -515,7 +515,7 @@ class LoadVideoFFmpegUpload:
     def INPUT_TYPES(s):
         input_dir = folder_paths.get_input_directory()
         files = []
-        for f in os.listdir(input_dir):
+        for f in floyo.find_files_recursively(input_dir):
             if os.path.isfile(os.path.join(input_dir, f)):
                 file_parts = f.split('.')
                 if len(file_parts) > 1 and (file_parts[-1].lower() in video_extensions):

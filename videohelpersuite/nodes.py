@@ -26,6 +26,9 @@ from .utils import ffmpeg_path, get_audio, hash_path, validate_path, requeue_wor
         ContainsAll
 from comfy.utils import ProgressBar
 
+from floyo import floyo
+
+
 if 'VHS_video_formats' not in folder_paths.folder_names_and_paths:
     folder_paths.folder_names_and_paths["VHS_video_formats"] = ((),{".json"})
 if len(folder_paths.folder_names_and_paths['VHS_video_formats'][1]) == 0:
@@ -659,7 +662,7 @@ class LoadAudioUpload:
     def INPUT_TYPES(s):
         input_dir = folder_paths.get_input_directory()
         files = []
-        for f in os.listdir(input_dir):
+        for f in floyo.find_files_recursively(input_dir):
             if os.path.isfile(os.path.join(input_dir, f)):
                 file_parts = f.split('.')
                 if len(file_parts) > 1 and (file_parts[-1] in audio_extensions):
