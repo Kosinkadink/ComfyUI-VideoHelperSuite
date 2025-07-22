@@ -690,8 +690,8 @@ function initializeLoadFormat(nodeType, nodeData) {
                 format.force_rate = {'reset': format.target_rate}
             }
             if ('dim' in format) {
-                format.custom_width = {'step': format.dim[0]*10, 'mod': format.dim[1]}
-                format.custom_height = {'step': format.dim[0]*10, 'mod': format.dim[1]}
+                format.custom_width = {'step': format.dim[0], 'mod': format.dim[1]}
+                format.custom_height = {'step': format.dim[0], 'mod': format.dim[1]}
                 if (format.dim[2]) {
                     format.custom_width.reset = format.dim[2]
                 }
@@ -700,7 +700,7 @@ function initializeLoadFormat(nodeType, nodeData) {
                 }
             }
             if ('frames' in format) {
-                format.frame_load_cap = {'step': format.frames[0]*10, 'mod': format.frames[1]}
+                format.frame_load_cap = {'step': format.frames[0], 'mod': format.frames[1]}
             }
             for (let widget of node.widgets) {
                 if (widget.name in base) {
@@ -1233,12 +1233,6 @@ function addLoadCommon(nodeType, nodeData) {
         }
         const offsetWidget = this.widgets.find((w) => w.name === "start_time");
         if (offsetWidget) {
-            Object.defineProperty(offsetWidget.options, "step2", {
-                set : (value) => {},
-                get : () => {
-                    return 1 / (this.video_query?.loaded?.fps ?? 1)
-                }
-            })
             Object.defineProperty(offsetWidget.options, "step", {
                 set : (value) => {},
                 get : () => {
@@ -1640,7 +1634,7 @@ function mouseAnnotated(event, [x, y], node) {
     var allow_scroll = true
     if (allow_scroll && event.type == 'pointermove') {
         if (event.deltaX)
-            this.value += event.deltaX * 0.1 * (this.options.step || 1)
+            this.value += event.deltaX * (this.options.step || 1)
         if (this.options.min != null && this.value < this.options.min) {
             this.value = this.options.min
         }
@@ -1656,7 +1650,7 @@ function mouseAnnotated(event, [x, y], node) {
                 this.value = this.options.disable
             }
         } else {
-            this.value += isButton * 0.1 * (this.options.step || 1)
+            this.value += isButton * (this.options.step || 1)
             if (this.options.min != null && this.value < this.options.min) {
                 this.value = this.options.min
             }
@@ -2163,7 +2157,7 @@ app.registerExtension({
                         if (v == 0) {
                             return
                         }
-                        const s = this.options.step / 10
+                        const s = this.options.step
                         let sh = this.options.mod ?? 1
                         this.value = Math.round((v - sh) / s) * s + sh
                     },
@@ -2218,7 +2212,7 @@ app.registerExtension({
                             display += minutes + ":"
                         }
                         seconds = roundToPrecision(seconds, 4)
-                        if (seconds[1] == '.' && (minutes > 0 || hours > 0)) {
+                        if ((seconds[1] == '.' || seconds.length == 1) && (minutes > 0 || hours > 0)) {
                             seconds = '0'+seconds
                         }
                         display += seconds
