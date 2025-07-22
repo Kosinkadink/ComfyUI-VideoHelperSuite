@@ -732,7 +732,7 @@ function initializeLoadFormat(nodeType, nodeData) {
         let rateWidget = this.widgets.find((w) => w.name === "force_rate")
         rateWidget.annotation = (value, width) => {
             if (value == 0 && this.video_query?.source?.fps != undefined) {
-                return this.video_query.source.fps + "\u21FD"
+                return roundToPrecision(this.video_query.source.fps, 2) + "\u21FD"
             }
         }
     });
@@ -2114,6 +2114,7 @@ app.registerExtension({
                     },
                     callback(v) {
                         if (this.options.round) {
+                            //TODO adopt ComfyUI_frontend#4291?
                             v = Math.round((v + Number.EPSILON) /
                                 this.options.round) * this.options.round
                         }
