@@ -13,9 +13,6 @@ from comfy.k_diffusion.utils import FolderOfImages
 
 
 web = server.web
-vpxr = av.Codec('libvpx-vp9', 'r').create()
-#vpxw = av.Codec('libvpx-vp9', 'w').create()
-#vpxw.options['deadline']  = 'realtime'
 
 @server.PromptServer.instance.routes.get("/vhs/viewvideo")
 @server.PromptServer.instance.routes.get("/viewvideo")
@@ -25,8 +22,8 @@ async def pyav_resp(request):
     if isinstance(path_res, web.Response):
         return path_res
     file, filename, output_dir = path_res
+    resp = web.StreamResponse()
     try:
-        resp = web.StreamResponse()
         resp.content_type = 'video/webm'
         resp.headers["Content-Disposition"] = f"filename=\"{filename}\""
         await resp.prepare(request)
@@ -56,20 +53,23 @@ async def pyav_resp(request):
                     await self.async_file.write(b)
                 except Exception as e:
                     self.error = e
-                    raise
                 finally:
                     self.lock.release()
-        ret = await asyncio.to_thread(pyav_transcode, query, file, BlockingFile(resp))
-        if isinstance(ret, BaseException):
-            breakpoint()
-            raise ret
-        return resp
+        bresp = BlockingFile(resp)
+        await asyncio.to_thread(pyav_transcode, query, file, bresp)
+        if bresp.error:
+            raise bresp.error
     except (ConnectionResetError, ConnectionError) as e:
-        #TODO Verify this doesn't create zombie processes
-        print("Zombie process?")
+        pass
+    except Exception as e:
+        breakpoint()
         raise
+    return resp
 def pyav_transcode(query, ifile, ofile):
-    with av.open(ifile, 'r') as icont, av.open(ofile, 'w', format='matroska') as ocont:
+    with av.open(ifile, 'r') as icont:
+        #NOTE If ofile is 'closed' exiting the creates cascading errors that obfuscate cause
+        #As ofile is only file like, failing to close it does not create a dangling reference
+        ocont = av.open(ofile, 'w', format='matroska')
         istreams = {}
         processors = {}
         start_pts = 0
@@ -81,7 +81,9 @@ def pyav_transcode(query, ifile, ofile):
             target_rate = query.get('frame_rate') or icont.streams.video[0].average_rate
             frame_load_cap = int(query.get('frame_load_cap')) or float('inf')
             ostream = ocont.add_stream('libvpx-vp9', rate=target_rate)
-            ostream.options['deadline'] = 'realtime'#Maybe placebo, doesn't seem to function
+            if 'deadline' in query:
+                #Doesn't seem to function with pyav. Potentially placebo
+                ostream.options['deadline'] = query['deadline']
             istream = icont.streams.video[0]
             istreams['video'] = 0
             fg = av.filter.Graph()
@@ -102,7 +104,7 @@ def pyav_transcode(query, ifile, ofile):
                 start_pts += int((int(query['skip_first_frames'])+1) /
                                  (istream.average_rate * istream.time_base))
                 icont.seek(start_pts, stream=istream)
-            cc = vpxr if istream.codec_context.name == 'vp9' else istream
+            cc = av.Codec('libvpx-vp9', 'r').create() if istream.codec_context.name == 'vp9' else istream
             def process_video(packet):
                 nonlocal frame_load_cap
                 for frame in cc.decode(packet):
@@ -111,6 +113,8 @@ def pyav_transcode(query, ifile, ofile):
                         return
                     if frame.pts < start_pts:
                         continue
+                    #Should be required, but seems to cause increased stuttering with no upside
+                    #frame.pts -= start_pts
                     fg.push(frame)
                     yield from ostream.encode(fg.pull())
             processors[icont.streams.video[0]] = process_video
@@ -125,13 +129,13 @@ def pyav_transcode(query, ifile, ofile):
         for stream in ocont.streams.get():
             for packet in stream.encode(None):
                 ocont.mux(packet)
+        ocont.close()
 
 query_cache = {}
 @server.PromptServer.instance.routes.get("/vhs/queryvideo")
 async def query_video(request):
     query = request.rel_url.query
     filepath = await resolve_path(query)
-    #TODO: cache lookup
     if isinstance(filepath, web.Response):
         return filepath
     filepath = filepath[0]
