@@ -31,10 +31,10 @@ async def pyav_resp(request):
         resp.headers["Content-Disposition"] = f"filename=\"{filename}\""
         await resp.prepare(request)
         loop = asyncio.get_event_loop()
-        class Writable:
-            def __init__(self, async_writable):
+        class BlockingFile:
+            def __init__(self, async_file):
                 self.lock = threading.Lock()
-                self._writable = async_writable
+                self.async_file = async_file
                 self.closed = False
                 self.error = None
             def write(self, b):
@@ -43,19 +43,26 @@ async def pyav_resp(request):
                     raise self.error
                 #NOTE assignment purely to stop premature garbage collection
                 self.ctask = loop.call_soon_threadsafe(asyncio.create_task, self.do_write(b))
+            def writable(self):
+                return True
+            def seekable(self):
+                return False
             def close(self):
                 if not self.closed:
                     self.lock.acquire()
                     self.closed = True
             async def do_write(self, b):
                 try:
-                    await self._writable.write(b)
+                    await self.async_file.write(b)
                 except Exception as e:
                     self.error = e
                     raise
                 finally:
                     self.lock.release()
-        await asyncio.to_thread(pyav_transcode, query, file, Writable(resp))
+        ret = await asyncio.to_thread(pyav_transcode, query, file, BlockingFile(resp))
+        if isinstance(ret, BaseException):
+            breakpoint()
+            raise ret
         return resp
     except (ConnectionResetError, ConnectionError) as e:
         #TODO Verify this doesn't create zombie processes
@@ -65,10 +72,14 @@ def pyav_transcode(query, ifile, ofile):
     with av.open(ifile, 'r') as icont, av.open(ofile, 'w', format='matroska') as ocont:
         istreams = {}
         processors = {}
+        start_pts = 0
+        if 'start_time' in query:
+            #TODO Verify correctness of time base
+            start_pts = int(float(query['start_time']), av.time_base)
+            icont.seek(start_pts)
         if icont.streams.video:
             target_rate = query.get('frame_rate') or icont.streams.video[0].average_rate
             frame_load_cap = int(query.get('frame_load_cap')) or float('inf')
-            #TODO Time base? :(
             ostream = ocont.add_stream('libvpx-vp9', rate=target_rate)
             ostream.options['deadline'] = 'realtime'#Maybe placebo, doesn't seem to function
             istream = icont.streams.video[0]
@@ -87,6 +98,10 @@ def pyav_transcode(query, ifile, ofile):
             fg.link_nodes(fg.add_buffer(template=icont.streams.video[0]),
                           *filters,
                           fg.add('buffersink')).configure()
+            if 'skip_first_frames' in query:
+                start_pts += int((int(query['skip_first_frames'])+1) /
+                                 (istream.average_rate * istream.time_base))
+                icont.seek(start_pts, stream=istream)
             cc = vpxr if istream.codec_context.name == 'vp9' else istream
             def process_video(packet):
                 nonlocal frame_load_cap
@@ -94,29 +109,18 @@ def pyav_transcode(query, ifile, ofile):
                     frame_load_cap -= 1
                     if frame_load_cap <= 0:
                         return
+                    if frame.pts < start_pts:
+                        continue
                     fg.push(frame)
                     yield from ostream.encode(fg.pull())
             processors[icont.streams.video[0]] = process_video
-
         if icont.streams.audio:
             #TODO skip transcode if already desired codec
             astream = ocont.add_stream('libvorbis')
             istreams['audio'] = 0
             processors[icont.streams.audio[0]] = lambda x: astream.encode(x.decode)
-        if 'start_time' in query:
-            start_time = int(float(query['start_time']) * time_base )#FIXME time base should be aquirable from container?
-        elif 'skip_first_frames' in query:
-            start_time = int(int(query['skip_first_frames']) / istream.average_rate / istream.time_base)
-        else:
-            start_time = 0
-        #TODO Time base
-        icont.seek(start_time)
         for packet in icont.demux(istreams):
-            if packet.pts is None or packet.pts < start_time:
-                continue
-            #packet.pts -= start_time
             ocont.mux(processors[packet.stream](packet))
-
         #TODO: collate?
         for stream in ocont.streams.get():
             for packet in stream.encode(None):
