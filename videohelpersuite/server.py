@@ -2,7 +2,7 @@ import server
 import folder_paths
 import os
 import subprocess
-import re
+import threading
 
 import asyncio
 import av
@@ -13,125 +13,114 @@ from comfy.k_diffusion.utils import FolderOfImages
 
 
 web = server.web
-vpxcc = av.Codec('libvpx-vp9', 'r').create()
+vpxr = av.Codec('libvpx-vp9', 'r').create()
+#vpxw = av.Codec('libvpx-vp9', 'w').create()
+#vpxw.options['deadline']  = 'realtime'
 
 @server.PromptServer.instance.routes.get("/vhs/viewvideo")
 @server.PromptServer.instance.routes.get("/viewvideo")
-async def view_video(request):
+async def pyav_resp(request):
     query = request.rel_url.query
     path_res = await resolve_path(query)
     if isinstance(path_res, web.Response):
         return path_res
     file, filename, output_dir = path_res
-
-    if ffmpeg_path is None:
-        #Don't just return file, that provides  arbitrary read access to any file
-        if is_safe_path(output_dir, strict=True):
-            return web.FileResponse(path=file)
-
-    frame_rate = query.get('frame_rate', 8)
-    if query.get('format', 'video') == "folder":
-        os.makedirs(folder_paths.get_temp_directory(), exist_ok=True)
-        concat_file = os.path.join(folder_paths.get_temp_directory(), "image_sequence_preview.txt")
-        skip_first_images = int(query.get('skip_first_images', 0))
-        select_every_nth = int(query.get('select_every_nth', 1)) or 1
-        valid_images = get_sorted_dir_files_from_directory(file, skip_first_images, select_every_nth, FolderOfImages.IMG_EXTENSIONS)
-        if len(valid_images) == 0:
-            return web.Response(status=204)
-        with open(concat_file, "w") as f:
-            f.write("ffconcat version 1.0\n")
-            for path in valid_images:
-                f.write("file '" + os.path.abspath(path) + "'\n")
-                f.write("duration 0.125\n")
-        in_args = ["-safe", "0", "-i", concat_file]
-    else:
-        in_args = ["-i", file]
-        if '%' in file:
-            in_args = ['-framerate', str(frame_rate)] + in_args
-    #Do prepass to pull info
-    #breaks skip_first frames if this default is ever actually needed
-    base_fps = 30
     try:
-        proc = await asyncio.create_subprocess_exec(ffmpeg_path, *in_args, '-t',
-                                   '0','-f', 'null','-', stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE, stdin=subprocess.DEVNULL)
-        _, res_stderr = await proc.communicate()
+        resp = web.StreamResponse()
+        resp.content_type = 'video/webm'
+        resp.headers["Content-Disposition"] = f"filename=\"{filename}\""
+        await resp.prepare(request)
+        loop = asyncio.get_event_loop()
+        class Writable:
+            def __init__(self, async_writable):
+                self.lock = threading.Lock()
+                self._writable = async_writable
+                self.closed = False
+                self.error = None
+            def write(self, b):
+                self.lock.acquire()
+                if self.error:
+                    raise self.error
+                #NOTE assignment purely to stop premature garbage collection
+                self.ctask = loop.call_soon_threadsafe(asyncio.create_task, self.do_write(b))
+            def close(self):
+                if not self.closed:
+                    self.lock.acquire()
+                    self.closed = True
+            async def do_write(self, b):
+                try:
+                    await self._writable.write(b)
+                except Exception as e:
+                    self.error = e
+                    raise
+                finally:
+                    self.lock.release()
+        await asyncio.to_thread(pyav_transcode, query, file, Writable(resp))
+        return resp
+    except (ConnectionResetError, ConnectionError) as e:
+        #TODO Verify this doesn't create zombie processes
+        print("Zombie process?")
+        raise
+def pyav_transcode(query, ifile, ofile):
+    with av.open(ifile, 'r') as icont, av.open(ofile, 'w', format='matroska') as ocont:
+        istreams = {}
+        processors = {}
+        if icont.streams.video:
+            target_rate = query.get('frame_rate') or icont.streams.video[0].average_rate
+            frame_load_cap = int(query.get('frame_load_cap')) or float('inf')
+            #TODO Time base? :(
+            ostream = ocont.add_stream('libvpx-vp9', rate=target_rate)
+            ostream.options['deadline'] = 'realtime'#Maybe placebo, doesn't seem to function
+            istream = icont.streams.video[0]
+            istreams['video'] = 0
+            fg = av.filter.Graph()
+            filters = []
+            if 'force_size' in query:
+                #TODO cropping?
+                size = query['force_size'].split('x')
+                if size[0] == '?':
+                    size[0] = '-1'
+                if size[1] == '?':
+                    size[1] = '-1'
+                filters.append(fg.add('scale', ':'.join(size)))
+            #TODO: skip graph if no filters?
+            fg.link_nodes(fg.add_buffer(template=icont.streams.video[0]),
+                          *filters,
+                          fg.add('buffersink')).configure()
+            cc = vpxr if istream.codec_context.name == 'vp9' else istream
+            def process_video(packet):
+                nonlocal frame_load_cap
+                for frame in cc.decode(packet):
+                    frame_load_cap -= 1
+                    if frame_load_cap <= 0:
+                        return
+                    fg.push(frame)
+                    yield from ostream.encode(fg.pull())
+            processors[icont.streams.video[0]] = process_video
 
-        match = re.search(': Video: (\\w+) .+, (\\d+) fps,', res_stderr.decode(*ENCODE_ARGS))
-        if match:
-            base_fps = float(match.group(2))
-            if match.group(1) == 'vp9':
-                #force libvpx for transparency
-                in_args = ['-c:v', 'libvpx-vp9'] + in_args
-    except subprocess.CalledProcessError as e:
-        print("An error occurred in the ffmpeg prepass:\n" \
-                + e.stderr.decode(*ENCODE_ARGS))
-        return web.Response(status=500)
-    vfilters = []
-    target_rate = float(query.get('force_rate', 0)) or base_fps
-    modified_rate = target_rate / (float(query.get('select_every_nth',1)) or 1)
-    start_time = 0
-    if 'start_time' in query:
-        start_time = float(query['start_time'])
-    elif float(query.get('skip_first_frames', 0)) > 0:
-        start_time = float(query.get('skip_first_frames'))/target_rate
-        if start_time > 1/modified_rate:
-            start_time += 1/modified_rate
-    if start_time > 0:
-        if start_time > 4:
-            post_seek = ['-ss', '4']
-            pre_seek = ['-ss', str(start_time - 4)]
+        if icont.streams.audio:
+            #TODO skip transcode if already desired codec
+            astream = ocont.add_stream('libvorbis')
+            istreams['audio'] = 0
+            processors[icont.streams.audio[0]] = lambda x: astream.encode(x.decode)
+        if 'start_time' in query:
+            start_time = int(float(query['start_time']) * time_base )#FIXME time base should be aquirable from container?
+        elif 'skip_first_frames' in query:
+            start_time = int(int(query['skip_first_frames']) / istream.average_rate / istream.time_base)
         else:
-            post_seek = ['-ss', str(start_time)]
-            pre_seek = []
-    else:
-        pre_seek = []
-        post_seek = []
+            start_time = 0
+        #TODO Time base
+        icont.seek(start_time)
+        for packet in icont.demux(istreams):
+            if packet.pts is None or packet.pts < start_time:
+                continue
+            #packet.pts -= start_time
+            ocont.mux(processors[packet.stream](packet))
 
-    args = [ffmpeg_path, "-v", "error"] + pre_seek + in_args + post_seek
-    if target_rate != 0:
-        args += ['-r', str(modified_rate)]
-    if query.get('force_size','Disabled') != "Disabled":
-        size = query['force_size'].split('x')
-        if size[0] == '?' or size[1] == '?':
-            size[0] = "-2" if size[0] == '?' else f"'min({size[0]},iw)'"
-            size[1] = "-2" if size[1] == '?' else f"'min({size[1]},ih)'"
-        else:
-            #Aspect ratio is likely changed. A more complex command is required
-            #to crop the output to the new aspect ratio
-            ar = float(size[0])/float(size[1])
-            vfilters.append(f"crop=if(gt({ar}\\,a)\\,iw\\,ih*{ar}):if(gt({ar}\\,a)\\,iw/{ar}\\,ih)")
-        size = ':'.join(size)
-        vfilters.append(f"scale={size}")
-    if len(vfilters) > 0:
-        args += ["-vf", ",".join(vfilters)]
-    if float(query.get('frame_load_cap', 0)) > 0:
-        args += ["-frames:v", query['frame_load_cap'].split('.')[0]]
-    #TODO:reconsider adding high frame cap/setting default frame cap on node
-    if query.get('deadline', 'realtime') == 'good':
-        deadline = 'good'
-    else:
-        deadline = 'realtime'
-
-    args += ['-c:v', 'libvpx-vp9','-deadline', deadline, '-cpu-used', '8', '-f', 'webm', '-']
-
-    try:
-        proc = await asyncio.create_subprocess_exec(*args, stdout=subprocess.PIPE,
-                                                    stdin=subprocess.DEVNULL)
-        try:
-            resp = web.StreamResponse()
-            resp.content_type = 'video/webm'
-            resp.headers["Content-Disposition"] = f"filename=\"{filename}\""
-            await resp.prepare(request)
-            while len(bytes_read := await proc.stdout.read(2**20)) != 0:
-                await resp.write(bytes_read)
-            #Of dubious value given frequency of kill calls, but more correct
-            await proc.wait()
-        except (ConnectionResetError, ConnectionError) as e:
-            proc.kill()
-    except BrokenPipeError as e:
-        pass
-    return resp
+        #TODO: collate?
+        for stream in ocont.streams.get():
+            for packet in stream.encode(None):
+                ocont.mux(packet)
 
 query_cache = {}
 @server.PromptServer.instance.routes.get("/vhs/queryvideo")
@@ -155,10 +144,7 @@ async def query_video(request):
             source['fps'] = float(stream.average_rate)
             source['duration'] = float(cont.duration * stream.time_base / 1000)
 
-            if stream.codec_context.name == 'vp9':
-                cc = vpxcc
-            else:
-                cc = stream
+            cc = vpxcc if stream.codec_context.name == 'vp9' else stream
             def fit():
                 for packet in cont.demux(video=0):
                     yield from cc.decode(packet)
