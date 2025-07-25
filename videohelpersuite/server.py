@@ -153,7 +153,7 @@ async def query_video(request):
             cont = av.open(filepath)
             stream = cont.streams.video[0]
             source['fps'] = float(stream.average_rate)
-            source['duration'] = float(cont.duration * stream.time_base / 1000)
+            source['duration'] = float(cont.duration / av.time_base)
 
             if stream.codec_context.name == 'vp9':
                 cc = vpxcc
