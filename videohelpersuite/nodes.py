@@ -533,6 +533,7 @@ class VideoCombine:
                 output_process.send(None)
                 if meta_batch is not None:
                     meta_batch.outputs[unique_id] = (counter, output_process)
+                audio = None
 
             for image in images:
                 pbar.update(1)
