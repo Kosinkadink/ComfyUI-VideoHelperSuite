@@ -16,7 +16,7 @@ web = server.web
 
 @server.PromptServer.instance.routes.get("/vhs/viewvideo")
 @server.PromptServer.instance.routes.get("/viewvideo")
-async def pyav_resp(request):
+async def pyav_view_video(request):
     query = request.rel_url.query
     path_res = await resolve_path(query)
     if isinstance(path_res, web.Response):
@@ -48,6 +48,8 @@ async def pyav_resp(request):
                 if not self.closed:
                     self.lock.acquire()
                     self.closed = True
+                if self.error:
+                    raise self.error
             async def do_write(self, b):
                 try:
                     await self.async_file.write(b)
@@ -57,12 +59,9 @@ async def pyav_resp(request):
                     self.lock.release()
         bresp = BlockingFile(resp)
         await asyncio.to_thread(pyav_transcode, query, file, bresp)
-        if bresp.error:
-            raise bresp.error
     except (ConnectionResetError, ConnectionError) as e:
         pass
     except Exception as e:
-        breakpoint()
         raise
     return resp
 def pyav_transcode(query, ifile, ofile):
@@ -79,11 +78,13 @@ def pyav_transcode(query, ifile, ofile):
             icont.seek(start_pts)
         if icont.streams.video:
             target_rate = query.get('frame_rate') or icont.streams.video[0].average_rate
-            frame_load_cap = int(query.get('frame_load_cap')) or float('inf')
+            frame_load_cap = int(query['frame_load_cap']) if 'frame_load_cap' in query else float('inf')
             ostream = ocont.add_stream('libvpx-vp9', rate=target_rate)
             if 'deadline' in query:
                 #Doesn't seem to function with pyav. Potentially placebo
                 ostream.options['deadline'] = query['deadline']
+            #TODO Calc appropriate value for cpu-used
+            ostream.options['cpu-used'] = '8'
             istream = icont.streams.video[0]
             istreams['video'] = 0
             fg = av.filter.Graph()
@@ -122,14 +123,19 @@ def pyav_transcode(query, ifile, ofile):
             #TODO skip transcode if already desired codec
             astream = ocont.add_stream('libvorbis')
             istreams['audio'] = 0
-            processors[icont.streams.audio[0]] = lambda x: astream.encode(x.decode)
+            def process_audio(p):
+                for frame in p.decode():
+                    yield from astream.encode(frame)
+            processors[icont.streams.audio[0]] = process_audio
         for packet in icont.demux(istreams):
+            #TODO terminate encoding if out of frames?
             ocont.mux(processors[packet.stream](packet))
         #TODO: collate?
         for stream in ocont.streams.get():
             for packet in stream.encode(None):
                 ocont.mux(packet)
         ocont.close()
+    ofile.close()
 
 query_cache = {}
 @server.PromptServer.instance.routes.get("/vhs/queryvideo")
