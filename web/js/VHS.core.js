@@ -448,8 +448,7 @@ function allowDragFromWidget(widget) {
     }
 }
 
-async function uploadFile(file) {
-    //TODO: Add uploaded file to cache with Cache.put()?
+async function uploadFile(file, progressCallback) {
     try {
         // Wrap file in formdata so it includes filename
         const body = new FormData();
@@ -463,16 +462,19 @@ async function uploadFile(file) {
         if (i > 0) {
             body.append("subfolder", subfolder);
         }
-        const resp = await api.fetchApi("/upload/image", {
-            method: "POST",
-            body,
-        });
+        const url = api.apiURL("/upload/image")
+        const resp = await new Promise((resolve) => {
+            let req = new XMLHttpRequest()
+            req.upload.onprogress = (e) => progressCallback?.(e.loaded/e.total)
+            req.onload = () => resolve(req)
+            req.open('post', url, true)
+            req.send(body)
+        })
 
-        if (resp.status === 200) {
-            return resp
-        } else {
+        if (resp.status !== 200) {
             alert(resp.status + " - " + resp.statusText);
         }
+        return resp
     } catch (error) {
         alert(error);
     }
@@ -742,6 +744,7 @@ function addUploadWidget(nodeType, nodeData, widgetName, type="video") {
     let accept = {'video': ["video/webm","video/mp4","video/x-matroska","image/gif"],
                   'audio': ["audio/mpeg","audio/wav","audio/x-wav","audio/ogg"]}
     chainCallback(nodeType.prototype, "onNodeCreated", function() {
+        const node = this
         const pathWidget = this.widgets.find((w) => w.name === widgetName);
         const fileInput = document.createElement("input");
         chainCallback(this, "onRemoved", () => {
@@ -764,10 +767,12 @@ function addUploadWidget(nodeType, nodeData, widgetName, type="video") {
                         return;
                     }
                     let successes = 0;
+                    const onProg = (p) => this.progress = (successes + p) / fileInput.files.length
                     for(const file of fileInput.files) {
-                        if ((await uploadFile(file)).status == 200) {
+                        if ((await uploadFile(file, onProg)).status == 200) {
                             successes++;
                         } else {
+                            this.progress = undefined
                             //Upload failed, but some prior uploads may have succeeded
                             //Stop future uploads to prevent cascading failures
                             //and only add to list if an upload has succeeded
@@ -778,6 +783,7 @@ function addUploadWidget(nodeType, nodeData, widgetName, type="video") {
                             }
                         }
                     }
+                    this.progress = undefined
                     pathWidget.options.values.push(path);
                     pathWidget.value = path;
                     if (pathWidget.callback) {
@@ -789,11 +795,12 @@ function addUploadWidget(nodeType, nodeData, widgetName, type="video") {
             let accept = {'video': ["video/webm","video/mp4","video/x-matroska","image/gif"],
                           'audio': ["audio/mpeg","audio/wav","audio/x-wav","audio/ogg"]}[type]
             async function doUpload(file) {
-                let resp = await uploadFile(file)
+                let resp = await uploadFile(file, (p) => node.progress = p)
+                node.progress = undefined
                 if (resp.status != 200) {
                     return false
                 }
-                const filename = (await resp.json()).name;
+                const filename = JSON.parse(resp.responseText).name;
                 pathWidget.options.values.push(filename);
                 pathWidget.value = filename;
                 if (pathWidget.callback) {
@@ -1872,7 +1879,6 @@ app.registerExtension({
             });
             addLoadCommon(nodeType, nodeData);
         } else if (nodeData?.name == "VHS_LoadImagesPath") {
-            addUploadWidget(nodeType, nodeData, "directory", "folder");
             chainCallback(nodeType.prototype, "onNodeCreated", function() {
                 const pathWidget = this.widgets.find((w) => w.name === "directory");
                 chainCallback(pathWidget, "callback", (value) => {
