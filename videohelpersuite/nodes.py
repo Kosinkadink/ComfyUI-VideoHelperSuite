@@ -122,9 +122,27 @@ def apply_format_widgets(format_name, kwargs):
     return video_format
 
 def tensor_to_int(tensor, bits):
-    #TODO: investigate benefit of rounding by adding 0.5 before clip/cast
-    tensor = tensor.cpu().numpy() * (2**bits-1)
-    return np.clip(tensor, 0, (2**bits-1))
+    """
+    - If the tensor is a float, it's assumed to be in the [0.0, 1.0] range and is scaled.
+    - If the tensor is uint8, it's assumed to be in the [0, 255] range and is converted directly.
+    """
+    if torch.is_floating_point(tensor):
+        # adding 0.5 before casting to int performs rounding, which is more accurate.
+        array = tensor.cpu().numpy() * (2**bits - 1) + 0.5
+        return np.clip(array, 0, (2**bits - 1))
+    elif tensor.dtype == torch.uint8:
+        array = tensor.cpu().numpy()
+        if bits == 8:
+            return array
+        else:
+            # using .astype() before multiplication prevents potential overflow issues.
+            scale_factor = (2**bits - 1) // 255
+            return array.astype(np.int32) * scale_factor
+    else:
+        logger.warning(f"Warning: Unexpected tensor dtype {tensor.dtype}. Converting with clipping.")
+        array = tensor.cpu().numpy()
+        return np.clip(array, 0, (2**bits - 1))
+
 def tensor_to_shorts(tensor):
     return tensor_to_int(tensor, 16).astype(np.uint16)
 def tensor_to_bytes(tensor):
