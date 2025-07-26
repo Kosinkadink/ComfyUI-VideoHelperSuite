@@ -1253,7 +1253,7 @@ function addLoadCommon(nodeType, nodeData) {
             Object.defineProperty(offsetWidget.options, "step", {
                 set : (value) => {},
                 get : () => {
-                    return 10 / (this.video_query?.loaded?.fps ?? 1)
+                    return 1 / (this.video_query?.loaded?.fps ?? 1)
                 }
             })
         }
