@@ -5,6 +5,7 @@ import subprocess
 import re
 
 import asyncio
+import av
 
 from .utils import is_url, get_sorted_dir_files_from_directory, ffmpeg_path, \
         validate_sequence, is_safe_path, strip_path, try_download_video, ENCODE_ARGS
@@ -35,7 +36,7 @@ async def view_video(request):
         select_every_nth = int(query.get('select_every_nth', 1)) or 1
         valid_images = get_sorted_dir_files_from_directory(file, skip_first_images, select_every_nth, FolderOfImages.IMG_EXTENSIONS)
         if len(valid_images) == 0:
-            return web.Response(status=400)
+            return web.Response(status=204)
         with open(concat_file, "w") as f:
             f.write("ffconcat version 1.0\n")
             for path in valid_images:
@@ -67,7 +68,7 @@ async def view_video(request):
         return web.Response(status=500)
     vfilters = []
     target_rate = float(query.get('force_rate', 0)) or base_fps
-    modified_rate = target_rate / float(query.get('select_every_nth',1) or 1)
+    modified_rate = target_rate / (float(query.get('select_every_nth',1)) or 1)
     start_time = 0
     if 'start_time' in query:
         start_time = float(query['start_time'])
@@ -146,52 +147,42 @@ async def query_video(request):
     if filepath in query_cache and query_cache[filepath][0] == os.stat(filepath).st_mtime:
         source = query_cache[filepath][1]
     else:
-        args_dummy = [ffmpeg_path, "-i", filepath, '-c', 'copy', '-frames:v', '1', "-f", "null", "-"]
-        try:
-            dummy_res = subprocess.run(args_dummy, stdout=subprocess.DEVNULL,
-                                     stderr=subprocess.PIPE, check=True)
-        except subprocess.CalledProcessError as e:
-            raise Exception("An error occurred in the ffmpeg subprocess:\n" \
-                    + e.stderr.decode(*ENCODE_ARGS))
-        lines = dummy_res.stderr.decode(*ENCODE_ARGS)
         source = {}
+        try:
+            cont = av.open(filepath)
+            stream = cont.streams.video[0]
+            source['fps'] = float(stream.average_rate)
+            source['duration'] = float(cont.duration / av.time_base)
 
-        for line in lines.split('\n'):
-            match = re.search("^ *Stream .* Video.*, ([1-9]|\\d{2,})x(\\d+)", line)
-            if match is not None:
-                source['size'] = [int(match.group(1)), int(match.group(2))]
-                fps_match = re.search(", ([\\d\\.]+) fps", line)
-                if not fps_match:
-                    return web.json_response({})
-                source['fps'] = float(fps_match.group(1))
-                if re.search("(yuva|rgba)", line):
-                    source['alpha'] = True
-                break
-        else:
-            raise Exception("Failed to parse video/image information. FFMPEG output:\n" + lines)
+            if stream.codec_context.name == 'vp9':
+                cc = av.Codec('libvpx-vp9', 'r').create()
+            else:
+                cc = stream
+            def fit():
+                for packet in cont.demux(video=0):
+                    yield from cc.decode(packet)
+            frame = next(fit())
 
-        durs_match = re.search("Duration: (\\d+:\\d+:\\d+\\.\\d+),", lines)
-        if not (durs_match and 'fps' in source):
-            return web.json_response({})
-        durs = durs_match.group(1).split(':')
-        duration = int(durs[0])*360 + int(durs[1])*60 + float(durs[2])
-        source['duration'] = duration
-        source['frames'] = int(duration*source['fps'])
-        query_cache[filepath] = (os.stat(filepath).st_mtime, source)
-    loaded = {}
-    if 'duration' not in source:
+            source['size'] = [frame.width, frame.height]
+            source['alpha'] = 'a' in frame.format.name
+            source['frames'] = stream.metadata.get('NUMBER_OF_FRAMES', round(source['duration'] * source['fps']))
+            query_cache[filepath] = (os.stat(filepath).st_mtime, source)
+        except Exception:
+            pass
+    if not 'frames' in source:
         return web.json_response({})
+    loaded = {}
     loaded['duration'] = source['duration']
     loaded['duration'] -= float(query.get('start_time',0))
     loaded['fps'] = float(query.get('force_rate', 0)) or source['fps']
     loaded['duration'] -= int(query.get('skip_first_frames', 0)) / loaded['fps']
     loaded['fps'] /= int(query.get('select_every_nth', 1)) or 1
-    loaded['frames'] = loaded['duration'] * loaded['fps']
+    loaded['frames'] = round(loaded['duration'] * loaded['fps'])
     return web.json_response({'source': source, 'loaded': loaded})
 
 async def resolve_path(query):
     if "filename" not in query:
-        return web.Response(status=404)
+        return web.Response(status=204)
     filename = query["filename"]
 
     #Path code misformats urls on windows and must be skipped
@@ -211,10 +202,10 @@ async def resolve_path(query):
             output_dir = folder_paths.get_directory_by_type(type)
 
         if output_dir is None:
-            return web.Response(status=400)
+            return web.Response(status=204)
 
         if not is_safe_path(output_dir):
-            return web.Response(status=403)
+            return web.Response(status=204)
 
         if "subfolder" in query:
             output_dir = os.path.join(output_dir, query["subfolder"])
@@ -224,10 +215,10 @@ async def resolve_path(query):
 
         if query.get('format', 'video') == 'folder':
             if not os.path.isdir(file):
-                return web.Response(status=404)
+                return web.Response(status=204)
         else:
             if not os.path.isfile(file) and not validate_sequence(file):
-                    return web.Response(status=404)
+                    return web.Response(status=204)
         return file, filename, output_dir
 
 @server.PromptServer.instance.routes.get("/vhs/getpath")
@@ -235,7 +226,7 @@ async def resolve_path(query):
 async def get_path(request):
     query = request.rel_url.query
     if "path" not in query:
-        return web.Response(status=404)
+        return web.Response(status=204)
     #NOTE: path always ends in `/`, so this is functionally an lstrip
     path = os.path.abspath(strip_path(query["path"]))
 

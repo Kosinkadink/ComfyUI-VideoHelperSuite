@@ -170,7 +170,8 @@ def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
 def ffmpeg_frame_generator(video, force_rate, frame_load_cap, start_time,
                            custom_width, custom_height, downscale_ratio=8,
                            meta_batch=None, unique_id=None):
-    args_dummy = [ffmpeg_path, "-i", video, '-c', 'copy', '-frames:v', '1', "-f", "null", "-"]
+    args_input = ["-i", video]
+    args_dummy = [ffmpeg_path] + args_input +['-c', 'copy', '-frames:v', '1', "-f", "null", "-"]
     size_base = None
     fps_base = None
     try:
@@ -180,6 +181,16 @@ def ffmpeg_frame_generator(video, force_rate, frame_load_cap, start_time,
         raise Exception("An error occurred in the ffmpeg subprocess:\n" \
                 + e.stderr.decode(*ENCODE_ARGS))
     lines = dummy_res.stderr.decode(*ENCODE_ARGS)
+    if "Video: vp9 " in lines:
+        args_input = ["-c:v", "libvpx-vp9"] + args_input
+        args_dummy = [ffmpeg_path] + args_input +['-c', 'copy', '-frames:v', '1', "-f", "null", "-"]
+        try:
+            dummy_res = subprocess.run(args_dummy, stdout=subprocess.DEVNULL,
+                                     stderr=subprocess.PIPE, check=True)
+        except subprocess.CalledProcessError as e:
+            raise Exception("An error occurred in the ffmpeg subprocess:\n" \
+                    + e.stderr.decode(*ENCODE_ARGS))
+        lines = dummy_res.stderr.decode(*ENCODE_ARGS)
 
     for line in lines.split('\n'):
         match = re.search("^ *Stream .* Video.*, ([1-9]|\\d{2,})x(\\d+)", line)
@@ -190,7 +201,7 @@ def ffmpeg_frame_generator(video, force_rate, frame_load_cap, start_time,
                 fps_base = float(fps_match.group(1))
             else:
                 fps_base = 1
-            alpha = re.search("(yuva|rgba)", line) is not None
+            alpha = re.search("(yuva|rgba|bgra)", line) is not None
             break
     else:
         raise Exception("Failed to parse video/image information. FFMPEG output:\n" + lines)
@@ -205,15 +216,13 @@ def ffmpeg_frame_generator(video, force_rate, frame_load_cap, start_time,
     if start_time > 0:
         if start_time > 4:
             post_seek = ['-ss', '4']
-            pre_seek = ['-ss', str(start_time - 4)]
+            args_input = ['-ss', str(start_time - 4)] + args_input
         else:
             post_seek = ['-ss', str(start_time)]
-            pre_seek = []
     else:
-        pre_seek = []
         post_seek = []
-    args_all_frames = [ffmpeg_path, "-v", "error", "-an"] + pre_seek + \
-            ["-i", video, "-pix_fmt", "rgba64le"] + post_seek
+    args_all_frames = [ffmpeg_path, "-v", "error", "-an"] + \
+            args_input + ["-pix_fmt", "rgba64le"] + post_seek
 
     vfilters = []
     if force_rate != 0:
@@ -526,7 +535,7 @@ class LoadVideoFFmpegUpload:
                     "custom_width": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
                     "custom_height": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
                     "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1, "disable": 0}),
-                    "start_time": ("FLOAT", {"default": 0, "min": 0, "max": BIGMAX, "step": .001}),
+                    "start_time": ("FLOAT", {"default": 0, "min": 0, "max": BIGMAX, "step": .001, "widgetType": "VHSTIMESTAMP"}),
                     },
                 "optional": {
                     "meta_batch": ("VHS_BatchManager",),
@@ -576,7 +585,7 @@ class LoadVideoFFmpegPath:
                 "custom_width": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
                 "custom_height": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
                 "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1, "disable": 0}),
-                "start_time": ("FLOAT", {"default": 0, "min": 0, "max": BIGMAX, "step": .001}),
+                "start_time": ("FLOAT", {"default": 0, "min": 0, "max": BIGMAX, "step": .001, "widgetType": "VHSTIMESTAMP"}),
             },
             "optional": {
                 "meta_batch": ("VHS_BatchManager",),

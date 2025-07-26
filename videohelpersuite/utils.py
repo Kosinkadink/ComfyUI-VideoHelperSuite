@@ -289,6 +289,8 @@ def hash_path(path):
         return "input"
     if is_url(path):
         return "url"
+    if not os.path.isfile(path):
+        return "DNE"
     return calculate_file_hash(strip_path(path))
 
 

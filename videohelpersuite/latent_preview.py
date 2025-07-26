@@ -1,6 +1,7 @@
 from PIL import Image
 import time
 import io
+import struct
 from threading import Thread
 import torch.nn.functional as F
 import torch
@@ -43,7 +44,7 @@ class WrappedPreviewer(latent_preview.LatentPreviewer):
             return None
         if self.first_preview:
             self.first_preview = False
-            serv.send_sync('VHS_latentpreview', {'length':num_images, 'rate': self.rate})
+            serv.send_sync('VHS_latentpreview', {'length':num_images, 'rate': self.rate, 'id': serv.last_node_id})
             self.last_time = new_time + 1/self.rate
         if self.c_index + num_previews > num_images:
             x0 = x0.roll(-self.c_index, 0)[:num_previews]
@@ -72,6 +73,7 @@ class WrappedPreviewer(latent_preview.LatentPreviewer):
             message = io.BytesIO()
             message.write((1).to_bytes(length=4, byteorder='big')*2)
             message.write(ind.to_bytes(length=4, byteorder='big'))
+            message.write(struct.pack('16p', serv.last_node_id.encode('ascii')))
             i.save(message, format="JPEG", quality=95, compress_level=1)
             #NOTE: send sync already uses call_soon_threadsafe
             serv.send_sync(server.BinaryEventTypes.PREVIEW_IMAGE,
@@ -88,7 +90,6 @@ class WrappedPreviewer(latent_preview.LatentPreviewer):
             latent_image = F.linear(x0.movedim(1, -1), self.latent_rgb_factors,
                                     bias=self.latent_rgb_factors_bias)
             return latent_image
-
 
 @hook(latent_preview, 'get_previewer')
 def get_latent_video_previewer(device, latent_format, *args, **kwargs):
