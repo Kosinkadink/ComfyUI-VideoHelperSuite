@@ -2400,12 +2400,14 @@ function getLatentPreviewCtx(id, width, height) {
     }
     return canvasEl.getContext("2d")
 }
+//TODO: Figure out means of concurrency here. map of active nodes and finish event?
+// Information has been squirreled away to the execution store which isn't exposed.
 api.addEventListener('VHS_latentpreview', ({ detail }) => {
     let setting = app.ui.settings.getSettingValue("VHS.LatentPreview")
     if (!setting) {
         return
     }
-    let id = app.runningNodeId
+    let id = detail.id
     if (id == null) {
         return
     }
@@ -2418,7 +2420,7 @@ api.addEventListener('VHS_latentpreview', ({ detail }) => {
         clearTimeout(animateInterval)
     }
     animateInterval = setInterval(() => {
-        if (app.runningNodeId != id) {
+        if (!app.graph.getNodeById(id).progress) {
             clearTimeout(animateInterval)
             animateInterval = undefined
             return
@@ -2438,8 +2440,10 @@ api.addEventListener('b_preview', async (e) => {
     e.preventDefault()
     e.stopImmediatePropagation()
     e.stopPropagation()
-    const ab = await e.detail.slice(0,8).arrayBuffer()
-    const index = new DataView(ab).getUint32(4)
-    previewImages[index] = await window.createImageBitmap(e.detail.slice(8))
+    const dv = new DataView(await e.detail.slice(0,24).arrayBuffer())
+    const index = dv.getUint32(4)
+    //const idlen = dv.getUint8(5)
+    //const id = dv.getstring???(6,idlen)
+    previewImages[index] = await window.createImageBitmap(e.detail.slice(24))
     return false
 }, true);
