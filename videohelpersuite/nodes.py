@@ -122,8 +122,7 @@ def apply_format_widgets(format_name, kwargs):
     return video_format
 
 def tensor_to_int(tensor, bits):
-    #TODO: investigate benefit of rounding by adding 0.5 before clip/cast
-    tensor = tensor.cpu().numpy() * (2**bits-1)
+    tensor = tensor.cpu().numpy() * (2**bits-1) + 0.5
     return np.clip(tensor, 0, (2**bits-1))
 def tensor_to_shorts(tensor):
     return tensor_to_int(tensor, 16).astype(np.uint16)
