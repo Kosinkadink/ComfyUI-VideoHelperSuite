@@ -20,6 +20,16 @@ function chainCallback(object, property, callback) {
     }
 }
 
+function getNodeById(id, graph=app.graph) {
+    let cg = graph
+    let node = undefined
+    for (let sid of (''+id).split(':')) {
+        node = cg?.getNodeById?.(sid)
+        cg = node?.subgraph
+    }
+    return node
+}
+
 const convDict = {
     VHS_LoadImages : ["directory", null, "image_load_cap", "skip_first_images", "select_every_nth"],
     VHS_LoadImagesPath : ["directory", "image_load_cap", "skip_first_images", "select_every_nth"],
@@ -2344,7 +2354,7 @@ api.addEventListener('executing', ({ detail }) => {
     }
 })
 function getLatentPreviewCtx(id, width, height) {
-    const node = app.graph.getNodeById(id)
+    const node = getNodeById(id)
     if (!node) {
         return undefined
     }
@@ -2419,8 +2429,11 @@ api.addEventListener('VHS_latentpreview', ({ detail }) => {
     if (animateInterval) {
         clearTimeout(animateInterval)
     }
+    //While progress is safely cleared on execution completion.
+    //Initial progress must be started here to avoid a race condition
+    node.progress = 0
     animateInterval = setInterval(() => {
-        if (!app.graph.getNodeById(id).progress) {
+        if (getNodeById(id).progress == undefined) {
             clearTimeout(animateInterval)
             animateInterval = undefined
             return
