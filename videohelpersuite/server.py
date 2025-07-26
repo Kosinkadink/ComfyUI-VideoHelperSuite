@@ -13,7 +13,6 @@ from comfy.k_diffusion.utils import FolderOfImages
 
 
 web = server.web
-vpxcc = av.Codec('libvpx-vp9', 'r').create()
 
 @server.PromptServer.instance.routes.get("/vhs/viewvideo")
 @server.PromptServer.instance.routes.get("/viewvideo")
@@ -156,7 +155,7 @@ async def query_video(request):
             source['duration'] = float(cont.duration / av.time_base)
 
             if stream.codec_context.name == 'vp9':
-                cc = vpxcc
+                cc = av.Codec('libvpx-vp9', 'r').create()
             else:
                 cc = stream
             def fit():
