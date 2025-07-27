@@ -2431,7 +2431,7 @@ api.addEventListener('VHS_latentpreview', ({ detail }) => {
     }
     //While progress is safely cleared on execution completion.
     //Initial progress must be started here to avoid a race condition
-    node.progress = 0
+    getNodeById(id).progress = 0
     animateInterval = setInterval(() => {
         if (getNodeById(id).progress == undefined) {
             clearTimeout(animateInterval)
