@@ -524,6 +524,7 @@ class VideoCombine:
                 if 'gifski_pass' in video_format:
                     format = 'image/gif'
                     output_process = gifski_process(args, dimensions, video_format, file_path, env)
+                    audio = None
                 else:
                     args += video_format['main_pass'] + bitrate_arg
                     merge_filter_args(args)
@@ -532,7 +533,6 @@ class VideoCombine:
                 output_process.send(None)
                 if meta_batch is not None:
                     meta_batch.outputs[unique_id] = (counter, output_process)
-                audio = None
 
             for image in images:
                 pbar.update(1)
