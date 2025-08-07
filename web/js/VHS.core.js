@@ -2366,6 +2366,7 @@ function getLatentPreviewCtx(id, width, height) {
             serialize: false,
             hideOnZoom: false,
         });
+        previewWidget.serialize = false
         allowDragFromWidget(previewWidget)
         canvasEl.addEventListener('contextmenu', (e)  => {
             e.preventDefault()
