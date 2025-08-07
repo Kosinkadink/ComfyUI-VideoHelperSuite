@@ -1702,7 +1702,7 @@ function mouseAnnotated(event, [x, y], node) {
                             break
                         }
                     }
-                    if (node.widgets[++i]?.type == "BOOLEAN") {//restrict to annotatedNUmbers
+                    if (node.widgets[++i]?.type == "VHS.ANNOTATED") {//restrict to annotatedNUmbers
                         node.widgets[i]?.mouse(event, [x, y+24], node)
                     }
                 }
@@ -2175,7 +2175,7 @@ app.registerExtension({
                             return
                         }
                         const s = this.options.step
-                        let sh = this.options.mod ?? 1
+                        let sh = this.options.mod ?? 0
                         this.value = Math.round((v - sh) / s) * s + sh
                     },
                     config: inputData,
