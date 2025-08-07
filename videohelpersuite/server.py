@@ -149,24 +149,24 @@ async def query_video(request):
     else:
         source = {}
         try:
-            cont = av.open(filepath)
-            stream = cont.streams.video[0]
-            source['fps'] = float(stream.average_rate)
-            source['duration'] = float(cont.duration / av.time_base)
+            with av.open(filepath) as cont:
+                stream = cont.streams.video[0]
+                source['fps'] = float(stream.average_rate)
+                source['duration'] = float(cont.duration / av.time_base)
 
-            if stream.codec_context.name == 'vp9':
-                cc = av.Codec('libvpx-vp9', 'r').create()
-            else:
-                cc = stream
-            def fit():
-                for packet in cont.demux(video=0):
-                    yield from cc.decode(packet)
-            frame = next(fit())
+                if stream.codec_context.name == 'vp9':
+                    cc = av.Codec('libvpx-vp9', 'r').create()
+                else:
+                    cc = stream
+                def fit():
+                    for packet in cont.demux(video=0):
+                        yield from cc.decode(packet)
+                frame = next(fit())
 
-            source['size'] = [frame.width, frame.height]
-            source['alpha'] = 'a' in frame.format.name
-            source['frames'] = stream.metadata.get('NUMBER_OF_FRAMES', round(source['duration'] * source['fps']))
-            query_cache[filepath] = (os.stat(filepath).st_mtime, source)
+                source['size'] = [frame.width, frame.height]
+                source['alpha'] = 'a' in frame.format.name
+                source['frames'] = stream.metadata.get('NUMBER_OF_FRAMES', round(source['duration'] * source['fps']))
+                query_cache[filepath] = (os.stat(filepath).st_mtime, source)
         except Exception:
             pass
     if not 'frames' in source:
