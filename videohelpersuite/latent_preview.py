@@ -13,7 +13,7 @@ serv = server.PromptServer.instance
 from .utils import hook
 
 rates_table = {'Mochi': 24//6, 'LTXV': 24//8, 'HunyuanVideo': 24//4,
-               'Cosmos1CV8x8x8': 24//8, 'Wan21': 16//4}
+               'Cosmos1CV8x8x8': 24//8, 'Wan21': 16//4, 'Wan22': 24//4}
 
 class WrappedPreviewer(latent_preview.LatentPreviewer):
     def __init__(self, previewer, rate=8):
