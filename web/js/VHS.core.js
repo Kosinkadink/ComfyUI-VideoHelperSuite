@@ -444,7 +444,7 @@ function startDraggingItems(node, pointer) {
 }
 function processDraggedItems(e) {
     if (e.shiftKey || LiteGraph.alwaysSnapToGrid)
-      app.graph?.snapToGrid(app.canvas.selectedItems)
+      app.canvas?.graph?.snapToGrid(app.canvas.selectedItems)
     app.canvas.dirty_canvas = true
     app.canvas.dirty_bgcanvas = true
     app.canvas.onNodeMoved?.(findFirstNode(app.canvas.selectedItems))
@@ -489,39 +489,7 @@ async function uploadFile(file, progressCallback) {
         alert(error);
     }
 }
-function applyVHSAudioLinksFix(nodeType, nodeData, audio_slot) {
-    chainCallback(nodeType.prototype, "onConnectionsChange", function(contype, slot, iscon, linfo) {
-        if (contype == LiteGraph.OUTPUT && slot == audio_slot) {
-            if (linfo?.type == "VHS_AUDIO") {
-                this.outputs[audio_slot].type = "AUDIO"
-                let tnode = app.graph._nodes_by_id[linfo.target_id]
-                let inputDef = LiteGraph.registered_node_types[tnode.type]?.nodeData?.input
-                let has_migrated = true
-                if (inputDef?.required) {
-                    for (let k in inputDef.required) {
-                        if (inputDef.required[k][0] == "VHS_AUDIO") {
-                            has_migrated = false
-                            break
-                        }
-                    }
-                }
-                if (has_migrated &&inputDef?.optional) {
-                    for (let k in inputDef.optional) {
-                        if (inputDef.optional[k][0] == "VHS_AUDIO") {
-                            has_migrated = false
-                            break
-                        }
-                    }
-                }
-                if (!has_migrated) {
-                    //need to add node and migrate
-                    app.ui.dialog.show("This workflow contains one or more nodes which use the old VHS_AUDIO format. They have been highlighted in red. An AudioToVHSAudio node must be added to convert to this legacy format")
-                    tnode.bgcolor = "#C00"
-                }
-            }
-        }
-    })
-}
+
 function addVAEOutputToggle(nodeType, nodeData) {
     chainCallback(nodeType.prototype, "onNodeCreated", function() {
         this.reject_ue_connection = (input) => input?.name == "vae"
@@ -1922,12 +1890,8 @@ app.registerExtension({
             addUploadWidget(nodeType, nodeData, "video");
             addLoadCommon(nodeType, nodeData);
             addVAEOutputToggle(nodeType, nodeData);
-            applyVHSAudioLinksFix(nodeType, nodeData, 2)
         } else if (nodeData?.name == "VHS_LoadAudioUpload") {
             addUploadWidget(nodeType, nodeData, "audio", "audio");
-            applyVHSAudioLinksFix(nodeType, nodeData, 0)
-        } else if (nodeData?.name == "VHS_LoadAudio"){
-            applyVHSAudioLinksFix(nodeType, nodeData, 0)
         } else if (nodeData?.name == "VHS_LoadVideoPath" || nodeData?.name == "VHS_LoadVideoFFmpegPath") {
             chainCallback(nodeType.prototype, "onNodeCreated", function() {
                 const pathWidget = this.widgets.find((w) => w.name === "video");
@@ -1945,7 +1909,6 @@ app.registerExtension({
             });
             addLoadCommon(nodeType, nodeData);
             addVAEOutputToggle(nodeType, nodeData);
-            applyVHSAudioLinksFix(nodeType, nodeData, 2)
         } else if (nodeData?.name == "VHS_LoadImagePath") {
             addLoadCommon(nodeType, nodeData);
             addVAEOutputToggle(nodeType, nodeData);
@@ -1997,7 +1960,7 @@ app.registerExtension({
                     function get_links(node) {
                         let links = []
                         for (const l of node.outputs[0].links) {
-                            const linkInfo = app.graph.links[l]
+                            const linkInfo = this.graph.links[l]
                             const n = node.graph.getNodeById(linkInfo.target_id)
                             if (n.type == 'Reroute') {
                                 links = links.concat(get_links(n))
@@ -2009,7 +1972,7 @@ app.registerExtension({
                     }
 
                     let links = [
-                        ...get_links(this).map((l) => app.graph.links[l]),
+                        ...get_links(this).map((l) => this.graph.links[l]),
                         ...extraLinks
                     ]
                     let v = this.latest_file
@@ -2287,7 +2250,7 @@ app.registerExtension({
             if (filepath && copiedPath == filepath) {
                 //Add a Load Video (Path) and populate filepath
                 const pastedNode = LiteGraph.createNode('VHS_LoadVideoPath')
-                app.graph.add(pastedNode)
+                app.canvas.graph.add(pastedNode)
                 pastedNode.pos[0] = app.canvas.graph_mouse[0]
                 pastedNode.pos[1] = app.canvas.graph_mouse[1]
                 pastedNode.widgets[0].value = filepath
@@ -2296,7 +2259,7 @@ app.registerExtension({
                 //Disabled due to lack of testing
                 //Add a Load Video (Upload), then upload the file, then select the file
                 const pastedNode = LiteGraph.createNode('VHS_LoadVideo')
-                app.graph.add(pastedNode)
+                app.canvas.graph.add(pastedNode)
                 pastedNode.pos[0] = app.canvas.graph_mouse[0]
                 pastedNode.pos[1] = app.canvas.graph_mouse[1]
                 const pathWidget = pastedNode.widgets[0]
@@ -2346,9 +2309,11 @@ let previewImages = []
 let animateInterval
 api.addEventListener('executing', ({ detail }) => {
     if (detail === null) {
-        for (let node of app.graph._nodes) {
-            if (node.type.startsWith("VHS_")) {
-                node.onPromptExecuted?.()
+        for (let graph of [app.graph, ...app.graph.subgraphs.values()]) {
+            for (let node of graph._nodes) {
+                if (node.type.startsWith("VHS_")) {
+                    node.onPromptExecuted?.()
+                }
             }
         }
     }
