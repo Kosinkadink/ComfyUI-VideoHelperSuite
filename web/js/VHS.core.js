@@ -821,6 +821,95 @@ function addUploadWidget(nodeType, nodeData, widgetName, type="video") {
 
     });
 }
+function addAudioPreview(nodeType, isInput=true) {
+    chainCallback(nodeType.prototype, "onNodeCreated", function() {
+        var element = document.createElement("audio");
+        element.controls = true
+        const previewNode = this;
+        var previewWidget = this.addDOMWidget("audiopreview", "preview", element, {
+            serialize: false,
+            hideOnZoom: true,
+            getValue() {
+                return element.value;
+            },
+            setValue(v) {
+                element.value = v;
+            },
+        });
+        previewWidget.computeSize = function(width) {
+            return [width, 50];
+        }
+        var timeout = null;
+        this.updateParameters = (params, force_update) => {
+            if (!previewWidget.value.params) {
+                if(typeof(previewWidget.value) != 'object') {
+                    previewWidget.value =  {}
+                }
+                previewWidget.value.params = {}
+            }
+            Object.assign(previewWidget.value.params, params)
+            if (!force_update &&
+                app.ui.settings.getSettingValue("VHS.AdvancedPreviews") == 'Never') {
+                return;
+            }
+            if (timeout) {
+                clearTimeout(timeout);
+            }
+            if (force_update) {
+                previewWidget.updateSource();
+            } else {
+                timeout = setTimeout(() => previewWidget.updateSource(),100);
+            }
+        };
+        previewWidget.updateSource = function () {
+            if (this.value.params == undefined) {
+                return;
+            }
+            let params =  {}
+            let advp = app.ui.settings.getSettingValue("VHS.AdvancedPreviews")
+            if (advp == 'Never') {
+                advp = false
+            } else if (advp == 'Input Only') {
+                advp = isInput
+            } else {
+                advp = true
+            }
+            Object.assign(params, this.value.params);//shallow copy
+            params.timestamp = Date.now()
+            if (!advp) {
+                element.src = api.apiURL('/view?' + new URLSearchParams(params));
+            } else {
+                params.deadline = app.ui.settings.getSettingValue("VHS.AdvancedPreviewsDeadline")
+                element.src = api.apiURL('/vhs/viewaudio?' + new URLSearchParams(params));
+            }
+        }
+        previewWidget.callback = previewWidget.updateSource
+
+
+        //setup widget tracking
+        function update(key) {
+            return function(value) {
+                let params = {}
+                params[key] = this.value
+                previewNode?.updateParameters(params)
+            }
+        }
+        let widgetMap = { 'seek_seconds': 'start_time', 'duration': 'duration',
+            'start_time': 'start_time' }
+        for (let widget of this.widgets) {
+            if (widget.name in widgetMap) {
+                if (typeof(widgetMap[widget.name]) == 'function') {
+                    chainCallback(widget, "callback", widgetMap[widget.name]);
+                } else {
+                    chainCallback(widget, "callback", update(widgetMap[widget.name]))
+                }
+            }
+            if (widget.type != "button") {
+                widget.callback?.(widget.value)
+            }
+        }
+    });
+}
 
 function addVideoPreview(nodeType, isInput=true) {
     chainCallback(nodeType.prototype, "onNodeCreated", function() {
@@ -1890,8 +1979,25 @@ app.registerExtension({
             addUploadWidget(nodeType, nodeData, "video");
             addLoadCommon(nodeType, nodeData);
             addVAEOutputToggle(nodeType, nodeData);
+        } else if (nodeData?.name == "VHS_LoadAudio") {
+            addAudioPreview(nodeType)
+            chainCallback(nodeType.prototype, "onNodeCreated", function() {
+                const pathWidget = this.widgets.find((w) => w.name === "audio_file");
+                chainCallback(pathWidget, "callback", (filename) => {
+                    this.updateParameters({filename, type: 'path'}, true);
+                });
+            });
         } else if (nodeData?.name == "VHS_LoadAudioUpload") {
             addUploadWidget(nodeType, nodeData, "audio", "audio");
+            addAudioPreview(nodeType)
+            chainCallback(nodeType.prototype, "onNodeCreated", function() {
+                const pathWidget = this.widgets.find((w) => w.name === "audio");
+                chainCallback(pathWidget, "callback", (filename) => {
+                    if (!filename) return
+                    let params = {filename, type : "input"};
+                    this.updateParameters(params, true);
+                });
+            });
         } else if (nodeData?.name == "VHS_LoadVideoPath" || nodeData?.name == "VHS_LoadVideoFFmpegPath") {
             chainCallback(nodeType.prototype, "onNodeCreated", function() {
                 const pathWidget = this.widgets.find((w) => w.name === "video");

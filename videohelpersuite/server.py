@@ -131,6 +131,48 @@ async def view_video(request):
     except BrokenPipeError as e:
         pass
     return resp
+@server.PromptServer.instance.routes.get("/vhs/viewaudio")
+async def view_audio(request):
+    query = request.rel_url.query
+    path_res = await resolve_path(query)
+    if isinstance(path_res, web.Response):
+        return path_res
+    file, filename, output_dir = path_res
+    if ffmpeg_path is None:
+        #Don't just return file, that provides  arbitrary read access to any file
+        if is_safe_path(output_dir, strict=True):
+            return web.FileResponse(path=file)
+
+    in_args = ["-i", file]
+    start_time = 0
+    if 'start_time' in query:
+        start_time = float(query['start_time'])
+    args = [ffmpeg_path, "-v", "error", '-vn'] + in_args + ['-ss', str(start_time)]
+    if float(query.get('duration', 0)) > 0:
+        args += ['-t', str(query['duration'])]
+    if query.get('deadline', 'realtime') == 'good':
+        deadline = 'good'
+    else:
+        deadline = 'realtime'
+
+    args += ['-c:a', 'libopus','-deadline', deadline, '-cpu-used', '8', '-f', 'webm', '-']
+    try:
+        proc = await asyncio.create_subprocess_exec(*args, stdout=subprocess.PIPE,
+                                                    stdin=subprocess.DEVNULL)
+        try:
+            resp = web.StreamResponse()
+            resp.content_type = 'audio/webm'
+            resp.headers["Content-Disposition"] = f"filename=\"{filename}\""
+            await resp.prepare(request)
+            while len(bytes_read := await proc.stdout.read(2**20)) != 0:
+                await resp.write(bytes_read)
+            #Of dubious value given frequency of kill calls, but more correct
+            await proc.wait()
+        except (ConnectionResetError, ConnectionError) as e:
+            proc.kill()
+    except BrokenPipeError as e:
+        pass
+    return resp
 
 query_cache = {}
 @server.PromptServer.instance.routes.get("/vhs/queryvideo")
@@ -174,7 +216,7 @@ async def query_video(request):
     loaded = {}
     loaded['duration'] = source['duration']
     loaded['duration'] -= float(query.get('start_time',0))
-    loaded['fps'] = float(query.get('force_rate', 0)) or source['fps']
+    loaded['fps'] = float(query.get('force_rate', 0)) or source.get('fps',1)
     loaded['duration'] -= int(query.get('skip_first_frames', 0)) / loaded['fps']
     loaded['fps'] /= int(query.get('select_every_nth', 1)) or 1
     loaded['frames'] = round(loaded['duration'] * loaded['fps'])
