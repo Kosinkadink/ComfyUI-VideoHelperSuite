@@ -2412,7 +2412,6 @@ app.registerExtension({
     },
 });
 let previewImages = []
-let animateInterval
 api.addEventListener('executing', ({ detail }) => {
     if (detail === null) {
         for (let graph of [app.graph, ...app.graph.subgraphs.values()]) {
@@ -2482,32 +2481,22 @@ function getLatentPreviewCtx(id, width, height) {
     }
     return canvasEl.getContext("2d")
 }
-//TODO: Figure out means of concurrency here. map of active nodes and finish event?
-// Information has been squirreled away to the execution store which isn't exposed.
-api.addEventListener('VHS_latentpreview', ({ detail }) => {
-    let setting = app.ui.settings.getSettingValue("VHS.LatentPreview")
-    if (!setting) {
-        return
-    }
-    let id = detail.id
-    if (id == null) {
-        return
-    }
+let animateIntervals = {}
+function beginLatentPreview(id, previewImages, rate) {
     latentPreviewNodes.add(id)
-
-    previewImages = []
-    previewImages.length = detail.length
-    let displayIndex = 0
-    if (animateInterval) {
-        clearTimeout(animateInterval)
+    if (animateIntervals[id]) {
+        clearTimeout(animateIntervals[id])
     }
+    let displayIndex = 0
+    let node = getNodeById(id)
     //While progress is safely cleared on execution completion.
     //Initial progress must be started here to avoid a race condition
-    getNodeById(id).progress = 0
-    animateInterval = setInterval(() => {
-        if (getNodeById(id).progress == undefined) {
-            clearTimeout(animateInterval)
-            animateInterval = undefined
+    node.progress = 0
+    animateIntervals[id] = setInterval(() => {
+        if (getNodeById(id)?.progress == undefined
+            || app.canvas.graph.rootGraph != node.graph.rootGraph) {
+            clearTimeout(animateIntervals[id])
+            delete animateIntervals[id]
             return
         }
         if (!previewImages[displayIndex]) {
@@ -2516,10 +2505,26 @@ api.addEventListener('VHS_latentpreview', ({ detail }) => {
         getLatentPreviewCtx(id, previewImages[displayIndex].width,
             previewImages[displayIndex].height)?.drawImage?.(previewImages[displayIndex],0,0)
         displayIndex = (displayIndex + 1) % previewImages.length
-    }, 1000/detail.rate);
+    }, 1000/rate);
+
+}
+let previewImagesDict = {}
+api.addEventListener('VHS_latentpreview', ({ detail }) => {
+    if (detail.id == null) {
+        return
+    }
+    let previewImages = previewImagesDict[detail.id] = []
+    previewImages.length = detail.length
+
+    let idParts = detail.id.split(':')
+    for (let i=1; i <= idParts.length; i++) {
+        let id = idParts.slice(0,i).join(':')
+        beginLatentPreview(id, previewImages, detail.rate)
+    }
 });
+let td = new TextDecoder()
 api.addEventListener('b_preview', async (e) => {
-    if (!animateInterval) {
+    if (Object.keys(animateIntervals).length == 0) {
         return
     }
     e.preventDefault()
@@ -2527,8 +2532,8 @@ api.addEventListener('b_preview', async (e) => {
     e.stopPropagation()
     const dv = new DataView(await e.detail.slice(0,24).arrayBuffer())
     const index = dv.getUint32(4)
-    //const idlen = dv.getUint8(5)
-    //const id = dv.getstring???(6,idlen)
-    previewImages[index] = await window.createImageBitmap(e.detail.slice(24))
+    const idlen = dv.getUint8(8)
+    const id = td.decode(dv.buffer.slice(9,9+idlen))
+    previewImagesDict[id][index] = await window.createImageBitmap(e.detail.slice(24))
     return false
 }, true);
