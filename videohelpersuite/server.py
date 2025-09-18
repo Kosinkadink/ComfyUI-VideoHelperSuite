@@ -255,6 +255,8 @@ async def resolve_path(query):
         filename = os.path.basename(filename)
         file = os.path.join(output_dir, filename)
 
+        if not os.path.exists(file):
+            return web.Response(status=204)
         if query.get('format', 'video') == 'folder':
             if not os.path.isdir(file):
                 return web.Response(status=204)
