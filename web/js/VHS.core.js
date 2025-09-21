@@ -2430,6 +2430,15 @@ function getLatentPreviewCtx(id, width, height) {
 
     let previewWidget = node.widgets.find((w) => w.name == "vhslatentpreview")
     if (!previewWidget) {
+        //check for and remove any native preview
+        let nativePreview = node.widgets.findIndex((w) => w.name == '$$canvas-image-preview')
+        if (nativePreview >= 0) {
+            node.imgs = []
+            node.widgets.splice(nativePreview,1)
+        }
+
+
+
         let canvasEl = document.createElement("canvas")
         previewWidget = node.addDOMWidget("vhslatentpreview", "vhscanvas", canvasEl, {
             serialize: false,
