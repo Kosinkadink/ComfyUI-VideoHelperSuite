@@ -190,13 +190,14 @@ def ffmpeg_process(args, video_format, video_metadata, file_path, env):
     if len(res) > 0:
         print(res.decode(*ENCODE_ARGS), end="", file=sys.stderr)
 
-def gifski_process(args, dimensions, video_format, file_path, env):
+def gifski_process(args, dimensions, frame_rate, video_format, file_path, env):
     frame_data = yield
     with subprocess.Popen(args + video_format['main_pass'] + ['-f', 'yuv4mpegpipe', '-'],
                           stderr=subprocess.PIPE, stdin=subprocess.PIPE,
                           stdout=subprocess.PIPE, env=env) as procff:
         with subprocess.Popen([gifski_path] + video_format['gifski_pass']
                               + ['-W', f'{dimensions[0]}', '-H', f'{dimensions[1]}']
+                              + ['-r', f'{frame_rate}']
                               + ['-q', '-o', file_path, '-'], stderr=subprocess.PIPE,
                               stdin=procff.stdout, stdout=subprocess.PIPE,
                               env=env) as procgs:
@@ -523,7 +524,7 @@ class VideoCombine:
             if output_process is None:
                 if 'gifski_pass' in video_format:
                     format = 'image/gif'
-                    output_process = gifski_process(args, dimensions, video_format, file_path, env)
+                    output_process = gifski_process(args, dimensions, frame_rate, video_format, file_path, env)
                     audio = None
                 else:
                     args += video_format['main_pass'] + bitrate_arg
