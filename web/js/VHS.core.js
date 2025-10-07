@@ -463,10 +463,17 @@ async function uploadFile(file) {
         if (i > 0) {
             body.append("subfolder", subfolder);
         }
-        const resp = await api.fetchApi("/upload/image", {
+        
+        let resp = null
+
+        if (window.parent.floyo) {
+            resp = await window.parent.floyo.uploadImage(body);
+       } else {
+        resp = await api.fetchApi("/upload/image", {
             method: "POST",
             body,
         });
+       }
 
         if (resp.status === 200) {
             return resp
