@@ -1008,6 +1008,9 @@ function addVideoPreview(nodeType, isInput=true) {
                 }
                 previewWidget.value.params = {}
             }
+            if (!Object.entries(params).some(([k,v]) => previewWidget.value.params[k] !== v)) {
+                return
+            }
             Object.assign(previewWidget.value.params, params)
             if (!force_update &&
                 app.ui.settings.getSettingValue("VHS.AdvancedPreviews") == 'Never') {
@@ -2436,8 +2439,6 @@ function getLatentPreviewCtx(id, width, height) {
             node.imgs = []
             node.widgets.splice(nativePreview,1)
         }
-
-
 
         let canvasEl = document.createElement("canvas")
         previewWidget = node.addDOMWidget("vhslatentpreview", "vhscanvas", canvasEl, {
