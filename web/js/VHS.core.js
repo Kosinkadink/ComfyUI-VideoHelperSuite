@@ -2068,7 +2068,7 @@ app.registerExtension({
                     function get_links(node) {
                         let links = []
                         for (const l of node.outputs[0].links) {
-                            const linkInfo = this.graph.links[l]
+                            const linkInfo = node.graph.links[l]
                             const n = node.graph.getNodeById(linkInfo.target_id)
                             if (n.type == 'Reroute') {
                                 links = links.concat(get_links(n))
@@ -2107,13 +2107,11 @@ app.registerExtension({
                     let [path, remainder] = path_stem(this.widgets[0].value)
                     let params = {path : path}
                     let optionsURL = api.apiURL('/vhs/getpath?' + new URLSearchParams(params));
-                    let options
+                    let options = []
                     try {
                         let resp = await fetch(optionsURL);
                         options = await resp.json();
-                    } catch(e) {
-                        options = []
-                    }
+                    } catch(e) {}
                     options = options.filter((file) => file.startsWith(remainder) && file.endsWith(this.widgets[1].value))
                     if (options.length && this.latest_file != options[options.length-1]) {
                         this.latest_file = path + options[options.length-1]
