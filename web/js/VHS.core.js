@@ -1643,7 +1643,7 @@ function drawAnnotated(ctx, node, widget_width, y, H) {
       ctx.fill()
     }
     let freeWidth = widget_width - (40 + margin * 2 + 20)
-    let [valueText, valueWidth] = fitText(ctx, this.displayValue(), freeWidth)
+    let [valueText, valueWidth] = fitText(ctx, (this.displayValue?.() ?? ""), freeWidth)
     freeWidth -= valueWidth
 
     ctx.textAlign = 'left'
