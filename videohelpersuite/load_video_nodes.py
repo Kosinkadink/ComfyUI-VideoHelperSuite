@@ -209,7 +209,7 @@ def ffmpeg_frame_generator(video, force_rate, frame_load_cap, start_time,
     durs_match = re.search("Duration: (\\d+:\\d+:\\d+\\.\\d+),", lines)
     if durs_match:
         durs = durs_match.group(1).split(':')
-        duration = int(durs[0])*360 + int(durs[1])*60 + float(durs[2])
+        duration = int(durs[0])*3600 + int(durs[1])*60 + float(durs[2])
     else:
         duration = 0
 
