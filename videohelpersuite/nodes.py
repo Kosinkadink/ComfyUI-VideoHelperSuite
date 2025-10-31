@@ -584,9 +584,13 @@ class VideoCombine:
                     apad = []
                 else:
                     apad = ["-af", "apad=whole_dur="+str(min_audio_dur)]
+                if "-lavfi" in video_format["audio_pass"]:
+                    copy_args = ['-c:v', 'copy']
+                else:
+                    copy_args = []
                 mux_args = [ffmpeg_path, "-v", "error", "-n", "-i", file_path,
                             "-ar", str(audio['sample_rate']), "-ac", str(channels),
-                            "-f", "f32le", "-i", "-", "-c:v", "copy"] \
+                            "-f", "f32le", "-i", "-"] + copy_args \
                             + video_format["audio_pass"] \
                             + apad + ["-shortest", output_file_with_audio_path]
 

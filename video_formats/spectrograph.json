@@ -1,0 +1,13 @@
+{
+    "main_pass":
+    [
+        "-n", "-frames:v", "1"
+    ],
+    "audio_pass":
+    [
+        "-n", "-vn",
+        "-filter_complex",  "[1:a] showcqt=bar_h=0:size=1440x2560",
+        "-ss", ["start_time", "INT", {"default": 17}], "-an", "-frames:v", "1"
+    ],
+    "extension": "out.png"
+}
