@@ -1,0 +1,17 @@
+{
+    "main_pass":
+    [
+        "-n", "-c:v", "libx264",
+        "-pix_fmt", ["pix_fmt", ["yuv420p", "yuv420p10le"]],
+        "-crf", ["crf","INT", {"default": 19, "min": 0, "max": 100, "step": 1}],
+        "-vf", "scale=out_color_matrix=bt709",
+        "-color_range", "tv", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709"
+    ],
+    "audio_pass":
+    [
+        "-n", "-vn",
+        "-filter_complex",  "[1:a] showcqt=bar_h=0:size=1440x2560",
+        "-ss", "17", "-an", "-frames:v", "1"
+    ],
+    "extension": "mp4"
+}
