@@ -13,5 +13,6 @@
     "audio_pass": ["-c:a", "flac"],
     "save_metadata": ["save_metadata", "BOOLEAN", {"default": true}],
     "trim_to_audio": ["trim_to_audio", "BOOLEAN", {"default": false}],
+    "input_color_depth": "16bit",
     "extension": "mkv"
 }
