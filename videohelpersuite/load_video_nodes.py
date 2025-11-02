@@ -201,7 +201,7 @@ def ffmpeg_frame_generator(video, force_rate, frame_load_cap, start_time,
                 fps_base = float(fps_match.group(1))
             else:
                 fps_base = 1
-            alpha = re.search("(yuva|rgba|bgra)", line) is not None
+            alpha = re.search("(yuva|rgba|bgra|gbra)", line) is not None
             break
     else:
         raise Exception("Failed to parse video/image information. FFMPEG output:\n" + lines)
