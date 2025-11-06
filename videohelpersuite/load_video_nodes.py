@@ -257,9 +257,12 @@ def ffmpeg_frame_generator(video, force_rate, frame_load_cap, start_time,
         match = re.search(r"^ *Stream .* Video.*, ([1-9]|\d{2,})x(\d+)", line)
         if match is not None:
             size_base = [int(match.group(1)), int(match.group(2))]
-            fps_match = re.search(r", ([\d\.]+) fps", line)
-            fps_base = float(fps_match.group(1)) if fps_match else 1.0
-            alpha = re.search(r"(yuva|rgba|bgra)", line) is not None
+            fps_match = re.search(", ([\\d\\.]+) fps", line)
+            if fps_match:
+                fps_base = float(fps_match.group(1))
+            else:
+                fps_base = 1
+            alpha = re.search("(yuva|rgba|bgra|gbra)", line) is not None
             break
     if size_base is None:
         raise Exception("Failed to parse video/image information. FFMPEG output:\n" + lines)
@@ -267,9 +270,9 @@ def ffmpeg_frame_generator(video, force_rate, frame_load_cap, start_time,
     durs_match = re.search(r"Duration: (\d+:\d+:\d+\.\d+),", lines)
     if durs_match:
         durs = durs_match.group(1).split(':')
-        duration = int(durs[0]) * 360 + int(durs[1]) * 60 + float(durs[2])
+        duration = int(durs[0])*3600 + int(durs[1])*60 + float(durs[2])
     else:
-        duration = 0.0
+        duration = 0
 
     if start_time > 0:
         if start_time > 4:
