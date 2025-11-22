@@ -343,7 +343,36 @@ def get_video_metadata(file):
                     metadata[current_key] = value
 
             if metadata:
-                return metadata
+                # Ensure prompt and workflow are at top level
+                # Check if they exist nested in other keys (like comment, etc)
+                result = {}
+                nested_keys_to_check = ['comment', 'compatible_brands', 'encoder', 'major_brand', 'minor_version']
+
+                for key, value in metadata.items():
+                    # If value is a dict and contains prompt/workflow, extract them
+                    if isinstance(value, dict):
+                        if 'prompt' in value or 'workflow' in value:
+                            # Extract prompt and workflow to top level
+                            if 'prompt' in value:
+                                result['prompt'] = value['prompt']
+                            if 'workflow' in value:
+                                result['workflow'] = value['workflow']
+                            # Keep the rest of the nested data if needed
+                            remaining = {k: v for k, v in value.items() if k not in ['prompt', 'workflow']}
+                            if remaining:
+                                result[key] = remaining
+                        else:
+                            result[key] = value
+                    else:
+                        result[key] = value
+
+                # If prompt/workflow already at top level, ensure they stay there
+                if 'prompt' in metadata:
+                    result['prompt'] = metadata['prompt']
+                if 'workflow' in metadata:
+                    result['workflow'] = metadata['workflow']
+
+                return result if result else metadata
 
         return {}
 
