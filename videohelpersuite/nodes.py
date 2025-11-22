@@ -23,7 +23,7 @@ from .batched_nodes import VAEEncodeBatched, VAEDecodeBatched
 from .utils import ffmpeg_path, get_audio, hash_path, validate_path, requeue_workflow, \
         gifski_path, calculate_file_hash, strip_path, try_download_video, is_url, \
         imageOrLatent, BIGMAX, merge_filter_args, ENCODE_ARGS, floatOrInt, cached, \
-        ContainsAll
+        ContainsAll, get_video_metadata
 from comfy.utils import ProgressBar
 
 if 'VHS_video_formats' not in folder_paths.folder_names_and_paths:
@@ -171,7 +171,11 @@ def ffmpeg_process(args, video_format, video_metadata, file_path, env):
                 #Res was not set
                 print(err.decode(*ENCODE_ARGS), end="", file=sys.stderr)
                 logger.warn("An error occurred when saving with metadata")
-    if res != b'':
+    if res is not None and res == b'':
+        # Metadata save succeeded, we're done
+        pass
+    elif res is None:
+        # Metadata save was not attempted, do normal save
         with subprocess.Popen(args + [file_path], stderr=subprocess.PIPE,
                               stdin=subprocess.PIPE, env=env) as proc:
             try:
@@ -249,11 +253,13 @@ class VideoCombine:
                 "format": (["image/gif", "image/webp"] + ffmpeg_formats, {'formats': format_widgets}),
                 "pingpong": ("BOOLEAN", {"default": False}),
                 "save_output": ("BOOLEAN", {"default": True}),
+                "save_first_image": ("BOOLEAN", {"default": True}),
             },
             "optional": {
                 "audio": ("AUDIO",),
                 "meta_batch": ("VHS_BatchManager",),
                 "vae": ("VAE",),
+                "video_metadata": ("VHS_METADATA",),
             },
             "hidden": ContainsAll({
                 "prompt": "PROMPT",
@@ -278,6 +284,7 @@ class VideoCombine:
         format="image/gif",
         pingpong=False,
         save_output=True,
+        save_first_image=True,
         prompt=None,
         extra_pnginfo=None,
         audio=None,
@@ -285,6 +292,7 @@ class VideoCombine:
         manual_format_widgets=None,
         meta_batch=None,
         vae=None,
+        video_metadata=None,
         **kwargs
     ):
         if latents is not None:
@@ -340,14 +348,23 @@ class VideoCombine:
         output_files = []
 
         metadata = PngInfo()
-        video_metadata = {}
+        # Use input video_metadata if provided, otherwise create from current workflow
+        if video_metadata is not None:
+            video_meta_dict = video_metadata
+        else:
+            video_meta_dict = {}
+            if prompt is not None:
+                video_meta_dict["prompt"] = json.dumps(prompt)
+            if extra_pnginfo is not None:
+                for x in extra_pnginfo:
+                    video_meta_dict[x] = extra_pnginfo[x]
+
+        # Update PNG metadata for first image
         if prompt is not None:
             metadata.add_text("prompt", json.dumps(prompt))
-            video_metadata["prompt"] = json.dumps(prompt)
         if extra_pnginfo is not None:
             for x in extra_pnginfo:
                 metadata.add_text(x, json.dumps(extra_pnginfo[x]))
-                video_metadata[x] = extra_pnginfo[x]
             extra_options = extra_pnginfo.get('workflow', {}).get('extra', {})
         else:
             extra_options = {}
@@ -375,16 +392,17 @@ class VideoCombine:
             counter = max_counter + 1
             output_process = None
 
-        # save first frame as png to keep metadata
         first_image_file = f"{filename}_{counter:05}.png"
-        file_path = os.path.join(full_output_folder, first_image_file)
-        if extra_options.get('VHS_MetadataImage', True) != False:
-            Image.fromarray(tensor_to_bytes(first_image)).save(
-                file_path,
-                pnginfo=metadata,
-                compress_level=4,
-            )
-        output_files.append(file_path)
+        if save_first_image:            
+            # save first frame as png to keep metadata
+            file_path = os.path.join(full_output_folder, first_image_file)
+            if extra_options.get('VHS_MetadataImage', True) != False:
+                Image.fromarray(tensor_to_bytes(first_image)).save(
+                    file_path,
+                    pnginfo=metadata,
+                    compress_level=4,
+                )
+            output_files.append(file_path)
 
         format_type, format_ext = format.split("/")
         if format_type == "image":
@@ -529,7 +547,7 @@ class VideoCombine:
                 else:
                     args += video_format['main_pass'] + bitrate_arg
                     merge_filter_args(args)
-                    output_process = ffmpeg_process(args, video_format, video_metadata, file_path, env)
+                    output_process = ffmpeg_process(args, video_format, video_meta_dict, file_path, env)
                 #Proceed to first yield
                 output_process.send(None)
                 if meta_batch is not None:

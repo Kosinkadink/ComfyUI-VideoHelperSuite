@@ -4,7 +4,8 @@
         "-n", "-c:v", "av1_nvenc",
         "-pix_fmt", ["pix_fmt", ["yuv420p", "p010le"]],
         "-vf", "scale=out_color_matrix=bt709",
-        "-color_range", "tv", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709"
+        "-color_range", "tv", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709",
+        "-movflags", "+faststart+write_colr"
     ],
     "fake_trc": "bt709",
     "audio_pass": ["-c:a", "aac"],
