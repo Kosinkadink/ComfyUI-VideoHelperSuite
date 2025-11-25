@@ -1,2 +1,2 @@
-opencv-python
+opencv-python-headless
 imageio-ffmpeg
