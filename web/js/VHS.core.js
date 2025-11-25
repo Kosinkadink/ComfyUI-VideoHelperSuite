@@ -2438,6 +2438,7 @@ function getLatentPreviewCtx(id, width, height) {
             node.widgets.splice(nativePreview,1)
         }
         let canvasEl = document.createElement("canvas")
+        canvasEl.style.width = "100%"
         previewWidget = node.addDOMWidget("vhslatentpreview", "vhscanvas", canvasEl, {
             serialize: false,
             hideOnZoom: false,
