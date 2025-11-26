@@ -1008,6 +1008,9 @@ function addVideoPreview(nodeType, isInput=true) {
                 }
                 previewWidget.value.params = {}
             }
+            if (!Object.entries(params).some(([k,v]) => previewWidget.value.params[k] !== v)) {
+                return
+            }
             Object.assign(previewWidget.value.params, params)
             if (!force_update &&
                 app.ui.settings.getSettingValue("VHS.AdvancedPreviews") == 'Never') {
@@ -2065,7 +2068,7 @@ app.registerExtension({
                     function get_links(node) {
                         let links = []
                         for (const l of node.outputs[0].links) {
-                            const linkInfo = this.graph.links[l]
+                            const linkInfo = node.graph.links[l]
                             const n = node.graph.getNodeById(linkInfo.target_id)
                             if (n.type == 'Reroute') {
                                 links = links.concat(get_links(n))
@@ -2104,13 +2107,11 @@ app.registerExtension({
                     let [path, remainder] = path_stem(this.widgets[0].value)
                     let params = {path : path}
                     let optionsURL = api.apiURL('/vhs/getpath?' + new URLSearchParams(params));
-                    let options
+                    let options = []
                     try {
                         let resp = await fetch(optionsURL);
                         options = await resp.json();
-                    } catch(e) {
-                        options = []
-                    }
+                    } catch(e) {}
                     options = options.filter((file) => file.startsWith(remainder) && file.endsWith(this.widgets[1].value))
                     if (options.length && this.latest_file != options[options.length-1]) {
                         this.latest_file = path + options[options.length-1]
@@ -2430,7 +2431,14 @@ function getLatentPreviewCtx(id, width, height) {
 
     let previewWidget = node.widgets.find((w) => w.name == "vhslatentpreview")
     if (!previewWidget) {
+        //check for and remove any native preview
+        let nativePreview = node.widgets.findIndex((w) => w.name == '$$canvas-image-preview')
+        if (nativePreview >= 0) {
+            node.imgs = []
+            node.widgets.splice(nativePreview,1)
+        }
         let canvasEl = document.createElement("canvas")
+        canvasEl.style.width = "100%"
         previewWidget = node.addDOMWidget("vhslatentpreview", "vhscanvas", canvasEl, {
             serialize: false,
             hideOnZoom: false,
