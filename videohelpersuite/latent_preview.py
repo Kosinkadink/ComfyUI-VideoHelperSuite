@@ -26,6 +26,7 @@ class WrappedPreviewer(latent_preview.LatentPreviewer):
         elif hasattr(previewer, 'latent_rgb_factors'):
             self.latent_rgb_factors = previewer.latent_rgb_factors
             self.latent_rgb_factors_bias = previewer.latent_rgb_factors_bias
+            self.latent_rgb_factors_reshape = previewer.latent_rgb_factors_reshape
         else:
             raise Exception('Unsupported preview type for VHS animated previews')
 
@@ -84,6 +85,8 @@ class WrappedPreviewer(latent_preview.LatentPreviewer):
             x_sample = self.taesd.decode(x0).movedim(1, 3)
             return x_sample
         else:
+            if self.latent_rgb_factors_reshape is not None:
+                x0 = self.latent_rgb_factors_reshape(x0)
             self.latent_rgb_factors = self.latent_rgb_factors.to(dtype=x0.dtype, device=x0.device)
             if self.latent_rgb_factors_bias is not None:
                 self.latent_rgb_factors_bias = self.latent_rgb_factors_bias.to(dtype=x0.dtype, device=x0.device)
