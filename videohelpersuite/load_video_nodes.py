@@ -16,7 +16,7 @@ from comfy.k_diffusion.utils import FolderOfImages
 from .logger import logger
 from .utils import BIGMAX, DIMMAX, calculate_file_hash, get_sorted_dir_files_from_directory,\
         lazy_get_audio, hash_path, validate_path, strip_path, try_download_video,  \
-        is_url, imageOrLatent, ffmpeg_path, ENCODE_ARGS, floatOrInt
+        is_url, imageOrLatent, ffmpeg_path, ENCODE_ARGS, floatOrInt, get_video_metadata
 
 
 video_extensions = ['webm', 'mp4', 'mkv', 'gif', 'mov']
@@ -400,6 +400,8 @@ def load_video(meta_batch=None, unique_id=None, memory_limit_mb=None, vae=None,
     target_frame_time *= kwargs.get('select_every_nth', 1)
     #Setup lambda for lazy audio capture
     audio = lazy_get_audio(kwargs['video'], start_time, kwargs['frame_load_cap']*target_frame_time)
+    #Extract metadata from source video
+    metadata = get_video_metadata(kwargs['video'])
     #Adjust target_frame_time for select_every_nth
     video_info = {
         "source_fps": fps,
@@ -414,9 +416,9 @@ def load_video(meta_batch=None, unique_id=None, memory_limit_mb=None, vae=None,
         "loaded_height": new_height,
     }
     if vae is None:
-        return (images, len(images), audio, video_info)
+        return (images, len(images), audio, video_info, metadata)
     else:
-        return ({"samples": images}, len(images), audio, video_info)
+        return ({"samples": images}, len(images), audio, video_info, metadata)
 
 
 
@@ -452,8 +454,8 @@ class LoadVideoUpload:
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
 
-    RETURN_TYPES = (imageOrLatent, "INT", "AUDIO", "VHS_VIDEOINFO")
-    RETURN_NAMES = ("IMAGE", "frame_count", "audio", "video_info")
+    RETURN_TYPES = (imageOrLatent, "INT", "AUDIO", "VHS_VIDEOINFO", "VHS_METADATA")
+    RETURN_NAMES = ("IMAGE", "frame_count", "audio", "video_info", "metadata")
 
     FUNCTION = "load_video"
 
@@ -499,8 +501,8 @@ class LoadVideoPath:
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
 
-    RETURN_TYPES = (imageOrLatent, "INT", "AUDIO", "VHS_VIDEOINFO")
-    RETURN_NAMES = ("IMAGE", "frame_count", "audio", "video_info")
+    RETURN_TYPES = (imageOrLatent, "INT", "AUDIO", "VHS_VIDEOINFO", "VHS_METADATA")
+    RETURN_NAMES = ("IMAGE", "frame_count", "audio", "video_info", "metadata")
 
     FUNCTION = "load_video"
 
@@ -551,17 +553,17 @@ class LoadVideoFFmpegUpload:
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
 
-    RETURN_TYPES = (imageOrLatent, "MASK", "AUDIO", "VHS_VIDEOINFO")
-    RETURN_NAMES = ("IMAGE", "mask", "audio", "video_info")
+    RETURN_TYPES = (imageOrLatent, "MASK", "AUDIO", "VHS_VIDEOINFO", "VHS_METADATA")
+    RETURN_NAMES = ("IMAGE", "mask", "audio", "video_info", "metadata")
 
     FUNCTION = "load_video"
 
     def load_video(self, **kwargs):
         kwargs['video'] = folder_paths.get_annotated_filepath(strip_path(kwargs['video']))
-        image, _, audio, video_info =  load_video(**kwargs, generator=ffmpeg_frame_generator)
+        image, _, audio, video_info, metadata =  load_video(**kwargs, generator=ffmpeg_frame_generator)
         if image.size(3) == 4:
-            return (image[:,:,:,:3], 1-image[:,:,:,3], audio, video_info)
-        return (image, torch.zeros(image.size(0), 64, 64, device="cpu"), audio, video_info)
+            return (image[:,:,:,:3], 1-image[:,:,:,3], audio, video_info, metadata)
+        return (image, torch.zeros(image.size(0), 64, 64, device="cpu"), audio, video_info, metadata)
 
     @classmethod
     def IS_CHANGED(s, video, **kwargs):
@@ -600,8 +602,8 @@ class LoadVideoFFmpegPath:
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
 
-    RETURN_TYPES = (imageOrLatent, "MASK", "AUDIO", "VHS_VIDEOINFO")
-    RETURN_NAMES = ("IMAGE", "mask", "audio", "video_info")
+    RETURN_TYPES = (imageOrLatent, "MASK", "AUDIO", "VHS_VIDEOINFO", "VHS_METADATA")
+    RETURN_NAMES = ("IMAGE", "mask", "audio", "video_info", "metadata")
 
     FUNCTION = "load_video"
 
@@ -610,12 +612,12 @@ class LoadVideoFFmpegPath:
             raise Exception("video is not a valid path: " + kwargs['video'])
         if is_url(kwargs['video']):
             kwargs['video'] = try_download_video(kwargs['video']) or kwargs['video']
-        image, _, audio, video_info =  load_video(**kwargs, generator=ffmpeg_frame_generator)
+        image, _, audio, video_info, metadata =  load_video(**kwargs, generator=ffmpeg_frame_generator)
         if isinstance(image, dict):
-            return (image, None, audio, video_info)
+            return (image, None, audio, video_info, metadata)
         if image.size(3) == 4:
-            return (image[:,:,:,:3], 1-image[:,:,:,3], audio, video_info)
-        return (image, torch.zeros(image.size(0), 64, 64, device="cpu"), audio, video_info)
+            return (image[:,:,:,:3], 1-image[:,:,:,3], audio, video_info, metadata)
+        return (image, torch.zeros(image.size(0), 64, 64, device="cpu"), audio, video_info, metadata)
 
     @classmethod
     def IS_CHANGED(s, video, **kwargs):
