@@ -8,7 +8,8 @@
         "-preset", "medium",
         "-x265-params", "log-level=quiet",
         "-vf", "scale=out_color_matrix=bt709",
-        "-color_range", "tv", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709"
+        "-color_range", "tv", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709",
+        "-movflags", "+faststart+write_colr"
     ],
     "fake_trc": "bt709",
     "audio_pass": ["-c:a", "aac"],
