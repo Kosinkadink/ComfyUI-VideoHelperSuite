@@ -458,6 +458,17 @@ function allowDragFromWidget(widget) {
     }
 }
 
+//Cloud specific auth code. Short circuits if not on cloud
+async function getAuthHeader() {
+  try {
+    const authStore = await api.getAuthStore()
+    return authStore ? await authStore.getAuthHeader() : null
+  } catch (error) {
+    console.warn('Failed to get auth header:', error)
+    return null
+  }
+}
+
 async function uploadFile(file, progressCallback) {
     try {
         // Wrap file in formdata so it includes filename
@@ -478,7 +489,12 @@ async function uploadFile(file, progressCallback) {
             req.upload.onprogress = (e) => progressCallback?.(e.loaded/e.total)
             req.onload = () => resolve(req)
             req.open('post', url, true)
-            req.send(body)
+            getAuthHeader().then((headers) => {
+                headers ??= {}
+                for (const key in headers)
+                    req.setRequestHeader(key, headers[key])
+                req.send(body)
+            })
         })
 
         if (resp.status !== 200) {
