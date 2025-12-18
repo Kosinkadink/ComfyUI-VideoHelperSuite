@@ -1,7 +1,7 @@
 {
     "main_pass":
     [
-        "-n", "-c:v", "prores_ks",
+        "-y", "-c:v", "prores_ks",
         "-profile:v", [["$profile"]],
         ["profile", {
             "lt": [[]], "1": [[]], "standard": [[]], "2": [[]], "hq": [[]], "3": [[]],

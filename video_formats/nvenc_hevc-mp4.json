@@ -1,7 +1,7 @@
 {
     "main_pass":
     [
-        "-n", "-c:v", "hevc_nvenc",
+        "-y", "-c:v", "hevc_nvenc",
         "-vtag", "hvc1",
         "-pix_fmt", ["pix_fmt", ["yuv420p", "p010le"]],
         "-vf", "scale=out_color_matrix=bt709",

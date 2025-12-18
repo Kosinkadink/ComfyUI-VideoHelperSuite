@@ -232,6 +232,29 @@ def to_pingpong(inp):
     for i in range(len(inp)-2,0,-1):
         yield inp[i]
 
+
+def parse_full_path(full_path: str) -> tuple[str, str, str]:
+    """Parse a full file path and extract folder, filename, and subfolder.
+
+    Args:
+        full_path: The complete path to the file
+
+    Returns:
+        Tuple of (full_output_folder, filename, subfolder)
+        - full_output_folder: The directory containing the file
+        - filename: The basename of the file
+        - subfolder: Empty string (the folder is just the folder containing the images)
+    """
+    full_output_folder = os.path.dirname(os.path.abspath(full_path))
+    filename = os.path.basename(full_path)
+    subfolder = ""
+
+    # Create directory if it doesn't exist
+    os.makedirs(full_output_folder, exist_ok=True)
+
+    return full_output_folder, filename, subfolder
+
+
 class VideoCombine:
     @classmethod
     def INPUT_TYPES(s):
@@ -245,6 +268,7 @@ class VideoCombine:
                     {"default": 8, "min": 1, "step": 1},
                 ),
                 "loop_count": ("INT", {"default": 0, "min": 0, "max": 100, "step": 1}),
+                "full_path": ("BOOLEAN", {"default": False}),
                 "filename_prefix": ("STRING", {"default": "AnimateDiff"}),
                 "format": (["image/gif", "image/webp"] + ffmpeg_formats, {'formats': format_widgets}),
                 "pingpong": ("BOOLEAN", {"default": False}),
@@ -274,6 +298,7 @@ class VideoCombine:
         loop_count: int,
         images=None,
         latents=None,
+        full_path=False,
         filename_prefix="AnimateDiff",
         format="image/gif",
         pingpong=False,
@@ -324,19 +349,26 @@ class VideoCombine:
         else:
             first_image = images[0]
             images = iter(images)
-        # get output information
-        output_dir = (
-            folder_paths.get_output_directory()
-            if save_output
-            else folder_paths.get_temp_directory()
-        )
-        (
-            full_output_folder,
-            filename,
-            _,
-            subfolder,
-            _,
-        ) = folder_paths.get_save_image_path(filename_prefix, output_dir)
+        if full_path:
+            (
+                full_output_folder,
+                filename,
+                subfolder,
+            ) = parse_full_path(filename_prefix)
+        else:
+            # get output information
+            output_dir = (
+                folder_paths.get_output_directory()
+                if save_output
+                else folder_paths.get_temp_directory()
+            )
+            (
+                full_output_folder,
+                filename,
+                _,
+                subfolder,
+                _,
+            ) = folder_paths.get_save_image_path(filename_prefix, output_dir)
         output_files = []
 
         metadata = PngInfo()
@@ -376,7 +408,11 @@ class VideoCombine:
             output_process = None
 
         # save first frame as png to keep metadata
-        first_image_file = f"{filename}_{counter:05}.png"
+        if full_path:
+            base_filename = os.path.splitext(filename)[0]
+            first_image_file = f"{base_filename}.png"
+        else:
+            first_image_file = f"{filename}_{counter:05}.png"
         file_path = os.path.join(full_output_folder, first_image_file)
         if extra_options.get('VHS_MetadataImage', True) != False:
             Image.fromarray(tensor_to_bytes(first_image)).save(
@@ -399,7 +435,12 @@ class VideoCombine:
                 exif[ExifTags.IFD.Exif] = {36867: datetime.datetime.now().isoformat(" ")[:19]}
                 image_kwargs['exif'] = exif
                 image_kwargs['lossless'] = kwargs.get("lossless", True)
-            file = f"{filename}_{counter:05}.{format_ext}"
+            if full_path:
+                # Extract just the base filename without extension
+                base_filename = os.path.splitext(filename)[0]
+                file = f"{base_filename}.{format_ext}"
+            else:
+                file = f"{filename}_{counter:05}.{format_ext}"
             file_path = os.path.join(full_output_folder, file)
             if pingpong:
                 images = to_pingpong(images)
@@ -473,7 +514,12 @@ class VideoCombine:
                     i_pix_fmt = 'rgba'
                 else:
                     i_pix_fmt = 'rgb24'
-            file = f"{filename}_{counter:05}.{video_format['extension']}"
+            if full_path:
+                # Extract just the base filename without extension
+                base_filename = os.path.splitext(filename)[0]
+                file = f"{base_filename}.{video_format['extension']}"
+            else:
+                file = f"{filename}_{counter:05}.{video_format['extension']}"
             file_path = os.path.join(full_output_folder, file)
             bitrate_arg = []
             bitrate = video_format.get('bitrate')
@@ -568,7 +614,12 @@ class VideoCombine:
                     pass
             if a_waveform is not None:
                 # Create audio file if input was provided
-                output_file_with_audio = f"{filename}_{counter:05}-audio.{video_format['extension']}"
+                if full_path:
+                    # Extract just the base filename without extension and add audio suffix
+                    base_filename = os.path.splitext(filename)[0]
+                    output_file_with_audio = f"{base_filename}-audio.{video_format['extension']}"
+                else:
+                    output_file_with_audio = f"{filename}_{counter:05}-audio.{video_format['extension']}"
                 output_file_with_audio_path = os.path.join(full_output_folder, output_file_with_audio)
                 if "audio_pass" not in video_format:
                     logger.warn("Selected video format does not have explicit audio support")
@@ -584,7 +635,7 @@ class VideoCombine:
                     apad = []
                 else:
                     apad = ["-af", "apad=whole_dur="+str(min_audio_dur)]
-                mux_args = [ffmpeg_path, "-v", "error", "-n", "-i", file_path,
+                mux_args = [ffmpeg_path, "-v", "error", "-y", "-i", file_path,
                             "-ar", str(audio['sample_rate']), "-ac", str(channels),
                             "-f", "f32le", "-i", "-", "-c:v", "copy"] \
                             + video_format["audio_pass"] \
@@ -689,7 +740,7 @@ class LoadAudioUpload:
         audio_file = folder_paths.get_annotated_filepath(strip_path(kwargs['audio']))
         if audio_file is None or validate_path(audio_file) != True:
             raise Exception("audio_file is not a valid path: " + audio_file)
-        
+
         audio = get_audio(audio_file, start_time, duration)
         loaded_duration = audio['waveform'].size(2)/audio['sample_rate']
         return (audio, loaded_duration)
@@ -895,7 +946,7 @@ class VideoInfo:
 
     def get_video_info(self, video_info):
         keys = ["fps", "frame_count", "duration", "width", "height"]
-        
+
         source_info = []
         loaded_info = []
 
@@ -929,7 +980,7 @@ class VideoInfoSource:
 
     def get_video_info(self, video_info):
         keys = ["fps", "frame_count", "duration", "width", "height"]
-        
+
         source_info = []
 
         for key in keys:
@@ -961,7 +1012,7 @@ class VideoInfoLoaded:
 
     def get_video_info(self, video_info):
         keys = ["fps", "frame_count", "duration", "width", "height"]
-        
+
         loaded_info = []
 
         for key in keys:
