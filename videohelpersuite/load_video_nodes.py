@@ -401,6 +401,15 @@ def load_video(meta_batch=None, unique_id=None, memory_limit_mb=None, vae=None,
     #Setup lambda for lazy audio capture
     audio = lazy_get_audio(kwargs['video'], start_time, kwargs['frame_load_cap']*target_frame_time)
     #Adjust target_frame_time for select_every_nth
+    # Extract filename from video path
+    video_path = kwargs['video']
+    filename = os.path.basename(video_path)
+    # Handle URLs - extract filename from URL path if it's a URL
+    if is_url(video_path):
+        # For URLs, try to extract filename from URL path
+        # os.path.basename should work, but if URL has query params, we might need to strip them
+        if '?' in filename:
+            filename = filename.split('?')[0]
     video_info = {
         "source_fps": fps,
         "source_frame_count": total_frames,
@@ -412,6 +421,7 @@ def load_video(meta_batch=None, unique_id=None, memory_limit_mb=None, vae=None,
         "loaded_duration": len(images) * target_frame_time,
         "loaded_width": new_width,
         "loaded_height": new_height,
+        "filename": filename,
     }
     if vae is None:
         return (images, len(images), audio, video_info)
