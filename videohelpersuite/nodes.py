@@ -353,7 +353,7 @@ class VideoCombine:
             extra_options = {}
         metadata.add_text("CreationTime", datetime.datetime.now().isoformat(" ")[:19])
 
-        if meta_batch is not None and unique_id in meta_batch.outputs:
+        if meta_batch is not None and unique_id in meta_batch.outputs and meta_batch.outputs[unique_id] is not None:
             (counter, output_process) = meta_batch.outputs[unique_id]
         else:
             # comfy counter workaround
@@ -860,6 +860,14 @@ class BatchManager:
             self.reset()
             self.frames_per_batch = frames_per_batch
             self.unique_id = unique_id
+
+            # init all outputs[uid] to None here so that we won't be `reset` by the first VideoCombine node
+            # if it finds that `mgr.has_closed_inputs == True (num_frames < batch_size?)` when we have multiple VideoCombine nodes
+            for output_uid in prompt:
+                if prompt[output_uid]['class_type'] in ["VHS_VideoCombine"]:
+                    for inp in prompt[output_uid]['inputs'].values():
+                        if inp == [unique_id, 0]:
+                            self.outputs[output_uid] = None
         else:
             num_batches = (self.total_frames+self.frames_per_batch-1)//frames_per_batch
             print(f'Meta-Batch {requeue}/{num_batches}')
