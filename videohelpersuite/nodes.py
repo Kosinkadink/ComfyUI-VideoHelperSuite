@@ -297,7 +297,7 @@ class VideoCombine:
             else:
                 vae = None
 
-        if isinstance(images, torch.Tensor) and images.size(0) == 0:
+        if isinstance(images, torch.Tensor) and images.size(0) == 0 and meta_batch is None:
             return ((save_output, []),)
         num_frames = len(images)
         pbar = ProgressBar(num_frames)
@@ -322,7 +322,8 @@ class VideoCombine:
             while len(first_image.shape) > 3:
                 first_image = first_image[0]
         else:
-            first_image = images[0]
+            first_image = images[0] if len(images) \
+                else torch.zeros(images.shape[1:], device='cpu') # dummy first_image
             images = iter(images)
         # get output information
         output_dir = (
