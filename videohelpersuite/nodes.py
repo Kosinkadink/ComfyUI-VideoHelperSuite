@@ -818,7 +818,7 @@ class BatchManager:
     def reset(self):
         self.close_inputs()
         for key in self.outputs:
-            if getattr(self.outputs[key][-1], "gi_suspended", False):
+            if self.outputs[key] is not None and getattr(self.outputs[key][-1], "gi_suspended", False):
                 try:
                     self.outputs[key][-1].send(None)
                 except StopIteration:
