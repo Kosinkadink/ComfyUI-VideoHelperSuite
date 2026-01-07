@@ -500,6 +500,14 @@ async function uploadFile(file, progressCallback) {
         if (resp.status !== 200) {
             alert(resp.status + " - " + resp.statusText);
         }
+        // runnode adapter
+        if (resp.response) {
+          const response = JSON.parse(resp.response)
+          if (response.code !== 0) {
+            alert(response.msg);
+          }
+        }
+
         return resp
     } catch (error) {
         alert(error);
@@ -794,7 +802,7 @@ function addUploadWidget(nodeType, nodeData, widgetName, type="video") {
                 if (resp.status != 200) {
                     return false
                 }
-                const filename = JSON.parse(resp.responseText).name;
+                const filename = JSON.parse(resp.responseText).data.name; // runnode adapter
                 pathWidget.options.values.push(filename);
                 pathWidget.value = filename;
                 if (pathWidget.callback) {
@@ -896,7 +904,8 @@ function addAudioPreview(nodeType, isInput=true) {
                 element.src = api.apiURL('/view?' + new URLSearchParams(params));
             } else {
                 params.deadline = app.ui.settings.getSettingValue("VHS.AdvancedPreviewsDeadline")
-                element.src = api.apiURL('/vhs/viewaudio?' + new URLSearchParams(params));
+                // element.src = api.apiURL('/vhs/viewaudio?' + new URLSearchParams(params)); runnode adapter
+                element.src = api.apiURL('/view?' + new URLSearchParams(params));
             }
         }
         previewWidget.callback = previewWidget.updateSource
@@ -1077,7 +1086,8 @@ function addVideoPreview(nodeType, isInput=true) {
                         params.force_size = target_width+"x"+(target_width/ar)
                     }
                     params.deadline = app.ui.settings.getSettingValue("VHS.AdvancedPreviewsDeadline")
-                    this.videoEl.src = api.apiURL('/vhs/viewvideo?' + new URLSearchParams(params));
+                    // this.videoEl.src = api.apiURL('/vhs/viewvideo?' + new URLSearchParams(params)); runnode adapter
+                    this.videoEl.src = api.apiURL('/view?' + new URLSearchParams(params));
                 }
                 this.videoEl.hidden = false;
                 this.imgEl.hidden = true;
