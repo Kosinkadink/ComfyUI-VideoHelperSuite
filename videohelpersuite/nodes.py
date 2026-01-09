@@ -136,19 +136,28 @@ def ffmpeg_process(args, video_format, video_metadata, file_path, env):
     total_frames_output = 0
     if video_format.get('save_metadata', 'False') != 'False':
         os.makedirs(folder_paths.get_temp_directory(), exist_ok=True)
-        metadata = json.dumps(video_metadata)
         metadata_path = os.path.join(folder_paths.get_temp_directory(), "metadata.txt")
         #metadata from file should  escape = ; # \ and newline
-        metadata = metadata.replace("\\","\\\\")
-        metadata = metadata.replace(";","\\;")
-        metadata = metadata.replace("#","\\#")
-        metadata = metadata.replace("=","\\=")
-        metadata = metadata.replace("\n","\\\n")
-        metadata = "comment=" + metadata
+        def escape_ffmpeg_metadata(key, value):
+            value = str(value)
+            value = value.replace("\\","\\\\")
+            value = value.replace(";","\\;")
+            value = value.replace("#","\\#")
+            value = value.replace("=","\\=")
+            value = value.replace("\n","\\\n")
+            return f"{key}={value}"
+
         with open(metadata_path, "w") as f:
             f.write(";FFMETADATA1\n")
-            f.write(metadata)
-        m_args = args[:1] + ["-i", metadata_path] + args[1:] + ["-metadata", "creation_time=now"]
+            if "prompt" in video_metadata:
+                f.write(escape_ffmpeg_metadata("prompt", json.dumps(video_metadata["prompt"])) + "\n")
+            if "workflow" in video_metadata:
+                f.write(escape_ffmpeg_metadata("workflow", json.dumps(video_metadata["workflow"])) + "\n")
+            for k, v in video_metadata.items():
+                if k not in ["prompt", "workflow"]:
+                    f.write(escape_ffmpeg_metadata(k, json.dumps(v)) + "\n")
+
+        m_args = args[:1] + ["-i", metadata_path] + args[1:] + ["-metadata", "creation_time=now", "-movflags", "use_metadata_tags"]
         with subprocess.Popen(m_args + [file_path], stderr=subprocess.PIPE,
                               stdin=subprocess.PIPE, env=env) as proc:
             try:
@@ -689,7 +698,7 @@ class LoadAudioUpload:
         audio_file = folder_paths.get_annotated_filepath(strip_path(kwargs['audio']))
         if audio_file is None or validate_path(audio_file) != True:
             raise Exception("audio_file is not a valid path: " + audio_file)
-        
+
         audio = get_audio(audio_file, start_time, duration)
         loaded_duration = audio['waveform'].size(2)/audio['sample_rate']
         return (audio, loaded_duration)
@@ -895,7 +904,7 @@ class VideoInfo:
 
     def get_video_info(self, video_info):
         keys = ["fps", "frame_count", "duration", "width", "height"]
-        
+
         source_info = []
         loaded_info = []
 
@@ -929,7 +938,7 @@ class VideoInfoSource:
 
     def get_video_info(self, video_info):
         keys = ["fps", "frame_count", "duration", "width", "height"]
-        
+
         source_info = []
 
         for key in keys:
@@ -961,7 +970,7 @@ class VideoInfoLoaded:
 
     def get_video_info(self, video_info):
         keys = ["fps", "frame_count", "duration", "width", "height"]
-        
+
         loaded_info = []
 
         for key in keys:
