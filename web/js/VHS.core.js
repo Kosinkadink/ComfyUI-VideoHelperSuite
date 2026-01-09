@@ -853,6 +853,11 @@ function addAudioPreview(nodeType, isInput=true) {
             },
         });
         previewWidget.computeSize = function(width) {
+            if (LiteGraph.vueNodesMode) {
+                element.style.display = "none";
+                return [width, -4];
+            }
+            element.style.display = "";
             return [width, 50];
         }
         var timeout = null;
