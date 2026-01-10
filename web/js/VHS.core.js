@@ -167,8 +167,8 @@ function useKVState(nodeType) {
         });
     })
 }
-var helpDOM;
-if (!app.helpDOM) {
+var helpDOM = app.VHSHelp;
+if (!app.VHSHelp) {
     helpDOM = document.createElement("div");
     app.VHSHelp = helpDOM
 }

@@ -104,7 +104,7 @@ def apply_format_widgets(format_name, kwargs):
                     #NOTE: This doesn't respect max/min, but should be good enough as a fallback to a fallback to a fallback
                     default = {"BOOLEAN": False, "INT": 0, "FLOAT": 0, "STRING": ""}[w[1]]
             kwargs[w[0]] = default
-            logger.warn(f"Missing input for {w[0][0]} has been set to {default}")
+            logger.warn(f"Missing input for {w[0]} has been set to {default}")
     wit = iterate_format(video_format, False)
     for w in wit:
         while isinstance(w, list):
