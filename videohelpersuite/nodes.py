@@ -306,7 +306,7 @@ class VideoCombine:
             else:
                 vae = None
 
-        if isinstance(images, torch.Tensor) and images.size(0) == 0:
+        if isinstance(images, torch.Tensor) and images.size(0) == 0 and meta_batch is None:
             return ((save_output, []),)
         num_frames = len(images)
         pbar = ProgressBar(num_frames)
@@ -331,7 +331,8 @@ class VideoCombine:
             while len(first_image.shape) > 3:
                 first_image = first_image[0]
         else:
-            first_image = images[0]
+            first_image = images[0] if len(images) \
+                else torch.zeros(images.shape[1:], device='cpu') # dummy first_image
             images = iter(images)
         # get output information
         output_dir = (
@@ -362,7 +363,7 @@ class VideoCombine:
             extra_options = {}
         metadata.add_text("CreationTime", datetime.datetime.now().isoformat(" ")[:19])
 
-        if meta_batch is not None and unique_id in meta_batch.outputs:
+        if meta_batch is not None and unique_id in meta_batch.outputs and meta_batch.outputs[unique_id] is not None:
             (counter, output_process) = meta_batch.outputs[unique_id]
         else:
             # comfy counter workaround
@@ -826,7 +827,7 @@ class BatchManager:
     def reset(self):
         self.close_inputs()
         for key in self.outputs:
-            if getattr(self.outputs[key][-1], "gi_suspended", False):
+            if self.outputs[key] is not None and getattr(self.outputs[key][-1], "gi_suspended", False):
                 try:
                     self.outputs[key][-1].send(None)
                 except StopIteration:
@@ -869,6 +870,14 @@ class BatchManager:
             self.reset()
             self.frames_per_batch = frames_per_batch
             self.unique_id = unique_id
+
+            # init all outputs[uid] to None here so that we won't be `reset` by the first VideoCombine node
+            # if it finds that `mgr.has_closed_inputs == True (num_frames < batch_size?)` when we have multiple VideoCombine nodes
+            for output_uid in prompt:
+                if prompt[output_uid]['class_type'] in ["VHS_VideoCombine"]:
+                    for inp in prompt[output_uid]['inputs'].values():
+                        if inp == [unique_id, 0]:
+                            self.outputs[output_uid] = None
         else:
             num_batches = (self.total_frames+self.frames_per_batch-1)//frames_per_batch
             print(f'Meta-Batch {requeue}/{num_batches}')
