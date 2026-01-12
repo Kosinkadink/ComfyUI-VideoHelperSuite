@@ -344,6 +344,7 @@ descriptions = {
          'loaded_duration🟦': 'The duration in seconds of returned images after accounting for frame_load_cap',
          'loaded_width🟦': 'The width of the video after scaling. These coordinates are in image space even if loading to latent space',
          'loaded_height🟦': 'The height of the video after scaling. These coordinates are in image space even if loading to latent space',
+         'filename': 'The filename of the loaded video file',
          },
         }],
   "VHS_VideoInfoSource": ['Video Info Source 🎥🅥🅗🅢', short_desc('Splits information on a video into a numerous outputs describing the file itself without accounting for load options'),
