@@ -845,6 +845,7 @@ function addAudioPreview(nodeType, isInput=true) {
         var previewWidget = this.addDOMWidget("audiopreview", "preview", element, {
             serialize: false,
             hideOnZoom: true,
+            canvasOnly: true,
             getValue() {
                 return element.value;
             },
