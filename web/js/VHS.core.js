@@ -1999,6 +1999,16 @@ app.registerExtension({
             addUploadWidget(nodeType, nodeData, "video");
             addLoadCommon(nodeType, nodeData);
             addVAEOutputToggle(nodeType, nodeData);
+            if (nodeData.name == "VHS_LoadVideo2") {
+                chainCallback(nodeType.prototype, "onNodeCreated", function() {
+                     if (!this.outputs.find(o => o.name === "filename")) {
+                         this.addOutput("filename", "STRING");
+                     }
+                     if (!this.outputs.find(o => o.name === "filebasename")) {
+                         this.addOutput("filebasename", "STRING");
+                     }
+                });
+            }
         } else if (nodeData?.name == "VHS_LoadAudio") {
             addAudioPreview(nodeType)
             chainCallback(nodeType.prototype, "onNodeCreated", function() {
