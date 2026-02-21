@@ -452,18 +452,14 @@ class LoadVideoUpload:
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
 
-    RETURN_TYPES = (imageOrLatent, "INT", "AUDIO", "VHS_VIDEOINFO", "STRING", "STRING")
-    RETURN_NAMES = ("IMAGE", "frame_count", "audio", "video_info", "filename", "filebasename")
+    RETURN_TYPES = (imageOrLatent, "INT", "AUDIO", "VHS_VIDEOINFO")
+    RETURN_NAMES = ("IMAGE", "frame_count", "audio", "video_info")
 
     FUNCTION = "load_video"
 
     def load_video(self, **kwargs):
         kwargs['video'] = folder_paths.get_annotated_filepath(strip_path(kwargs['video']))
-        path = kwargs['video']
-        res = load_video(**kwargs)
-        filename = os.path.basename(path)
-        filebasename = os.path.splitext(filename)[0]
-        return res + (filename, filebasename)
+        return load_video(**kwargs)
 
     @classmethod
     def IS_CHANGED(s, video, **kwargs):
