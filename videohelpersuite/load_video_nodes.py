@@ -473,6 +473,59 @@ class LoadVideoUpload:
         return True
 
 
+class LoadVideoUpload2:
+    @classmethod
+    def INPUT_TYPES(s):
+        input_dir = folder_paths.get_input_directory()
+        files = []
+        for f in os.listdir(input_dir):
+            if os.path.isfile(os.path.join(input_dir, f)):
+                file_parts = f.split('.')
+                if len(file_parts) > 1 and (file_parts[-1].lower() in video_extensions):
+                    files.append(f)
+        return {"required": {
+                    "video": (sorted(files),),
+                    "force_rate": (floatOrInt, {"default": 0, "min": 0, "max": 60, "step": 1, "disable": 0}),
+                    "custom_width": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
+                    "custom_height": ("INT", {"default": 0, "min": 0, "max": DIMMAX, 'disable': 0}),
+                    "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1, "disable": 0}),
+                    "skip_first_frames": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
+                    "select_every_nth": ("INT", {"default": 1, "min": 1, "max": BIGMAX, "step": 1}),
+                    },
+                "optional": {
+                    "meta_batch": ("VHS_BatchManager",),
+                    "vae": ("VAE",),
+                     "format": get_load_formats(),
+                },
+                "hidden": {
+                    "force_size": "STRING",
+                    "unique_id": "UNIQUE_ID"
+                },
+                }
+
+    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
+
+    RETURN_TYPES = (imageOrLatent, "INT", "AUDIO", "VHS_VIDEOINFO")
+    RETURN_NAMES = ("IMAGE", "frame_count", "audio", "video_info")
+
+    FUNCTION = "load_video"
+
+    def load_video(self, **kwargs):
+        kwargs['video'] = folder_paths.get_annotated_filepath(strip_path(kwargs['video']))
+        return load_video(**kwargs)
+
+    @classmethod
+    def IS_CHANGED(s, video, **kwargs):
+        image_path = folder_paths.get_annotated_filepath(video)
+        return calculate_file_hash(image_path)
+
+    @classmethod
+    def VALIDATE_INPUTS(s, video):
+        if not folder_paths.exists_annotated_filepath(video):
+            return "Invalid video file: {}".format(video)
+        return True
+
+
 class LoadVideoPath:
     @classmethod
     def INPUT_TYPES(s):
