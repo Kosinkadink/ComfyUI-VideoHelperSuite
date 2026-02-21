@@ -35,6 +35,7 @@ const convDict = {
     VHS_LoadImagesPath : ["directory", "image_load_cap", "skip_first_images", "select_every_nth"],
     VHS_VideoCombine : ["frame_rate", "loop_count", "filename_prefix", "format", "pingpong", "save_image"],
     VHS_LoadVideo : ["video", "force_rate", "force_size", "frame_load_cap", "skip_first_frames", "select_every_nth"],
+    VHS_LoadVideo2 : ["video", "force_rate", "force_size", "frame_load_cap", "skip_first_frames", "select_every_nth"],
     VHS_LoadVideoPath : ["video", "force_rate", "force_size", "frame_load_cap", "skip_first_frames", "select_every_nth"],
 };
 const renameDict  = {VHS_VideoCombine : {save_output : "save_image"}}
@@ -1976,7 +1977,7 @@ app.registerExtension({
                 });
             });
             addLoadCommon(nodeType, nodeData);
-        } else if (nodeData?.name == "VHS_LoadVideo" || nodeData?.name == "VHS_LoadVideoFFmpeg") {
+        } else if (nodeData?.name == "VHS_LoadVideo" || nodeData?.name == "VHS_LoadVideo2" || nodeData?.name == "VHS_LoadVideoFFmpeg") {
             chainCallback(nodeType.prototype, "onNodeCreated", function() {
                 const pathWidget = this.widgets.find((w) => w.name === "video");
                 chainCallback(pathWidget, "callback", (value) => {
