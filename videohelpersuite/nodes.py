@@ -632,6 +632,9 @@ class VideoCombine:
             preview['filename'] = file.replace('%03d', '001')
         return {"ui": {"gifs": [preview]}, "result": ((save_output, output_files),)}
 
+class VideoCombine2(VideoCombine):
+    pass
+
 class LoadAudio:
     @classmethod
     def INPUT_TYPES(s):
@@ -1032,6 +1035,7 @@ class SelectLatest:
 
 NODE_CLASS_MAPPINGS = {
     "VHS_VideoCombine": VideoCombine,
+    "VHS_VideoCombine2": VideoCombine2,
     "VHS_LoadVideo": LoadVideoUpload,
     "VHS_LoadVideo2": LoadVideoUpload2,
     "VHS_LoadVideoPath": LoadVideoPath,
@@ -1077,6 +1081,7 @@ NODE_CLASS_MAPPINGS = {
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "VHS_VideoCombine": "Video Combine 🎥🅥🅗🅢",
+    "VHS_VideoCombine2": "Video Combine 2 🎥🅥🅗🅢",
     "VHS_LoadVideo": "Load Video (Upload) 🎥🅥🅗🅢",
     "VHS_LoadVideo2": "Load Video (Upload) 2 🎥🅥🅗🅢",
     "VHS_LoadVideoPath": "Load Video (Path) 🎥🅥🅗🅢",
