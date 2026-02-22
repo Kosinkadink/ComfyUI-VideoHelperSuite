@@ -34,11 +34,15 @@ const convDict = {
     VHS_LoadImages : ["directory", null, "image_load_cap", "skip_first_images", "select_every_nth"],
     VHS_LoadImagesPath : ["directory", "image_load_cap", "skip_first_images", "select_every_nth"],
     VHS_VideoCombine : ["frame_rate", "loop_count", "filename_prefix", "format", "pingpong", "save_image"],
+    VHS_VideoCombine2 : ["frame_rate", "loop_count", "filename_prefix", "format", "pingpong", "save_image"],
     VHS_LoadVideo : ["video", "force_rate", "force_size", "frame_load_cap", "skip_first_frames", "select_every_nth"],
     VHS_LoadVideo2 : ["video", "force_rate", "force_size", "frame_load_cap", "skip_first_frames", "select_every_nth"],
     VHS_LoadVideoPath : ["video", "force_rate", "force_size", "frame_load_cap", "skip_first_frames", "select_every_nth"],
 };
-const renameDict  = {VHS_VideoCombine : {save_output : "save_image"}}
+const renameDict  = {
+    VHS_VideoCombine : {save_output : "save_image"},
+    VHS_VideoCombine2 : {save_output : "save_image"},
+}
 function useKVState(nodeType) {
     chainCallback(nodeType.prototype, "onNodeCreated", function () {
         chainCallback(this, "onConfigure", function(info) {
@@ -2058,7 +2062,7 @@ app.registerExtension({
                     this.updateParameters(params, true);
                 });
             });
-        } else if (nodeData?.name == "VHS_VideoCombine") {
+        } else if (nodeData?.name == "VHS_VideoCombine" || nodeData?.name == "VHS_VideoCombine2") {
             addDateFormatting(nodeType, "filename_prefix");
             chainCallback(nodeType.prototype, "onExecuted", function(message) {
                 if (message?.gifs) {
