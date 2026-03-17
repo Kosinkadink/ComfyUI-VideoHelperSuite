@@ -171,6 +171,11 @@ var helpDOM = app.VHSHelp;
 if (!app.VHSHelp) {
     helpDOM = document.createElement("div");
     app.VHSHelp = helpDOM
+} else {
+    app.extensionManager.dialog
+      .showErrorDialog('Please check your custom_nodes directory and manually remove the duplicate.',
+                       { title: 'Duplicate VHS install detected' })
+    throw new Error('Duplicate VHS install detected. Check your custom_nodes directory')
 }
 function initHelpDOM() {
     let parentDOM = document.createElement("div");
