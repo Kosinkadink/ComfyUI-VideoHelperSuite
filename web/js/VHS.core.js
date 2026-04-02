@@ -846,6 +846,8 @@ function addAudioPreview(nodeType, isInput=true) {
     chainCallback(nodeType.prototype, "onNodeCreated", function() {
         var element = document.createElement("audio");
         element.controls = true
+        element.style['width'] = "100%"
+        element.style['minHeight'] = "50px"
         const previewNode = this;
         var previewWidget = this.addDOMWidget("audiopreview", "preview", element, {
             serialize: false,
