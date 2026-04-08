@@ -1,6 +1,6 @@
 {
     "main_pass": [
-        "-n",
+        "-y",
         "-c:v", "ffv1",
         "-level", ["level", ["0", "1", "3"], {"default": "3"}],
         "-coder", ["coder", ["0", "1", "2"], {"default": "1"}],
