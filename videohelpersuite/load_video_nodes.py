@@ -170,10 +170,14 @@ def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
 def ffmpeg_frame_generator(video, force_rate, frame_load_cap, start_time,
                            custom_width, custom_height, downscale_ratio=8,
                            meta_batch=None, unique_id=None):
-    args_input = ["-i", video]
+    # Try to use hardware acceleration if available (auto will try cuda/vaapi etc)
+    # We add -hwaccel auto before -i
+    args_input = ["-hwaccel", "auto", "-i", video]
     args_dummy = [ffmpeg_path] + args_input +['-c', 'copy', '-frames:v', '1', "-f", "null", "-"]
     size_base = None
     fps_base = None
+    is_10bit = False
+
     try:
         dummy_res = subprocess.run(args_dummy, stdout=subprocess.DEVNULL,
                                  stderr=subprocess.PIPE, check=True)
@@ -202,6 +206,14 @@ def ffmpeg_frame_generator(video, force_rate, frame_load_cap, start_time,
             else:
                 fps_base = 1
             alpha = re.search("(yuva|rgba|bgra|gbra)", line) is not None
+            
+            # Detect bit depth to avoid unnecessary 16-bit promotion
+            fmt_match = re.search(r"Video: [^,]+, ([^,]+),", line)
+            if fmt_match:
+                pix_fmt = fmt_match.group(1)
+                # Check for 10le, 12le, 16le in format name to detect high bit depth
+                if "10le" in pix_fmt or "12le" in pix_fmt or "16le" in pix_fmt:
+                    is_10bit = True
             break
     else:
         raise Exception("Failed to parse video/image information. FFMPEG output:\n" + lines)
@@ -221,8 +233,21 @@ def ffmpeg_frame_generator(video, force_rate, frame_load_cap, start_time,
             post_seek = ['-ss', str(start_time)]
     else:
         post_seek = []
+    
+    # Adaptive pixel format selection
+    if is_10bit:
+        target_pix_fmt = "rgba64le"
+        bytes_per_channel = 2
+        np_dtype = np.uint16
+        div_factor = 2**16 - 1
+    else:
+        target_pix_fmt = "rgba"
+        bytes_per_channel = 1
+        np_dtype = np.uint8
+        div_factor = 255.0
+
     args_all_frames = [ffmpeg_path, "-v", "error", "-an"] + \
-            args_input + ["-pix_fmt", "rgba64le"] + post_seek
+            args_input + ["-pix_fmt", target_pix_fmt] + post_seek
 
     vfilters = []
     if force_rate != 0:
@@ -232,7 +257,6 @@ def ffmpeg_frame_generator(video, force_rate, frame_load_cap, start_time,
                            custom_height, downscale_ratio=downscale_ratio)
         ar = float(size[0])/float(size[1])
         if abs(size_base[0]*ar-size_base[1]) >= 1:
-            #Aspect ratio is changed. Crop to new aspect ratio before scale
             vfilters.append(f"crop=if(gt({ar}\\,a)\\,iw\\,ih*{ar}):if(gt({ar}\\,a)\\,iw/{ar}\\,ih)")
         size_arg = ':'.join(map(str,size))
         vfilters.append(f"scale={size_arg}")
@@ -248,28 +272,30 @@ def ffmpeg_frame_generator(video, force_rate, frame_load_cap, start_time,
            1/(force_rate or fps_base), yieldable_frames, size[0], size[1], alpha)
 
     args_all_frames += ["-f", "rawvideo", "-"]
+    bpi = size[0] * size[1] * 4 * bytes_per_channel
+    inv_div_factor = np.float32(1.0 / div_factor)
     pbar = ProgressBar(yieldable_frames)
     try:
-        with subprocess.Popen(args_all_frames, stdout=subprocess.PIPE) as proc:
-            #Manually buffer enough bytes for an image
-            bpi = size[0] * size[1] * 8
+        with subprocess.Popen(args_all_frames, stdout=subprocess.PIPE,
+                              bufsize=max(bpi, 1024*1024)) as proc:
             current_bytes = bytearray(bpi)
             current_offset=0
             prev_frame = None
             while True:
                 bytes_read = proc.stdout.read(bpi - current_offset)
-                if bytes_read is None:#sleep to wait for more data
+                if bytes_read is None:
                     time.sleep(.1)
                     continue
-                if len(bytes_read) == 0:#EOF
+                if len(bytes_read) == 0:
                     break
-                current_bytes[current_offset:len(bytes_read)] = bytes_read
+                current_bytes[current_offset:current_offset+len(bytes_read)] = bytes_read
                 current_offset+=len(bytes_read)
                 if current_offset == bpi:
                     if prev_frame is not None:
                         yield prev_frame
                         pbar.update(1)
-                    prev_frame = np.frombuffer(current_bytes, dtype=np.dtype(np.uint16).newbyteorder("<")).reshape(size[1], size[0], 4) / (2**16-1)
+                    raw_array = np.frombuffer(current_bytes, dtype=np.dtype(np_dtype).newbyteorder("<"))
+                    prev_frame = raw_array.reshape(size[1], size[0], 4).astype(np.float32) * inv_div_factor
                     if not alpha:
                         prev_frame = prev_frame[:, :, :-1]
                     current_offset = 0
@@ -337,7 +363,7 @@ def load_video(meta_batch=None, unique_id=None, memory_limit_mb=None, vae=None,
 
     memory_limit = None
     if memory_limit_mb is not None:
-        memory_limit *= 2 ** 20
+        memory_limit = memory_limit_mb * 2 ** 20
     else:
         #TODO: verify if garbage collection should be performed here.
         #leaves ~128 MB unreserved for safety

@@ -63,6 +63,7 @@ def iterate_format(video_format, for_widgets=True):
             yield from indirector(video_format, k)
 
 base_formats_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "video_formats")
+
 @cached(5)
 def get_video_formats():
     format_files = {}
@@ -72,6 +73,16 @@ def get_video_formats():
         if not item.is_file() or not item.name.endswith('.json'):
             continue
         format_files[item.name[:-5]] = item.path
+    
+    # Check for NVENC availability
+    has_nvenc = False
+    try:
+        res = subprocess.run([ffmpeg_path, "-encoders"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        if b"h264_nvenc" in res.stdout:
+            has_nvenc = True
+    except:
+        pass
+
     formats = []
     format_widgets = {}
     for format_name, path in format_files.items():
@@ -80,19 +91,52 @@ def get_video_formats():
         if "gifski_pass" in video_format and gifski_path is None:
             #Skip format
             continue
+        
         widgets = list(iterate_format(video_format))
         formats.append("video/" + format_name)
         if (len(widgets) > 0):
             format_widgets["video/"+ format_name] = widgets
+
+        # Dynamically add NVENC variant if supported and likely useful (e.g. h264/h265)
+        if has_nvenc and "h264" in format_name and "nvenc" not in format_name:
+            # Create a shallow copy for the nvenc version
+            nvenc_format_name = format_name + "-nvenc"
+            formats.append("video/" + nvenc_format_name)
+            # Use same widgets
+            if len(widgets) > 0:
+                format_widgets["video/" + nvenc_format_name] = widgets
+
     return formats, format_widgets
 
 def apply_format_widgets(format_name, kwargs):
+    # Handle dynamic nvenc formats
+    use_nvenc = False
+    if format_name.endswith("-nvenc"):
+        use_nvenc = True
+        format_name = format_name.replace("-nvenc", "")
+
     if os.path.exists(os.path.join(base_formats_dir, format_name + ".json")):
         video_format_path = os.path.join(base_formats_dir, format_name + ".json")
     else:
         video_format_path = folder_paths.get_full_path("VHS_video_formats", format_name)
     with open(video_format_path, 'r') as stream:
         video_format = json.load(stream)
+    
+    # Inject nvenc encoder if selected
+    if use_nvenc:
+        # Replace libx264/libx265 with h264_nvenc/hevc_nvenc
+        for key in video_format:
+            if key.endswith("_pass"):
+                new_pass = []
+                for item in video_format[key]:
+                    if isinstance(item, str):
+                        if item == "libx264":
+                            item = "h264_nvenc"
+                        elif item == "libx265":
+                            item = "hevc_nvenc"
+                    new_pass.append(item)
+                video_format[key] = new_pass
+
     for w in iterate_format(video_format):
         if w[0] not in kwargs:
             if len(w) > 2 and 'default' in w[2]:
@@ -128,6 +172,11 @@ def tensor_to_shorts(tensor):
     return tensor_to_int(tensor, 16).astype(np.uint16)
 def tensor_to_bytes(tensor):
     return tensor_to_int(tensor, 8).astype(np.uint8)
+def tensor_to_bytes_raw(tensor):
+    """Convert tensor to raw bytes in one pass, avoiding intermediate numpy array."""
+    return np.clip(tensor.cpu().numpy() * 255 + 0.5, 0, 255).astype(np.uint8).tobytes()
+def tensor_to_shorts_raw(tensor):
+    return np.clip(tensor.cpu().numpy() * 65535 + 0.5, 0, 65535).astype(np.uint16).tobytes()
 
 def ffmpeg_process(args, video_format, video_metadata, file_path, env):
 
@@ -159,11 +208,11 @@ def ffmpeg_process(args, video_format, video_metadata, file_path, env):
 
         m_args = args[:1] + ["-i", metadata_path] + args[1:] + ["-metadata", "creation_time=now", "-movflags", "use_metadata_tags"]
         with subprocess.Popen(m_args + [file_path], stderr=subprocess.PIPE,
-                              stdin=subprocess.PIPE, env=env) as proc:
+                              stdin=subprocess.PIPE, bufsize=1024*1024,
+                              env=env) as proc:
             try:
                 while frame_data is not None:
                     proc.stdin.write(frame_data)
-                    #TODO: skip flush for increased speed
                     frame_data = yield
                     total_frames_output+=1
                 proc.stdin.flush()
@@ -182,7 +231,8 @@ def ffmpeg_process(args, video_format, video_metadata, file_path, env):
                 logger.warn("An error occurred when saving with metadata")
     if res != b'':
         with subprocess.Popen(args + [file_path], stderr=subprocess.PIPE,
-                              stdin=subprocess.PIPE, env=env) as proc:
+                              stdin=subprocess.PIPE, bufsize=1024*1024,
+                              env=env) as proc:
             try:
                 while frame_data is not None:
                     proc.stdin.write(frame_data)
@@ -471,13 +521,13 @@ class VideoCombine:
             else:
                 loop_args = []
             if video_format.get('input_color_depth', '8bit') == '16bit':
-                images = map(tensor_to_shorts, images)
+                images = map(tensor_to_shorts_raw, images)
                 if has_alpha:
                     i_pix_fmt = 'rgba64'
                 else:
                     i_pix_fmt = 'rgb48'
             else:
-                images = map(tensor_to_bytes, images)
+                images = map(tensor_to_bytes_raw, images)
                 if has_alpha:
                     i_pix_fmt = 'rgba'
                 else:
@@ -502,8 +552,6 @@ class VideoCombine:
                     "-color_trc", video_format.get("fake_trc", "iec61966-2-1"),
                     "-s", f"{dimensions[0]}x{dimensions[1]}", "-r", str(frame_rate), "-i", "-"] \
                     + loop_args
-
-            images = map(lambda x: x.tobytes(), images)
             env=os.environ.copy()
             if  "environment" in video_format:
                 env.update(video_format["environment"])
