@@ -595,7 +595,9 @@ class VideoCombine:
                     apad = ["-af", "apad=whole_dur="+str(min_audio_dur)]
                 mux_args = [ffmpeg_path, "-v", "error", "-n", "-i", file_path,
                             "-ar", str(audio['sample_rate']), "-ac", str(channels),
-                            "-f", "f32le", "-i", "-", "-c:v", "copy"] \
+                            "-f", "f32le", "-i", "-", "-c:v", "copy",
+                            "-map_metadata", "0",
+                            "-movflags", "use_metadata_tags"] \
                             + video_format["audio_pass"] \
                             + apad + ["-shortest", output_file_with_audio_path]
 
