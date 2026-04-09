@@ -412,6 +412,7 @@ def load_video(meta_batch=None, unique_id=None, memory_limit_mb=None, vae=None,
         "loaded_duration": len(images) * target_frame_time,
         "loaded_width": new_width,
         "loaded_height": new_height,
+        "filename": os.path.splitext(os.path.basename(kwargs['video']))[0],
     }
     if vae is None:
         return (images, len(images), audio, video_info)
