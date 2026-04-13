@@ -107,7 +107,7 @@ def apply_format_widgets(format_name, kwargs):
                     #NOTE: This doesn't respect max/min, but should be good enough as a fallback to a fallback to a fallback
                     default = {"BOOLEAN": False, "INT": 0, "FLOAT": 0, "STRING": ""}[w[1]]
             kwargs[w[0]] = default
-            logger.warn(f"Missing input for {w[0][0]} has been set to {default}")
+            logger.warn(f"Missing input for {w[0]} has been set to {default}")
     wit = iterate_format(video_format, False)
     for w in wit:
         while isinstance(w, list):
@@ -125,8 +125,7 @@ def apply_format_widgets(format_name, kwargs):
     return video_format
 
 def tensor_to_int(tensor, bits):
-    #TODO: investigate benefit of rounding by adding 0.5 before clip/cast
-    tensor = tensor.cpu().numpy() * (2**bits-1)
+    tensor = tensor.cpu().numpy() * (2**bits-1) + 0.5
     return np.clip(tensor, 0, (2**bits-1))
 def tensor_to_shorts(tensor):
     return tensor_to_int(tensor, 16).astype(np.uint16)
@@ -140,19 +139,28 @@ def ffmpeg_process(args, video_format, video_metadata, file_path, env):
     total_frames_output = 0
     if video_format.get('save_metadata', 'False') != 'False':
         os.makedirs(folder_paths.get_temp_directory(), exist_ok=True)
-        metadata = json.dumps(video_metadata)
         metadata_path = os.path.join(folder_paths.get_temp_directory(), "metadata.txt")
         #metadata from file should  escape = ; # \ and newline
-        metadata = metadata.replace("\\","\\\\")
-        metadata = metadata.replace(";","\\;")
-        metadata = metadata.replace("#","\\#")
-        metadata = metadata.replace("=","\\=")
-        metadata = metadata.replace("\n","\\\n")
-        metadata = "comment=" + metadata
+        def escape_ffmpeg_metadata(key, value):
+            value = str(value)
+            value = value.replace("\\","\\\\")
+            value = value.replace(";","\\;")
+            value = value.replace("#","\\#")
+            value = value.replace("=","\\=")
+            value = value.replace("\n","\\\n")
+            return f"{key}={value}"
+
         with open(metadata_path, "w") as f:
             f.write(";FFMETADATA1\n")
-            f.write(metadata)
-        m_args = args[:1] + ["-i", metadata_path] + args[1:] + ["-metadata", "creation_time=now"]
+            if "prompt" in video_metadata:
+                f.write(escape_ffmpeg_metadata("prompt", json.dumps(video_metadata["prompt"])) + "\n")
+            if "workflow" in video_metadata:
+                f.write(escape_ffmpeg_metadata("workflow", json.dumps(video_metadata["workflow"])) + "\n")
+            for k, v in video_metadata.items():
+                if k not in ["prompt", "workflow"]:
+                    f.write(escape_ffmpeg_metadata(k, json.dumps(v)) + "\n")
+
+        m_args = args[:1] + ["-i", metadata_path] + args[1:] + ["-metadata", "creation_time=now", "-movflags", "use_metadata_tags"]
         with subprocess.Popen(m_args + [file_path], stderr=subprocess.PIPE,
                               stdin=subprocess.PIPE, env=env) as proc:
             try:
@@ -194,13 +202,14 @@ def ffmpeg_process(args, video_format, video_metadata, file_path, env):
     if len(res) > 0:
         print(res.decode(*ENCODE_ARGS), end="", file=sys.stderr)
 
-def gifski_process(args, dimensions, video_format, file_path, env):
+def gifski_process(args, dimensions, frame_rate, video_format, file_path, env):
     frame_data = yield
     with subprocess.Popen(args + video_format['main_pass'] + ['-f', 'yuv4mpegpipe', '-'],
                           stderr=subprocess.PIPE, stdin=subprocess.PIPE,
                           stdout=subprocess.PIPE, env=env) as procff:
         with subprocess.Popen([gifski_path] + video_format['gifski_pass']
                               + ['-W', f'{dimensions[0]}', '-H', f'{dimensions[1]}']
+                              + ['-r', f'{frame_rate}']
                               + ['-q', '-o', file_path, '-'], stderr=subprocess.PIPE,
                               stdin=procff.stdout, stdout=subprocess.PIPE,
                               env=env) as procgs:
@@ -453,14 +462,17 @@ class VideoCombine:
                 logger.warn("Output images were not of valid resolution and have had padding applied")
             else:
                 dimensions = (first_image.shape[1], first_image.shape[0])
-            if loop_count > 0:
-                loop_args = ["-vf", "loop=loop=" + str(loop_count)+":size=" + str(num_frames)]
-            else:
-                loop_args = []
             if pingpong:
                 if meta_batch is not None:
                     logger.error("pingpong is incompatible with batched output")
                 images = to_pingpong(images)
+                if num_frames > 2:
+                    num_frames += num_frames -2
+                    pbar.total = num_frames
+            if loop_count > 0:
+                loop_args = ["-vf", "loop=loop=" + str(loop_count)+":size=" + str(num_frames)]
+            else:
+                loop_args = []
             if video_format.get('input_color_depth', '8bit') == '16bit':
                 images = map(tensor_to_shorts, images)
                 if has_alpha:
@@ -524,7 +536,8 @@ class VideoCombine:
             if output_process is None:
                 if 'gifski_pass' in video_format:
                     format = 'image/gif'
-                    output_process = gifski_process(args, dimensions, video_format, file_path, env)
+                    output_process = gifski_process(args, dimensions, frame_rate, video_format, file_path, env)
+                    audio = None
                 else:
                     args += video_format['main_pass'] + bitrate_arg
                     merge_filter_args(args)
@@ -630,16 +643,17 @@ class LoadAudio:
             "required": {
                 "audio_file": ("STRING", {"default": "input/", "vhs_path_extensions": ['wav','mp3','ogg','m4a','flac']}),
                 },
-            "optional" : {"seek_seconds": ("FLOAT", {"default": 0, "min": 0}),
-                          "duration": ("FLOAT" , {"default": 0, "min": 0, "max": 10000000, "step": 0.01}),
+            "optional" : {
+                "seek_seconds": ("FLOAT", {"default": 0, "min": 0, "widgetType": "VHSTIMESTAMP"}),
+                "duration": ("FLOAT" , {"default": 0, "min": 0, "max": 10000000, "step": 0.01, "widgetType": "VHSTIMESTAMP"}),
                           }
         }
 
-    RETURN_TYPES = ("AUDIO",)
-    RETURN_NAMES = ("audio",)
+    RETURN_TYPES = ("AUDIO", "FLOAT")
+    RETURN_NAMES = ("audio", "duration")
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢/audio"
     FUNCTION = "load_audio"
-    def load_audio(self, audio_file, seek_seconds, duration):
+    def load_audio(self, audio_file, seek_seconds=0, duration=0):
         audio_file = strip_path(audio_file)
         if audio_file is None or validate_path(audio_file) != True:
             raise Exception("audio_file is not a valid path: " + audio_file)
@@ -647,10 +661,12 @@ class LoadAudio:
             audio_file = try_download_video(audio_file) or audio_file
         #Eagerly fetch the audio since the user must be using it if the
         #node executes, unlike Load Video
-        return (get_audio(audio_file, start_time=seek_seconds, duration=duration),)
+        audio = get_audio(audio_file, start_time=seek_seconds, duration=duration)
+        loaded_duration = audio['waveform'].size(2)/audio['sample_rate']
+        return (audio, loaded_duration)
 
     @classmethod
-    def IS_CHANGED(s, audio_file, seek_seconds):
+    def IS_CHANGED(s, audio_file, **kwargs):
         return hash_path(audio_file)
 
     @classmethod
@@ -668,27 +684,30 @@ class LoadAudioUpload:
                 if len(file_parts) > 1 and (file_parts[-1] in audio_extensions):
                     files.append(f)
         return {"required": {
-                    "audio": (sorted(files),),
-                    "start_time": ("FLOAT" , {"default": 0, "min": 0, "max": 10000000, "step": 0.01}),
-                    "duration": ("FLOAT" , {"default": 0, "min": 0, "max": 10000000, "step": 0.01}),
+                    "audio": (sorted(files),),},
+                "optional": {
+                    "start_time": ("FLOAT" , {"default": 0, "min": 0, "max": 10000000, "step": 0.01, "widgetType": "VHSTIMESTAMP"}),
+                    "duration": ("FLOAT" , {"default": 0, "min": 0, "max": 10000000, "step": 0.01, "widgetType": "VHSTIMESTAMP"}),
                      },
                 }
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢/audio"
 
-    RETURN_TYPES = ("AUDIO", )
-    RETURN_NAMES = ("audio",)
+    RETURN_TYPES = ("AUDIO", "FLOAT")
+    RETURN_NAMES = ("audio", "duration")
     FUNCTION = "load_audio"
 
-    def load_audio(self, start_time, duration, **kwargs):
+    def load_audio(self, start_time=0, duration=0, **kwargs):
         audio_file = folder_paths.get_annotated_filepath(strip_path(kwargs['audio']))
         if audio_file is None or validate_path(audio_file) != True:
             raise Exception("audio_file is not a valid path: " + audio_file)
-        
-        return (get_audio(audio_file, start_time, duration),)
+
+        audio = get_audio(audio_file, start_time, duration)
+        loaded_duration = audio['waveform'].size(2)/audio['sample_rate']
+        return (audio, loaded_duration)
 
     @classmethod
-    def IS_CHANGED(s, audio, start_time, duration):
+    def IS_CHANGED(s, audio, **kwargs):
         audio_file = folder_paths.get_annotated_filepath(strip_path(audio))
         return hash_path(audio_file)
 
@@ -888,7 +907,7 @@ class VideoInfo:
 
     def get_video_info(self, video_info):
         keys = ["fps", "frame_count", "duration", "width", "height"]
-        
+
         source_info = []
         loaded_info = []
 
@@ -922,7 +941,7 @@ class VideoInfoSource:
 
     def get_video_info(self, video_info):
         keys = ["fps", "frame_count", "duration", "width", "height"]
-        
+
         source_info = []
 
         for key in keys:
@@ -954,7 +973,7 @@ class VideoInfoLoaded:
 
     def get_video_info(self, video_info):
         keys = ["fps", "frame_count", "duration", "width", "height"]
-        
+
         loaded_info = []
 
         for key in keys:

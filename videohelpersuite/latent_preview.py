@@ -1,6 +1,7 @@
 from PIL import Image
 import time
 import io
+import struct
 from threading import Thread
 import torch.nn.functional as F
 import torch
@@ -12,7 +13,7 @@ serv = server.PromptServer.instance
 from .utils import hook
 
 rates_table = {'Mochi': 24//6, 'LTXV': 24//8, 'HunyuanVideo': 24//4,
-               'Cosmos1CV8x8x8': 24//8, 'Wan21': 16//4}
+               'Cosmos1CV8x8x8': 24//8, 'Wan21': 16//4, 'Wan22': 24//4}
 
 class WrappedPreviewer(latent_preview.LatentPreviewer):
     def __init__(self, previewer, rate=8):
@@ -25,6 +26,7 @@ class WrappedPreviewer(latent_preview.LatentPreviewer):
         elif hasattr(previewer, 'latent_rgb_factors'):
             self.latent_rgb_factors = previewer.latent_rgb_factors
             self.latent_rgb_factors_bias = previewer.latent_rgb_factors_bias
+            self.latent_rgb_factors_reshape = getattr(previewer, 'latent_rgb_factors_reshape', None)
         else:
             raise Exception('Unsupported preview type for VHS animated previews')
 
@@ -43,7 +45,7 @@ class WrappedPreviewer(latent_preview.LatentPreviewer):
             return None
         if self.first_preview:
             self.first_preview = False
-            serv.send_sync('VHS_latentpreview', {'length':num_images, 'rate': self.rate})
+            serv.send_sync('VHS_latentpreview', {'length':num_images, 'rate': self.rate, 'id': serv.last_node_id})
             self.last_time = new_time + 1/self.rate
         if self.c_index + num_previews > num_images:
             x0 = x0.roll(-self.c_index, 0)[:num_previews]
@@ -72,6 +74,7 @@ class WrappedPreviewer(latent_preview.LatentPreviewer):
             message = io.BytesIO()
             message.write((1).to_bytes(length=4, byteorder='big')*2)
             message.write(ind.to_bytes(length=4, byteorder='big'))
+            message.write(struct.pack('16p', serv.last_node_id.encode('ascii')))
             i.save(message, format="JPEG", quality=95, compress_level=1)
             #NOTE: send sync already uses call_soon_threadsafe
             serv.send_sync(server.BinaryEventTypes.PREVIEW_IMAGE,
@@ -82,13 +85,14 @@ class WrappedPreviewer(latent_preview.LatentPreviewer):
             x_sample = self.taesd.decode(x0).movedim(1, 3)
             return x_sample
         else:
+            if self.latent_rgb_factors_reshape is not None:
+                x0 = self.latent_rgb_factors_reshape(x0)
             self.latent_rgb_factors = self.latent_rgb_factors.to(dtype=x0.dtype, device=x0.device)
             if self.latent_rgb_factors_bias is not None:
                 self.latent_rgb_factors_bias = self.latent_rgb_factors_bias.to(dtype=x0.dtype, device=x0.device)
             latent_image = F.linear(x0.movedim(1, -1), self.latent_rgb_factors,
                                     bias=self.latent_rgb_factors_bias)
             return latent_image
-
 
 @hook(latent_preview, 'get_previewer')
 def get_latent_video_previewer(device, latent_format, *args, **kwargs):

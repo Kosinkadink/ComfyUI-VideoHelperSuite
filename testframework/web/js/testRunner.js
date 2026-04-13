@@ -28,6 +28,8 @@ api.addEventListener("executed", async function ({detail}) {
     }
 });
 
+const workflowService = app.extensionManager.workflow
+
 async function runTest(file) {
     if (!file?.name?.endsWith(".json")) {
         return false
@@ -46,6 +48,7 @@ async function runTest(file) {
         app.ui.dialog.show("Failed " + errors.length + " tests:\n" + errors)
         return true
     }
+    await workflowService.closeWorkflow(workflowService.activeWorkflow, {warnIfUnsaved: false})
     return false
 }
 let iconOverride = document.createElement("style")

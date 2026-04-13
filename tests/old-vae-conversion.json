@@ -132,7 +132,7 @@
         "Node name for S&R": "VHS_LoadVideoPath"
       },
       "widgets_values": {
-        "video": "/home/austin/Downloads/bigbuckbunny.mp4",
+        "video": "input/bigbuckbunny.mp4",
         "force_rate": 8,
         "force_size": "Disabled",
         "custom_width": 512,
@@ -147,7 +147,7 @@
             "frame_load_cap": 64,
             "skip_first_frames": 0,
             "force_rate": 8,
-            "filename": "/home/austin/Downloads/bigbuckbunny.mp4",
+            "filename": "input/bigbuckbunny.mp4",
             "type": "path",
             "format": "video/mp4",
             "select_every_nth": 1

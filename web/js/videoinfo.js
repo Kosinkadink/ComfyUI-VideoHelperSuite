@@ -11,7 +11,7 @@ function getVideoMetadata(file) {
             let decoder = new TextDecoder();
             // Check for known valid magic strings
             if (dataView.getUint32(0) == 0x1A45DFA3) {
-                //webm
+                //webm/mkv (both use EBML/Matroska format)
                 //see http://wiki.webmproject.org/webm-metadata/global-metadata
                 //and https://www.matroska.org/technical/elements.html
                 //contrary to specs, tag seems consistently at start
@@ -76,6 +76,9 @@ function isVideoFile(file) {
     if (file?.name?.endsWith(".mp4")) {
         return true;
     }
+    if (file?.name?.endsWith(".mkv")) {
+        return true;
+    }
 
     return false;
 }
@@ -83,8 +86,8 @@ function isVideoFile(file) {
 let originalHandleFile = app.handleFile;
 app.handleFile = handleFile;
 let fileInput = document.getElementById("comfy-file-input")
-//hijack comfy-file-input to allow webm/mp4
-fileInput.accept += ",video/webm,video/mp4";
+//hijack comfy-file-input to allow webm/mp4/mkv
+fileInput.accept += ",video/webm,video/mp4,video/x-matroska";
 
 async function handleFile(file) {
     if (file?.type?.startsWith("video/") || isVideoFile(file)) {
