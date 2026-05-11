@@ -8,7 +8,7 @@
         "-color_range", "tv", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709"
     ],
     "fake_trc": "bt709",
-    "audio_pass": ["-c:a", "aac"],
+    "audio_pass": ["-c:a", "aac", "-movflags", "use_metadata_tags"],
     "bitrate": ["bitrate","INT", {"default": 10, "min": 1, "max": 999, "step": 1 }],
     "megabit": ["megabit","BOOLEAN", {"default": true}],
     "save_metadata": ["save_metadata", "BOOLEAN", {"default": true}],
