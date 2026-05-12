@@ -1117,6 +1117,23 @@ function addVideoPreview(nodeType, isInput=true) {
     });
 }
 let copiedPath = undefined
+function downloadUrl(url, filename) {
+    // Prefer the ComfyUI frontend's built-in download helper when available.
+    // It transparently handles cross-origin redirects (e.g. cloud GCS signed URLs),
+    // which otherwise cause Chrome to drop the `download` attribute and navigate
+    // the current tab - triggering a "Leave site?" prompt instead of a download.
+    const platformDownload = window.app?.extensionManager?.downloadFile;
+    if (typeof platformDownload === "function") {
+        platformDownload(url, filename);
+        return;
+    }
+    const a = document.createElement("a");
+    a.href = url;
+    a.setAttribute("download", filename);
+    document.body.append(a);
+    a.click();
+    requestAnimationFrame(() => a.remove());
+}
 function addPreviewOptions(nodeType) {
     chainCallback(nodeType.prototype, "getExtraMenuOptions", function(_, options) {
         // The intended way of appending options is returning a list of extra options,
@@ -1154,12 +1171,7 @@ function addPreviewOptions(nodeType) {
                 {
                     content: "Save preview",
                     callback: () => {
-                        const a = document.createElement("a");
-                        a.href = url;
-                        a.setAttribute("download", previewWidget.value.params.filename);
-                        document.body.append(a);
-                        a.click();
-                        requestAnimationFrame(() => a.remove());
+                        downloadUrl(url, previewWidget.value.params.filename);
                     },
                 }
             );
@@ -1183,12 +1195,7 @@ function addPreviewOptions(nodeType) {
                 optNew.push({
                     content: "Save workflow image",
                     callback: () => {
-                        const a = document.createElement("a");
-                        a.href = wUrl;
-                        a.setAttribute("download", previewWidget.value.params.workflow);
-                        document.body.append(a);
-                        a.click();
-                        requestAnimationFrame(() => a.remove());
+                        downloadUrl(wUrl, previewWidget.value.params.workflow);
                     }
                 });
             }
