@@ -268,6 +268,135 @@ class LazyAudioMap(Mapping):
 def lazy_get_audio(file, start_time=0, duration=0, **kwargs):
     return LazyAudioMap(file, start_time, duration)
 
+def get_video_metadata(file):
+    """Extract metadata from video file using ffmpeg"""
+    if ffmpeg_path is None:
+        logger.warn("ffmpeg_path is None, cannot extract metadata")
+        return {}
+
+    import json
+
+    try:
+        # Method 1: Try using ffmpeg -i to get metadata from stderr
+        args = [ffmpeg_path, "-i", file]
+        res = subprocess.run(args, capture_output=True, text=False)
+        stderr_text = res.stderr.decode(*ENCODE_ARGS) if res.stderr else ""
+
+        # Look for comment metadata in stderr output
+        comment_match = re.search(r'comment\s*:\s*(.+?)(?:\n|$)', stderr_text, re.IGNORECASE | re.DOTALL)
+        if comment_match:
+            comment = comment_match.group(1).strip()
+            try:
+                metadata = json.loads(comment)
+                return metadata
+            except:
+                pass
+
+        # Method 2: Try extracting metadata file format
+        args = [ffmpeg_path, "-i", file, "-f", "ffmetadata", "-"]
+        res = subprocess.run(args, capture_output=True, text=False)
+
+        if res.returncode == 0 or res.stdout:
+            metadata_text = res.stdout.decode(*ENCODE_ARGS)
+
+            # Parse metadata - ffmpeg splits our comment into individual fields
+            metadata = {}
+            current_key = None
+            current_value_lines = []
+
+            for line in metadata_text.split('\n'):
+                # Skip header and empty lines
+                if line.startswith(';') or not line.strip():
+                    continue
+                # New section starts
+                if line.startswith('['):
+                    break
+                # Key=value line
+                if '=' in line:
+                    # Save previous key if exists
+                    if current_key:
+                        value = '\n'.join(current_value_lines)
+                        # Unescape the value
+                        value = value.replace("\\\\", "\x00")
+                        value = value.replace("\\=", "=")
+                        value = value.replace("\\#", "#")
+                        value = value.replace("\\;", ";")
+                        value = value.replace("\\\n", "\n")
+                        value = value.replace("\x00", "\\")
+
+                        # Try to parse as JSON if it looks like JSON
+                        if value.startswith('{') or value.startswith('['):
+                            try:
+                                metadata[current_key] = json.loads(value)
+                            except:
+                                metadata[current_key] = value
+                        else:
+                            metadata[current_key] = value
+
+                    # Start new key
+                    key, _, value = line.partition('=')
+                    current_key = key.strip()
+                    current_value_lines = [value]
+                elif current_key:
+                    # Continuation of previous value
+                    current_value_lines.append(line)
+
+            # Don't forget the last key
+            if current_key:
+                value = '\n'.join(current_value_lines)
+                value = value.replace("\\\\", "\x00")
+                value = value.replace("\\=", "=")
+                value = value.replace("\\#", "#")
+                value = value.replace("\\;", ";")
+                value = value.replace("\\\n", "\n")
+                value = value.replace("\x00", "\\")
+
+                if value.startswith('{') or value.startswith('['):
+                    try:
+                        metadata[current_key] = json.loads(value)
+                    except:
+                        metadata[current_key] = value
+                else:
+                    metadata[current_key] = value
+
+            if metadata:
+                # Ensure prompt and workflow are at top level
+                # Check if they exist nested in other keys (like comment, etc)
+                result = {}
+                nested_keys_to_check = ['comment', 'compatible_brands', 'encoder', 'major_brand', 'minor_version']
+
+                for key, value in metadata.items():
+                    # If value is a dict and contains prompt/workflow, extract them
+                    if isinstance(value, dict):
+                        if 'prompt' in value or 'workflow' in value:
+                            # Extract prompt and workflow to top level
+                            if 'prompt' in value:
+                                result['prompt'] = value['prompt']
+                            if 'workflow' in value:
+                                result['workflow'] = value['workflow']
+                            # Keep the rest of the nested data if needed
+                            remaining = {k: v for k, v in value.items() if k not in ['prompt', 'workflow']}
+                            if remaining:
+                                result[key] = remaining
+                        else:
+                            result[key] = value
+                    else:
+                        result[key] = value
+
+                # If prompt/workflow already at top level, ensure they stay there
+                if 'prompt' in metadata:
+                    result['prompt'] = metadata['prompt']
+                if 'workflow' in metadata:
+                    result['workflow'] = metadata['workflow']
+
+                return result if result else metadata
+
+        return {}
+
+    except Exception as e:
+        logger.warn(f"Failed to extract video metadata: {e}")
+        return {}
+
 def is_url(url):
     return url.split("://")[0] in ["http", "https"]
 
