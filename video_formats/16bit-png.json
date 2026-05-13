@@ -1,7 +1,7 @@
 {
     "main_pass":
     [
-        "-n",
+        "-y",
         "-pix_fmt", "rgba64"
     ],
     "input_color_depth": "16bit",
