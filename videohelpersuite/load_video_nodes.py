@@ -335,7 +335,7 @@ def load_video(meta_batch=None, unique_id=None, memory_limit_mb=None, vae=None,
     else:
         (gen, width, height, fps, duration, total_frames, target_frame_time, yieldable_frames, new_width, new_height, alpha) = meta_batch.inputs[unique_id]
 
-    memory_limit = None
+    memory_limit = memory_limit_mb
     if memory_limit_mb is not None:
         memory_limit *= 2 ** 20
     else:
