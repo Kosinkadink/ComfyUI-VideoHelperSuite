@@ -77,22 +77,22 @@ def images_generator(directory: str, image_load_cap: int = 0, skip_first_images:
     total_images = len(dir_files)
     processed_images = 0
     pbar = ProgressBar(total_images)
-    images =  map(load_image, dir_files)
+    items = zip(map(load_image, dir_files), dir_files)
     try:
-        prev_image = next(images)
+        prev_item = next(items)
         while True:
-            next_image = next(images)
-            yield prev_image
+            next_item = next(items)
+            yield prev_item
             processed_images += 1
             pbar.update_absolute(processed_images, total_images)
-            prev_image = next_image
+            prev_item = next_item
     except StopIteration:
         pass
     if meta_batch is not None:
         meta_batch.inputs.pop(unique_id)
         meta_batch.has_closed_inputs = True
-    if prev_image is not None:
-        yield prev_image
+    if prev_item is not None:
+        yield prev_item
 
 
 def load_images(directory: str, image_load_cap: int = 0, skip_first_images: int = 0, select_every_nth: int = 1, meta_batch=None, unique_id=None):
@@ -107,16 +107,22 @@ def load_images(directory: str, image_load_cap: int = 0, skip_first_images: int 
 
     if meta_batch is not None:
         gen = itertools.islice(gen, meta_batch.frames_per_batch)
-    images = torch.from_numpy(np.fromiter(gen, np.dtype((np.float32, (height, width, 3 + has_alpha)))))
+    all_items = list(gen)
+    if not all_items:
+        raise FileNotFoundError(f"No images could be loaded from directory '{directory}'.")
+
+    images_np, paths_list = zip(*all_items)
+    paths = "\n".join(paths_list)
+    images = torch.from_numpy(np.stack(images_np, axis=0))
+
     if has_alpha:
         #tensors are not continuous. Rewrite will be required if this is an issue
         masks = images[:,:,:,3]
         images = images[:,:,:,:3]
     else:
         masks = torch.zeros((images.size(0), 64, 64), dtype=torch.float32, device="cpu")
-    if len(images) == 0:
-        raise FileNotFoundError(f"No images could be loaded from directory '{directory}'.")
-    return images, masks, images.size(0)
+
+    return images, masks, images.size(0), paths
 
 class LoadImagesFromDirectoryUpload:
     @classmethod
@@ -141,8 +147,8 @@ class LoadImagesFromDirectoryUpload:
             },
         }
     
-    RETURN_TYPES = ("IMAGE", "MASK", "INT")
-    RETURN_NAMES = ("IMAGE", "MASK", "frame_count")
+    RETURN_TYPES = ("IMAGE", "MASK", "INT", "STRING")
+    RETURN_NAMES = ("IMAGE", "MASK", "frame_count", "image_paths")
     FUNCTION = "load_images"
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
@@ -180,8 +186,8 @@ class LoadImagesFromDirectoryPath:
             },
         }
     
-    RETURN_TYPES = ("IMAGE", "MASK", "INT")
-    RETURN_NAMES = ("IMAGE", "MASK", "frame_count")
+    RETURN_TYPES = ("IMAGE", "MASK", "INT", "STRING")
+    RETURN_NAMES = ("IMAGE", "MASK", "frame_count", "image_paths")
     FUNCTION = "load_images"
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
