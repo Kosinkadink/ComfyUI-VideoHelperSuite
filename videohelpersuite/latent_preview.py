@@ -82,8 +82,14 @@ class WrappedPreviewer(latent_preview.LatentPreviewer):
             ind = (ind + 1) % leng
     def decode_latent_to_preview(self, x0):
         if hasattr(self, 'taesd'):
-            x_sample = self.taesd.decode(x0).movedim(1, 3)
-            return x_sample
+            x_sample = self.taesd.decode(x0)
+            if x_sample.ndim == 5:
+                # Video TAESDs (e.g. lighttaew2_1, lighttaew2_2) return
+                # [B, T, H, W, C] with channels-last; merge the temporal
+                # dim into batch so the downstream interpolate path keeps
+                # a 2-D spatial layout. (#667)
+                return x_sample.reshape(-1, *x_sample.shape[2:])
+            return x_sample.movedim(1, 3)
         else:
             if self.latent_rgb_factors_reshape is not None:
                 x0 = self.latent_rgb_factors_reshape(x0)
