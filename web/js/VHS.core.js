@@ -630,7 +630,7 @@ function addDateFormatting(nodeType, field, timestamp_widget = false) {
     chainCallback(nodeType.prototype, "onNodeCreated", function() {
         const widget = this.widgets.find((w) => w.name === field);
         widget.serializeValue = () => {
-            return applyTextReplacements(app, widget.value);
+            return applyTextReplacements(app, String(widget.value ?? ""));
         };
     });
 }
