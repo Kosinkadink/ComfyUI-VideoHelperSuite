@@ -84,10 +84,7 @@ class WrappedPreviewer(latent_preview.LatentPreviewer):
         if hasattr(self, 'taesd'):
             x_sample = self.taesd.decode(x0)
             if x_sample.ndim == 5:
-                # Video TAESDs return [B, C, T, H, W]. Move channels to the
-                # end and flatten [B, T] into the batch dim so the result is
-                # the [N, H, W, C] shape the downstream interpolate path
-                # already expects. (#667)
+                # Video TAESDs return [B, C, T, H, W]; collapse to [N, H, W, C]. (#667)
                 return x_sample.movedim(1, -1).flatten(0, 1)
             return x_sample.movedim(1, 3)
         else:
