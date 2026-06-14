@@ -435,6 +435,124 @@ function fitHeight(node) {
     node.setSize([node.size[0], node.computeSize([node.size[0], node.size[1]])[1]])
     node?.graph?.setDirtyCanvas(true);
 }
+function getPreviewWidgetWidth(node, width) {
+    return Math.max(width ?? 0, node?.size?.[0] ?? 0)
+}
+function setStylePxIfNeeded(element, property, value) {
+    const nextValue = value + "px"
+    if (element?.style?.[property] !== nextValue) {
+        element.style[property] = nextValue
+    }
+}
+function getPreviewWidgetTargetWidth(node) {
+    return Math.max(0, (node?.size?.[0] ?? 0) - 20)
+}
+function activatePreviewHoverLayoutGuard(widget, durationMs = 1500) {
+    widget._layoutGuardActiveUntil = Date.now() + durationMs
+}
+function ensurePreviewHoverLayoutGuard(widget, node) {
+    const widgetContainer = widget?.element?.parentElement
+    if (!widgetContainer || widget._layoutGuardObserver) {
+        return
+    }
+    widget._layoutGuardObserver = new MutationObserver(() => {
+        const targetWidth = getPreviewWidgetTargetWidth(node)
+        const currentWidth = widgetContainer.getBoundingClientRect().width
+        if (targetWidth > 0 && Math.abs(currentWidth - targetWidth) > 2) {
+            syncPreviewDomWidgetLayout(widget, node)
+            schedulePreviewDomWidgetLayoutSync(widget, node, 24)
+        }
+    })
+    widget._layoutGuardObserver.observe(widgetContainer, {
+        attributes: true,
+        attributeFilter: ['style', 'class']
+    })
+}
+function syncPreviewDomWidgetLayout(widget, node) {
+    const widgetContainer = widget?.element?.parentElement
+    if (!widgetContainer || !node?.size?.[0]) {
+        return
+    }
+    ensurePreviewHoverLayoutGuard(widget, node)
+    const computed = widget.computeSize?.(node.size[0])
+    const targetWidth = Math.max(0, node.size[0] - 20)
+    if (targetWidth > 0) {
+        setStylePxIfNeeded(widgetContainer, "width", targetWidth)
+    }
+    const targetHeight = Math.max(0, (computed?.[1] ?? 0) - 16)
+    if (targetHeight > 0) {
+        setStylePxIfNeeded(widgetContainer, "height", targetHeight)
+        if (widget.element.style.height !== "100%") {
+            widget.element.style.height = "100%"
+        }
+    }
+    if (widget.element.style.width !== "100%") {
+        widget.element.style.width = "100%"
+    }
+}
+function schedulePreviewDomWidgetLayoutSync(widget, node, frames = 8) {
+    ensurePreviewHoverLayoutGuard(widget, node)
+    if (widget._layoutSyncFrame) {
+        cancelAnimationFrame(widget._layoutSyncFrame)
+    }
+    let remainingFrames = frames
+    const sync = () => {
+        syncPreviewDomWidgetLayout(widget, node)
+        remainingFrames -= 1
+        if (remainingFrames > 0) {
+            widget._layoutSyncFrame = requestAnimationFrame(sync)
+        } else {
+            widget._layoutSyncFrame = undefined
+        }
+    }
+    widget._layoutSyncFrame = requestAnimationFrame(sync)
+}
+function chainPreviewDomWidgetLayout(widget, node) {
+    const onDraw = widget.options.onDraw
+    widget.options.onDraw = function(widgetInstance) {
+        onDraw?.(widgetInstance)
+        syncPreviewDomWidgetLayout(widgetInstance, node)
+    }
+}
+function bindPreviewDomWidgetLayout(widget, node) {
+    chainPreviewDomWidgetLayout(widget, node)
+    ensurePreviewHoverLayoutGuard(widget, node)
+    chainCallback(node, "onSelected", () => {
+        activatePreviewHoverLayoutGuard(widget)
+        schedulePreviewDomWidgetLayoutSync(widget, node)
+    })
+    chainCallback(node, "onDeselected", () => {
+        activatePreviewHoverLayoutGuard(widget)
+        schedulePreviewDomWidgetLayoutSync(widget, node)
+    })
+    chainCallback(node, "onResize", () => {
+        activatePreviewHoverLayoutGuard(widget)
+        schedulePreviewDomWidgetLayoutSync(widget, node)
+    })
+    chainCallback(node, "onRemoved", () => {
+        if (widget._layoutSyncFrame) {
+            cancelAnimationFrame(widget._layoutSyncFrame)
+            widget._layoutSyncFrame = undefined
+        }
+        widget._layoutGuardObserver?.disconnect?.()
+        widget._layoutGuardObserver = undefined
+    })
+}
+function bindPreviewHoverLayoutEvents(widget, node, elements, frames = 24) {
+    ensurePreviewHoverLayoutGuard(widget, node)
+    const schedule = () => {
+        activatePreviewHoverLayoutGuard(widget)
+        schedulePreviewDomWidgetLayoutSync(widget, node, frames)
+    }
+    for (const element of elements) {
+        if (!element) {
+            continue
+        }
+        for (const eventName of ['mouseenter', 'mouseleave', 'mouseover', 'mouseout', 'pointerenter', 'pointerleave', 'pointerover', 'pointerout']) {
+            element.addEventListener(eventName, schedule, true)
+        }
+    }
+}
 function startDraggingItems(node, pointer) {
     app.canvas.emitBeforeChange()
     app.canvas.graph?.beforeChange()
@@ -860,7 +978,7 @@ function addAudioPreview(nodeType, isInput=true) {
             },
         });
         previewWidget.computeSize = function(width) {
-            return [width, 50];
+            return [getPreviewWidgetWidth(previewNode, width), 50];
         }
         var timeout = null;
         this.updateParameters = (params, force_update) => {
@@ -948,8 +1066,10 @@ function addVideoPreview(nodeType, isInput=true) {
                 element.value = v;
             },
         });
+        bindPreviewDomWidgetLayout(previewWidget, previewNode)
         allowDragFromWidget(previewWidget)
         previewWidget.computeSize = function(width) {
+            width = getPreviewWidgetWidth(previewNode, width)
             if (this.aspectRatio && !this.parentEl.hidden) {
                 let height = (previewNode.size[0]-20)/ this.aspectRatio + 10;
                 if (!(height > 0)) {
@@ -966,7 +1086,9 @@ function addVideoPreview(nodeType, isInput=true) {
         }, true);
         element.addEventListener('pointerdown', (e)  => {
             e.preventDefault()
-            return app.canvas._mousedown_callback(e)
+            const result = app.canvas._mousedown_callback(e)
+            schedulePreviewDomWidgetLayoutSync(previewWidget, previewNode)
+            return result
         }, true);
         element.addEventListener('mousewheel', (e)  => {
             e.preventDefault()
@@ -978,7 +1100,9 @@ function addVideoPreview(nodeType, isInput=true) {
         }, true);
         element.addEventListener('pointerup', (e)  => {
             e.preventDefault()
-            return app.canvas._mouseup_callback(e)
+            const result = app.canvas._mouseup_callback(e)
+            schedulePreviewDomWidgetLayoutSync(previewWidget, previewNode)
+            return result
         }, true);
         element.addEventListener('dragover', (e) => {
             //A little hacky, but allows drag events onto the preview itself
@@ -1001,11 +1125,13 @@ function addVideoPreview(nodeType, isInput=true) {
 
             previewWidget.aspectRatio = previewWidget.videoEl.videoWidth / previewWidget.videoEl.videoHeight;
             fitHeight(this);
+            schedulePreviewDomWidgetLayoutSync(previewWidget, previewNode)
         });
         previewWidget.videoEl.addEventListener("error", () => {
             //TODO: consider a way to properly notify the user why a preview isn't shown.
             previewWidget.parentEl.hidden = true;
             fitHeight(this);
+            schedulePreviewDomWidgetLayoutSync(previewWidget, previewNode)
         });
         previewWidget.videoEl.onmouseenter =  () => {
             previewWidget.videoEl.muted = previewWidget.value.muted
@@ -1020,9 +1146,12 @@ function addVideoPreview(nodeType, isInput=true) {
         previewWidget.imgEl.onload = () => {
             previewWidget.aspectRatio = previewWidget.imgEl.naturalWidth / previewWidget.imgEl.naturalHeight;
             fitHeight(this);
+            schedulePreviewDomWidgetLayoutSync(previewWidget, previewNode)
         };
         previewWidget.parentEl.appendChild(previewWidget.videoEl)
         previewWidget.parentEl.appendChild(previewWidget.imgEl)
+        bindPreviewHoverLayoutEvents(previewWidget, previewNode, [element, previewWidget.parentEl, previewWidget.videoEl, previewWidget.imgEl])
+        schedulePreviewDomWidgetLayoutSync(previewWidget, previewNode)
         var timeout = null;
         this.updateParameters = (params, force_update) => {
             if (!previewWidget.value.params) {
@@ -2467,6 +2596,7 @@ function getLatentPreviewCtx(id, width, height) {
             serialize: false,
             hideOnZoom: false,
         });
+        bindPreviewDomWidgetLayout(previewWidget, node)
         previewWidget.serialize = false
         allowDragFromWidget(previewWidget)
         canvasEl.addEventListener('contextmenu', (e)  => {
@@ -2475,7 +2605,9 @@ function getLatentPreviewCtx(id, width, height) {
         }, true);
         canvasEl.addEventListener('pointerdown', (e)  => {
             e.preventDefault()
-            return app.canvas._mousedown_callback(e)
+            const result = app.canvas._mousedown_callback(e)
+            schedulePreviewDomWidgetLayoutSync(previewWidget, node)
+            return result
         }, true);
         canvasEl.addEventListener('mousewheel', (e)  => {
             e.preventDefault()
@@ -2487,10 +2619,14 @@ function getLatentPreviewCtx(id, width, height) {
         }, true);
         canvasEl.addEventListener('pointerup', (e)  => {
             e.preventDefault()
-            return app.canvas._mouseup_callback(e)
+            const result = app.canvas._mouseup_callback(e)
+            schedulePreviewDomWidgetLayoutSync(previewWidget, node)
+            return result
         }, true);
+        bindPreviewHoverLayoutEvents(previewWidget, node, [canvasEl])
 
         previewWidget.computeSize = function(width) {
+            width = getPreviewWidgetWidth(node, width)
             if (this.aspectRatio) {
                 let height = (node.size[0]-20)/ this.aspectRatio + 10;
                 if (!(height > 0)) {
@@ -2501,6 +2637,7 @@ function getLatentPreviewCtx(id, width, height) {
             }
             return [width, -4];//no loaded src, widget should not display
         }
+        schedulePreviewDomWidgetLayoutSync(previewWidget, node)
     }
     let canvasEl = previewWidget.element
     if (!previewWidget.ctx || canvasEl.width != width
@@ -2509,6 +2646,7 @@ function getLatentPreviewCtx(id, width, height) {
         canvasEl.width = width
         canvasEl.height = height
         fitHeight(node)
+        schedulePreviewDomWidgetLayoutSync(previewWidget, node)
     }
     return canvasEl.getContext("2d")
 }
