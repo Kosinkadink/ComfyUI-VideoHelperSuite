@@ -538,20 +538,19 @@ function bindPreviewDomWidgetLayout(widget, node) {
         widget._layoutGuardObserver = undefined
     })
 }
-function bindPreviewHoverLayoutEvents(widget, node, elements, frames = 24) {
-    ensurePreviewHoverLayoutGuard(widget, node)
-    const schedule = () => {
-        activatePreviewHoverLayoutGuard(widget)
-        schedulePreviewDomWidgetLayoutSync(widget, node, frames)
+function syncPreviewAudioState(previewWidget) {
+    if (!previewWidget?.videoEl) {
+        return
     }
-    for (const element of elements) {
-        if (!element) {
-            continue
-        }
-        for (const eventName of ['mouseenter', 'mouseleave', 'mouseover', 'mouseout', 'pointerenter', 'pointerleave', 'pointerover', 'pointerout']) {
-            element.addEventListener(eventName, schedule, true)
-        }
+    previewWidget.videoEl.muted = previewWidget.isHovering && !previewWidget.videoEl.paused
+        ? previewWidget.value.muted
+        : true
+}
+function resumePreviewPlaybackIfNeeded(previewWidget) {
+    if (previewWidget?.value?.paused || previewWidget?.value?.hidden || !previewWidget?.videoEl?.paused) {
+        return
     }
+    previewWidget.videoEl.play?.().catch?.(() => {})
 }
 function startDraggingItems(node, pointer) {
     app.canvas.emitBeforeChange()
@@ -1112,6 +1111,7 @@ function addVideoPreview(nodeType, isInput=true) {
         })
         previewWidget.value = {hidden: false, paused: false, params: {},
             muted: app.ui.settings.getSettingValue("VHS.DefaultMute")}
+        previewWidget.isHovering = false
         previewWidget.parentEl = document.createElement("div");
         previewWidget.parentEl.className = "vhs_preview";
         previewWidget.parentEl.style['width'] = "100%"
@@ -1125,7 +1125,11 @@ function addVideoPreview(nodeType, isInput=true) {
 
             previewWidget.aspectRatio = previewWidget.videoEl.videoWidth / previewWidget.videoEl.videoHeight;
             fitHeight(this);
+            syncPreviewAudioState(previewWidget)
             schedulePreviewDomWidgetLayoutSync(previewWidget, previewNode)
+        });
+        previewWidget.videoEl.addEventListener("playing", () => {
+            syncPreviewAudioState(previewWidget)
         });
         previewWidget.videoEl.addEventListener("error", () => {
             //TODO: consider a way to properly notify the user why a preview isn't shown.
@@ -1134,10 +1138,13 @@ function addVideoPreview(nodeType, isInput=true) {
             schedulePreviewDomWidgetLayoutSync(previewWidget, previewNode)
         });
         previewWidget.videoEl.onmouseenter =  () => {
-            previewWidget.videoEl.muted = previewWidget.value.muted
+            previewWidget.isHovering = true
+            syncPreviewAudioState(previewWidget)
         };
         previewWidget.videoEl.onmouseleave = () => {
-            previewWidget.videoEl.muted = true;
+            previewWidget.isHovering = false
+            syncPreviewAudioState(previewWidget)
+            resumePreviewPlaybackIfNeeded(previewWidget)
         };
 
         previewWidget.imgEl = document.createElement("img");
@@ -1150,7 +1157,6 @@ function addVideoPreview(nodeType, isInput=true) {
         };
         previewWidget.parentEl.appendChild(previewWidget.videoEl)
         previewWidget.parentEl.appendChild(previewWidget.imgEl)
-        bindPreviewHoverLayoutEvents(previewWidget, previewNode, [element, previewWidget.parentEl, previewWidget.videoEl, previewWidget.imgEl])
         schedulePreviewDomWidgetLayoutSync(previewWidget, previewNode)
         var timeout = null;
         this.updateParameters = (params, force_update) => {
@@ -2623,7 +2629,6 @@ function getLatentPreviewCtx(id, width, height) {
             schedulePreviewDomWidgetLayoutSync(previewWidget, node)
             return result
         }, true);
-        bindPreviewHoverLayoutEvents(previewWidget, node, [canvasEl])
 
         previewWidget.computeSize = function(width) {
             width = getPreviewWidgetWidth(node, width)
