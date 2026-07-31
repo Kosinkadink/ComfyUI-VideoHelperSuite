@@ -599,8 +599,16 @@ class VideoCombine:
                             + video_format["audio_pass"] \
                             + apad + ["-shortest", output_file_with_audio_path]
 
-                audio_data = audio['waveform'].squeeze(0).transpose(0,1) \
-                        .numpy().tobytes()
+                waveform = audio['waveform'].squeeze(0).transpose(0, 1)
+
+                waveform = torch.nan_to_num(
+                    waveform,
+                    nan=0.0,
+                    posinf=0.0,
+                    neginf=0.0,
+                ).clamp(-1.0, 1.0)
+
+                audio_data = waveform.contiguous().cpu().numpy().astype(np.float32).tobytes()
                 merge_filter_args(mux_args, '-af')
                 try:
                     res = subprocess.run(mux_args, input=audio_data,
