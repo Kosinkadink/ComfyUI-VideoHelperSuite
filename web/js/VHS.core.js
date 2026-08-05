@@ -447,6 +447,25 @@ function setStylePxIfNeeded(element, property, value) {
 function getPreviewWidgetTargetWidth(node) {
     return Math.max(0, (node?.size?.[0] ?? 0) - 20)
 }
+function clampVHSWidgetWidths(node) {
+    const nodeWidth = node?.size?.[0]
+    if (!Number.isFinite(nodeWidth) || nodeWidth <= 0) {
+        return
+    }
+    let changed = false
+    for (const widget of node.widgets ?? []) {
+        if (!["VHS.ANNOTATED", "VHS.TIMESTAMP", "VHS.PATH"].includes(widget.type)) {
+            continue
+        }
+        if (typeof widget.width === "number" && widget.width > nodeWidth) {
+            widget.width = nodeWidth
+            changed = true
+        }
+    }
+    if (changed) {
+        node.graph?.setDirtyCanvas?.(true, true)
+    }
+}
 function activatePreviewHoverLayoutGuard(widget, durationMs = 1500) {
     widget._layoutGuardActiveUntil = Date.now() + durationMs
 }
@@ -473,21 +492,43 @@ function syncPreviewDomWidgetLayout(widget, node) {
     if (!widgetContainer || !node?.size?.[0]) {
         return
     }
+    clampVHSWidgetWidths(node)
     ensurePreviewHoverLayoutGuard(widget, node)
     const computed = widget.computeSize?.(node.size[0])
     const targetWidth = Math.max(0, node.size[0] - 20)
+    const isAudioPreview = typeof HTMLAudioElement !== "undefined"
+        && widget.element instanceof HTMLAudioElement
     if (targetWidth > 0) {
         setStylePxIfNeeded(widgetContainer, "width", targetWidth)
+        if (isAudioPreview) {
+            setStylePxIfNeeded(widgetContainer, "maxWidth", targetWidth)
+            if (widgetContainer.style.overflow !== "hidden") {
+                widgetContainer.style.overflow = "hidden"
+            }
+        }
     }
-    const targetHeight = Math.max(0, (computed?.[1] ?? 0) - 16)
-    if (targetHeight > 0) {
-        setStylePxIfNeeded(widgetContainer, "height", targetHeight)
-        if (widget.element.style.height !== "100%") {
-            widget.element.style.height = "100%"
+    if (!isAudioPreview) {
+        const targetHeight = Math.max(0, (computed?.[1] ?? 0) - 16)
+        if (targetHeight > 0) {
+            setStylePxIfNeeded(widgetContainer, "height", targetHeight)
+            if (widget.element.style.height !== "100%") {
+                widget.element.style.height = "100%"
+            }
         }
     }
     if (widget.element.style.width !== "100%") {
         widget.element.style.width = "100%"
+    }
+    if (isAudioPreview) {
+        if (widget.element.style.maxWidth !== "100%") {
+            widget.element.style.maxWidth = "100%"
+        }
+        if (widget.element.style.minWidth !== "0px") {
+            widget.element.style.minWidth = "0px"
+        }
+        if (widget.element.style.boxSizing !== "border-box") {
+            widget.element.style.boxSizing = "border-box"
+        }
     }
 }
 function schedulePreviewDomWidgetLayoutSync(widget, node, frames = 8) {
@@ -964,7 +1005,11 @@ function addAudioPreview(nodeType, isInput=true) {
         var element = document.createElement("audio");
         element.controls = true
         element.style['width'] = "100%"
+        element.style['maxWidth'] = "100%"
+        element.style['minWidth'] = "0"
         element.style['minHeight'] = "50px"
+        element.style['display'] = "block"
+        element.style['boxSizing'] = "border-box"
         const previewNode = this;
         var previewWidget = this.addDOMWidget("audiopreview", "preview", element, {
             serialize: false,
@@ -976,9 +1021,11 @@ function addAudioPreview(nodeType, isInput=true) {
                 element.value = v;
             },
         });
+        bindPreviewDomWidgetLayout(previewWidget, previewNode)
         previewWidget.computeSize = function(width) {
             return [getPreviewWidgetWidth(previewNode, width), 50];
         }
+        schedulePreviewDomWidgetLayoutSync(previewWidget, previewNode)
         var timeout = null;
         this.updateParameters = (params, force_update) => {
             if (!previewWidget.value.params) {
