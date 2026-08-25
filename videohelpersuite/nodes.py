@@ -25,6 +25,7 @@ from .utils import ffmpeg_path, get_audio, hash_path, validate_path, requeue_wor
         imageOrLatent, BIGMAX, merge_filter_args, ENCODE_ARGS, floatOrInt, cached, \
         ContainsAll
 from comfy.utils import ProgressBar
+from comfy_api.v0_0_2 import IO
 
 if 'VHS_video_formats' not in folder_paths.folder_names_and_paths:
     folder_paths.folder_names_and_paths["VHS_video_formats"] = ((),{".json"})
@@ -989,19 +990,26 @@ class SelectFilename:
 
     def select_filename(self, filenames, index):
         return (filenames[1][index],)
-class Unbatch:
-    class Any(str):
-        def __ne__(self, other):
-            return False
+
+class Unbatch(IO.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {"batched": ("*",)}}
-    RETURN_TYPES = (Any('*'),)
-    INPUT_IS_LIST = True
-    RETURN_NAMES =("unbatched",)
-    CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
-    FUNCTION = "unbatch"
-    def unbatch(self, batched):
+    def define_schema(cls):
+        template = IO.MatchType.Template("type")
+        return IO.Schema(
+            node_id="VHS_Unbatch",
+            display_name="Unbatch 🎥🅥🅗🅢",
+            category = "Video Helper Suite 🎥🅥🅗🅢",
+            is_input_list = True,
+            inputs=[
+                IO.MatchType.Input("batched", template=template),
+            ],
+            outputs=[
+                IO.MatchType.Output(template=template, display_name="unbatched"),
+            ],
+        )
+
+    @classmethod
+    async def execute(cls, batched):
         if isinstance(batched[0], torch.Tensor):
             return (torch.cat(batched),)
         if isinstance(batched[0], dict):
@@ -1013,9 +1021,7 @@ class Unbatch:
             out.pop('batch_index', None)
             return (out,)
         return (functools.reduce(lambda x,y: x+y, batched),)
-    @classmethod
-    def VALIDATE_INPUTS(cls, input_types):
-        return True
+
 class SelectLatest:
     @classmethod
     def INPUT_TYPES(s):
