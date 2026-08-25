@@ -29,6 +29,7 @@ VHSLoadFormats = {
     'Hunyuan': {'target_rate': 24, 'dim': (16,0,848,480), 'frames':(4,1)},
     'Cosmos': {'target_rate': 24, 'dim': (16,0,1280,704), 'frames':(8,1)},
     'Wan': {'target_rate': 16, 'dim': (8,0,832,480), 'frames':(4,1)},
+    'H3': {'target_rate': 24, 'dim': (32,0,1344,768), 'frames':(17,5)},
 }
 """
 External plugins may add additional formats to nodes.VHSLoadFormats
