@@ -1506,6 +1506,7 @@ function button_action(widget) {
   return 'No Disable'
 }
 function fitText(ctx, text, maxLength) {
+    text = String(text)
     if (maxLength <= 0) {
         return ['', 0]
     }
