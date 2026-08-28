@@ -1,7 +1,7 @@
 {
     "main_pass":
     [
-        "-n", "-c:v", "libx265",
+        "-y", "-c:v", "libx265",
         "-vtag", "hvc1",
         "-pix_fmt", ["pix_fmt", ["yuv420p10le", "yuv420p"]],
         "-crf", ["crf","INT", {"default": 22, "min": 0, "max": 100, "step": 1}],
