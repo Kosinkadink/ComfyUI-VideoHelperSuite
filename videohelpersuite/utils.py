@@ -221,7 +221,18 @@ def requeue_workflow(requeue_required=(-1,True)):
     if requeue_guard[1] == requeue_guard[2] and max(requeue_guard[3].values()):
         requeue_workflow_unchecked()
 
+def has_audio_stream(file):
+    if not ffmpeg_path or not file:
+        return False
+    try:
+        res = subprocess.run([ffmpeg_path, "-i", file], capture_output=True)
+        return re.search(r"Stream #.*: Audio:", res.stderr.decode(*ENCODE_ARGS)) is not None
+    except Exception:
+        return False
+
 def get_audio(file, start_time=0, duration=0):
+    if not ffmpeg_path or not file:
+        return None
     args = [ffmpeg_path, "-i", file]
     if start_time > 0:
         args += ["-ss", str(start_time)]
@@ -233,9 +244,10 @@ def get_audio(file, start_time=0, duration=0):
                               capture_output=True, check=True)
         audio = torch.frombuffer(bytearray(res.stdout), dtype=torch.float32)
         match = re.search(', (\\d+) Hz, (\\w+), ',res.stderr.decode(*ENCODE_ARGS))
-    except subprocess.CalledProcessError as e:
-        raise Exception(f"VHS failed to extract audio from {file}:\n" \
-                + e.stderr.decode(*ENCODE_ARGS))
+    except subprocess.CalledProcessError:
+        return None
+    if audio.numel() == 0:
+        return None
     if match:
         ar = int(match.group(1))
         #NOTE: Just throwing an error for other channel types right now
@@ -245,6 +257,8 @@ def get_audio(file, start_time=0, duration=0):
         ar = 44100
         ac = 2
     audio = audio.reshape((-1,ac)).transpose(0,1).unsqueeze(0)
+    if audio.size(-1) == 0:
+        return None
     return {'waveform': audio, 'sample_rate': ar}
 
 class LazyAudioMap(Mapping):
@@ -253,19 +267,20 @@ class LazyAudioMap(Mapping):
         self.start_time=start_time
         self.duration=duration
         self._dict=None
+    def _load(self):
+        if self._dict is None:
+            audio = get_audio(self.file, self.start_time, self.duration)
+            self._dict = audio if audio is not None else {}
+        return self._dict
     def __getitem__(self, key):
-        if self._dict is None:
-            self._dict = get_audio(self.file, self.start_time, self.duration)
-        return self._dict[key]
+        return self._load()[key]
     def __iter__(self):
-        if self._dict is None:
-            self._dict = get_audio(self.file, self.start_time, self.duration)
-        return iter(self._dict)
+        return iter(self._load())
     def __len__(self):
-        if self._dict is None:
-            self._dict = get_audio(self.file, self.start_time, self.duration)
-        return len(self._dict)
+        return len(self._load())
 def lazy_get_audio(file, start_time=0, duration=0, **kwargs):
+    if not has_audio_stream(file):
+        return None
     return LazyAudioMap(file, start_time, duration)
 
 def is_url(url):
@@ -312,8 +327,8 @@ def hash_path(path):
 
 
 def validate_path(path, allow_none=False, allow_url=True):
-    if path is None:
-        return allow_none
+    if path is None or (isinstance(path, str) and strip_path(path) == ""):
+        return True if allow_none else "Invalid file path: {}".format(path)
     if is_url(path):
         #Probably not feasible to check if url resolves here
         if not allow_url:

@@ -506,10 +506,14 @@ class LoadVideoPath:
     FUNCTION = "load_video"
 
     def load_video(self, **kwargs):
-        if kwargs['video'] is None or validate_path(kwargs['video']) != True:
-            raise Exception("video is not a valid path: " + kwargs['video'])
-        if is_url(kwargs['video']):
-            kwargs['video'] = try_download_video(kwargs['video']) or kwargs['video']
+        video = strip_path(kwargs['video']) if kwargs.get('video') else None
+        if not video:
+            return (None, None, None, None)
+        kwargs['video'] = video
+        if is_url(video):
+            kwargs['video'] = try_download_video(video) or video
+        if validate_path(kwargs['video']) != True:
+            return (None, None, None, None)
         return load_video(**kwargs)
 
     @classmethod
@@ -517,7 +521,7 @@ class LoadVideoPath:
         return hash_path(video)
 
     @classmethod
-    def VALIDATE_INPUTS(s, video):
+    def VALIDATE_INPUTS(s, video, **kwargs):
         return validate_path(video, allow_none=True)
 
 class LoadVideoFFmpegUpload:
@@ -607,10 +611,14 @@ class LoadVideoFFmpegPath:
     FUNCTION = "load_video"
 
     def load_video(self, **kwargs):
-        if kwargs['video'] is None or validate_path(kwargs['video']) != True:
-            raise Exception("video is not a valid path: " + kwargs['video'])
-        if is_url(kwargs['video']):
-            kwargs['video'] = try_download_video(kwargs['video']) or kwargs['video']
+        video = strip_path(kwargs['video']) if kwargs.get('video') else None
+        if not video:
+            return (None, None, None, None)
+        kwargs['video'] = video
+        if is_url(video):
+            kwargs['video'] = try_download_video(video) or video
+        if validate_path(kwargs['video']) != True:
+            return (None, None, None, None)
         image, _, audio, video_info =  load_video(**kwargs, generator=ffmpeg_frame_generator)
         if isinstance(image, dict):
             return (image, None, audio, video_info)
@@ -623,7 +631,7 @@ class LoadVideoFFmpegPath:
         return hash_path(video)
 
     @classmethod
-    def VALIDATE_INPUTS(s, video):
+    def VALIDATE_INPUTS(s, video, **kwargs):
         return validate_path(video, allow_none=True)
 
 class LoadImagePath:

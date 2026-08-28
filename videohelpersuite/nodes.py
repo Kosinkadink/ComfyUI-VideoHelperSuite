@@ -652,14 +652,18 @@ class LoadAudio:
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢/audio"
     FUNCTION = "load_audio"
     def load_audio(self, audio_file, seek_seconds=0, duration=0):
-        audio_file = strip_path(audio_file)
-        if audio_file is None or validate_path(audio_file) != True:
+        audio_file = strip_path(audio_file) if audio_file else None
+        if not audio_file:
+            return (None, 0.0)
+        if validate_path(audio_file) != True:
             raise Exception("audio_file is not a valid path: " + audio_file)
         if is_url(audio_file):
             audio_file = try_download_video(audio_file) or audio_file
         #Eagerly fetch the audio since the user must be using it if the
         #node executes, unlike Load Video
         audio = get_audio(audio_file, start_time=seek_seconds, duration=duration)
+        if audio is None:
+            return (None, 0.0)
         loaded_duration = audio['waveform'].size(2)/audio['sample_rate']
         return (audio, loaded_duration)
 
@@ -696,11 +700,16 @@ class LoadAudioUpload:
     FUNCTION = "load_audio"
 
     def load_audio(self, start_time=0, duration=0, **kwargs):
-        audio_file = folder_paths.get_annotated_filepath(strip_path(kwargs['audio']))
+        audio_name = kwargs.get('audio')
+        if not audio_name:
+            return (None, 0.0)
+        audio_file = folder_paths.get_annotated_filepath(strip_path(audio_name))
         if audio_file is None or validate_path(audio_file) != True:
-            raise Exception("audio_file is not a valid path: " + audio_file)
+            return (None, 0.0)
 
         audio = get_audio(audio_file, start_time, duration)
+        if audio is None:
+            return (None, 0.0)
         loaded_duration = audio['waveform'].size(2)/audio['sample_rate']
         return (audio, loaded_duration)
 
@@ -711,6 +720,8 @@ class LoadAudioUpload:
 
     @classmethod
     def VALIDATE_INPUTS(s, audio, **kwargs):
+        if not audio:
+            return True
         audio_file = folder_paths.get_annotated_filepath(strip_path(audio))
         return validate_path(audio_file, allow_none=True)
 class AudioToVHSAudio:
