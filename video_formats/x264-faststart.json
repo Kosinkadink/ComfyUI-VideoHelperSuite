@@ -1,0 +1,11 @@
+{
+    "main_pass": [
+        "-n", "-c:v", "libx264",
+        "-pix_fmt", ["pix_fmt", ["yuv420p", "yuv420p10le"]],
+        "-crf", ["crf","INT", {"default": 23, "min": 0, "max": 100, "step": 1}],
+        "-movflags", "+faststart"
+    ],
+    "audio_pass": ["-c:a", "aac"],
+    "save_metadata": ["save_metadata", "BOOLEAN", {"default": true}],
+    "extension": "mp4"
+}
