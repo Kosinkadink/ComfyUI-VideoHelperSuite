@@ -1,7 +1,13 @@
 import { app } from '../../../scripts/app.js'
 import { api } from '../../../scripts/api.js'
-import { setWidgetConfig } from '../../../extensions/core/widgetInputs.js'
 import { applyTextReplacements } from "../../../scripts/utils.js";
+// === SHIM FOR NEW COMFYUI (removes widgetInputs.js warning) ===
+let setWidgetConfig;
+if (window?.comfyAPI?.widgetInputs) {
+    ({ setWidgetConfig } = window.comfyAPI.widgetInputs);
+} else {
+    ({ setWidgetConfig } = await import('../../../extensions/core/widgetInputs.js'));
+}
 
 function chainCallback(object, property, callback) {
     if (object == undefined) {
