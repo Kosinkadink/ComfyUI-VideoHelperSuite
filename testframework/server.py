@@ -22,9 +22,9 @@ async def test(request):
                              capture_output=True, check=True).stdout)['streams'][0]
         aprobe = json.loads(subprocess.run(base_args + ['-select_streams', 'a:0', video],
                              capture_output=True, check=True).stdout)['streams']
-        probe = {'video': vprobe}
+        probe = {'video': vprobe, 'audio': {'stream_count': len(aprobe)}}
         if len(aprobe) > 0:
-            probe['audio'] = aprobe[0]
+            probe['audio'].update(aprobe[0])
         errors = []
         compare = None
         for test in req_data['tests']:

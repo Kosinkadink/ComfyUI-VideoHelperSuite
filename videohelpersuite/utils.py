@@ -10,6 +10,7 @@ from typing import Union
 import functools
 import torch
 from torch import Tensor
+import av
 
 import server
 from .logger import logger
@@ -228,6 +229,14 @@ def get_audio(file, start_time=0, duration=0):
     if duration > 0:
         args += ["-t", str(duration)]
     try:
+        with av.open(file) as container:
+            if len(container.streams.audio) == 0:
+                return None
+    except Exception:
+        # Let the FFmpeg extraction below provide the useful error for files
+        # PyAV cannot inspect.
+        pass
+    try:
         #TODO: scan for sample rate and maintain
         res =  subprocess.run(args + ["-f", "f32le", "-"],
                               capture_output=True, check=True)
@@ -255,15 +264,17 @@ class LazyAudioMap(Mapping):
         self._dict=None
     def __getitem__(self, key):
         if self._dict is None:
-            self._dict = get_audio(self.file, self.start_time, self.duration)
+            # Load Video's audio output is optional. Do not fail the whole
+            # workflow when the source contains only video.
+            self._dict = get_audio(self.file, self.start_time, self.duration) or {}
         return self._dict[key]
     def __iter__(self):
         if self._dict is None:
-            self._dict = get_audio(self.file, self.start_time, self.duration)
+            self._dict = get_audio(self.file, self.start_time, self.duration) or {}
         return iter(self._dict)
     def __len__(self):
         if self._dict is None:
-            self._dict = get_audio(self.file, self.start_time, self.duration)
+            self._dict = get_audio(self.file, self.start_time, self.duration) or {}
         return len(self._dict)
 def lazy_get_audio(file, start_time=0, duration=0, **kwargs):
     return LazyAudioMap(file, start_time, duration)

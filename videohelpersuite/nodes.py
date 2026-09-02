@@ -660,6 +660,8 @@ class LoadAudio:
         #Eagerly fetch the audio since the user must be using it if the
         #node executes, unlike Load Video
         audio = get_audio(audio_file, start_time=seek_seconds, duration=duration)
+        if audio is None:
+            raise Exception(f"No audio stream found in {audio_file}")
         loaded_duration = audio['waveform'].size(2)/audio['sample_rate']
         return (audio, loaded_duration)
 
@@ -701,6 +703,8 @@ class LoadAudioUpload:
             raise Exception("audio_file is not a valid path: " + audio_file)
 
         audio = get_audio(audio_file, start_time, duration)
+        if audio is None:
+            raise Exception(f"No audio stream found in {audio_file}")
         loaded_duration = audio['waveform'].size(2)/audio['sample_rate']
         return (audio, loaded_duration)
 
