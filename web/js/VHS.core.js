@@ -2220,7 +2220,7 @@ app.registerExtension({
                         if (v == 0) {
                             return
                         }
-                        const s = this.options.step
+                        const s = this.options.step ?? 1
                         let sh = this.options.mod ?? 0
                         this.value = Math.round((v - sh) / s) * s + sh
                     },
