@@ -601,7 +601,7 @@ class VideoCombine:
                             + apad + ["-shortest", output_file_with_audio_path]
 
                 audio_data = audio['waveform'].squeeze(0).transpose(0,1) \
-                        .numpy().tobytes()
+                        .cpu().numpy().tobytes()
                 merge_filter_args(mux_args, '-af')
                 try:
                     res = subprocess.run(mux_args, input=audio_data,
@@ -732,7 +732,7 @@ class AudioToVHSAudio:
                     "-i", "-", "-f", "wav", "-"]
 
         audio_data = audio['waveform'].squeeze(0).transpose(0,1) \
-                .numpy().tobytes()
+                .cpu().numpy().tobytes()
         try:
             res = subprocess.run(mux_args, input=audio_data,
                                  capture_output=True, check=True)
