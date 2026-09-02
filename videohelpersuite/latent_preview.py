@@ -82,8 +82,11 @@ class WrappedPreviewer(latent_preview.LatentPreviewer):
             ind = (ind + 1) % leng
     def decode_latent_to_preview(self, x0):
         if hasattr(self, 'taesd'):
-            x_sample = self.taesd.decode(x0).movedim(1, 3)
-            return x_sample
+            x_sample = self.taesd.decode(x0)
+            if x_sample.ndim == 5:
+                # Video TAESDs return [B, C, T, H, W]; collapse to [N, H, W, C]. (#667)
+                return x_sample.movedim(1, -1).flatten(0, 1)
+            return x_sample.movedim(1, 3)
         else:
             if self.latent_rgb_factors_reshape is not None:
                 x0 = self.latent_rgb_factors_reshape(x0)
