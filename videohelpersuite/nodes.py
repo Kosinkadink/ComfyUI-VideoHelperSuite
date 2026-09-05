@@ -888,7 +888,7 @@ class VideoInfo:
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
 
-    RETURN_TYPES = ("FLOAT","INT", "FLOAT", "INT", "INT", "FLOAT","INT", "FLOAT", "INT", "INT")
+    RETURN_TYPES = ("FLOAT","INT", "FLOAT", "INT", "INT", "FLOAT","INT", "FLOAT", "INT", "INT", "STRING")
     RETURN_NAMES = (
         "source_fps🟨",
         "source_frame_count🟨",
@@ -900,6 +900,7 @@ class VideoInfo:
         "loaded_duration🟦",
         "loaded_width🟦",
         "loaded_height🟦",
+        "filename",
     )
     FUNCTION = "get_video_info"
 
@@ -913,7 +914,7 @@ class VideoInfo:
             source_info.append(video_info[f"source_{key}"])
             loaded_info.append(video_info[f"loaded_{key}"])
 
-        return (*source_info, *loaded_info)
+        return (*source_info, *loaded_info, video_info.get("filename", ""))
 
 
 class VideoInfoSource:
@@ -927,13 +928,14 @@ class VideoInfoSource:
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
 
-    RETURN_TYPES = ("FLOAT","INT", "FLOAT", "INT", "INT",)
+    RETURN_TYPES = ("FLOAT","INT", "FLOAT", "INT", "INT", "STRING")
     RETURN_NAMES = (
         "fps🟨",
         "frame_count🟨",
         "duration🟨",
         "width🟨",
         "height🟨",
+        "filename",
     )
     FUNCTION = "get_video_info"
 
@@ -945,7 +947,7 @@ class VideoInfoSource:
         for key in keys:
             source_info.append(video_info[f"source_{key}"])
 
-        return (*source_info,)
+        return (*source_info, video_info.get("filename", ""))
 
 
 class VideoInfoLoaded:
@@ -959,13 +961,14 @@ class VideoInfoLoaded:
 
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
 
-    RETURN_TYPES = ("FLOAT","INT", "FLOAT", "INT", "INT",)
+    RETURN_TYPES = ("FLOAT","INT", "FLOAT", "INT", "INT", "STRING")
     RETURN_NAMES = (
         "fps🟦",
         "frame_count🟦",
         "duration🟦",
         "width🟦",
         "height🟦",
+        "filename",
     )
     FUNCTION = "get_video_info"
 
@@ -977,7 +980,7 @@ class VideoInfoLoaded:
         for key in keys:
             loaded_info.append(video_info[f"loaded_{key}"])
 
-        return (*loaded_info,)
+        return (*loaded_info, video_info.get("filename", ""))
 
 class SelectFilename:
     @classmethod
