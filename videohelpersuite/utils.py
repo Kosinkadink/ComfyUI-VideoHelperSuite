@@ -234,8 +234,13 @@ def get_audio(file, start_time=0, duration=0):
         audio = torch.frombuffer(bytearray(res.stdout), dtype=torch.float32)
         match = re.search(', (\\d+) Hz, (\\w+), ',res.stderr.decode(*ENCODE_ARGS))
     except subprocess.CalledProcessError as e:
-        raise Exception(f"VHS failed to extract audio from {file}:\n" \
-                + e.stderr.decode(*ENCODE_ARGS))
+        stderr = e.stderr.decode(*ENCODE_ARGS)
+        if "Output file does not contain any stream" in stderr:
+            return {
+                'waveform': torch.zeros((1, 2, 0), dtype=torch.float32),
+                'sample_rate': 44100,
+            }
+        raise Exception(f"VHS failed to extract audio from {file}:\n" + stderr)
     if match:
         ar = int(match.group(1))
         #NOTE: Just throwing an error for other channel types right now
