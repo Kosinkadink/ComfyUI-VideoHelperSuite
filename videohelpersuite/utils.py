@@ -221,7 +221,7 @@ def requeue_workflow(requeue_required=(-1,True)):
     if requeue_guard[1] == requeue_guard[2] and max(requeue_guard[3].values()):
         requeue_workflow_unchecked()
 
-def get_audio(file, start_time=0, duration=0):
+def get_audio(file, start_time=0, duration=0, sample_rate=None, channels=None, timeout=None):
     args = [ffmpeg_path, "-i", file]
     if start_time > 0:
         args += ["-ss", str(start_time)]
@@ -229,14 +229,24 @@ def get_audio(file, start_time=0, duration=0):
         args += ["-t", str(duration)]
     try:
         #TODO: scan for sample rate and maintain
-        res =  subprocess.run(args + ["-f", "f32le", "-"],
-                              capture_output=True, check=True)
+        output_args = ["-vn"]
+        if sample_rate is not None:
+            output_args += ["-ar", str(sample_rate)]
+        if channels is not None:
+            output_args += ["-ac", str(channels)]
+        res = subprocess.run(args + output_args + ["-f", "f32le", "-"],
+                             capture_output=True, check=True, timeout=timeout)
         audio = torch.frombuffer(bytearray(res.stdout), dtype=torch.float32)
         match = re.search(', (\\d+) Hz, (\\w+), ',res.stderr.decode(*ENCODE_ARGS))
     except subprocess.CalledProcessError as e:
         raise Exception(f"VHS failed to extract audio from {file}:\n" \
                 + e.stderr.decode(*ENCODE_ARGS))
-    if match:
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(f"VHS timed out extracting audio from {file}") from e
+    if sample_rate is not None and channels is not None:
+        ar = sample_rate
+        ac = channels
+    elif match:
         ar = int(match.group(1))
         #NOTE: Just throwing an error for other channel types right now
         #Will deal with issues if they come
@@ -248,25 +258,26 @@ def get_audio(file, start_time=0, duration=0):
     return {'waveform': audio, 'sample_rate': ar}
 
 class LazyAudioMap(Mapping):
-    def __init__(self, file, start_time, duration):
+    def __init__(self, file, start_time, duration, **audio_options):
         self.file = file
         self.start_time=start_time
         self.duration=duration
+        self.audio_options=audio_options
         self._dict=None
     def __getitem__(self, key):
         if self._dict is None:
-            self._dict = get_audio(self.file, self.start_time, self.duration)
+            self._dict = get_audio(self.file, self.start_time, self.duration, **self.audio_options)
         return self._dict[key]
     def __iter__(self):
         if self._dict is None:
-            self._dict = get_audio(self.file, self.start_time, self.duration)
+            self._dict = get_audio(self.file, self.start_time, self.duration, **self.audio_options)
         return iter(self._dict)
     def __len__(self):
         if self._dict is None:
-            self._dict = get_audio(self.file, self.start_time, self.duration)
+            self._dict = get_audio(self.file, self.start_time, self.duration, **self.audio_options)
         return len(self._dict)
 def lazy_get_audio(file, start_time=0, duration=0, **kwargs):
-    return LazyAudioMap(file, start_time, duration)
+    return LazyAudioMap(file, start_time, duration, **kwargs)
 
 def is_url(url):
     return url.split("://")[0] in ["http", "https"]
