@@ -23,7 +23,7 @@ from .batched_nodes import VAEEncodeBatched, VAEDecodeBatched
 from .utils import ffmpeg_path, get_audio, hash_path, validate_path, requeue_workflow, \
         gifski_path, calculate_file_hash, strip_path, try_download_video, is_url, \
         imageOrLatent, BIGMAX, merge_filter_args, ENCODE_ARGS, floatOrInt, cached, \
-        ContainsAll
+        ContainsAll, PipeReader
 from comfy.utils import ProgressBar
 from comfy_api.v0_0_2 import IO
 
@@ -161,6 +161,7 @@ def ffmpeg_process(args, video_format, video_metadata, file_path, env):
         m_args = args[:1] + ["-i", metadata_path] + args[1:] + ["-metadata", "creation_time=now", "-movflags", "use_metadata_tags"]
         with subprocess.Popen(m_args + [file_path], stderr=subprocess.PIPE,
                               stdin=subprocess.PIPE, env=env) as proc:
+            stderr_reader = PipeReader(proc.stderr)
             try:
                 while frame_data is not None:
                     proc.stdin.write(frame_data)
@@ -169,9 +170,9 @@ def ffmpeg_process(args, video_format, video_metadata, file_path, env):
                     total_frames_output+=1
                 proc.stdin.flush()
                 proc.stdin.close()
-                res = proc.stderr.read()
+                res = stderr_reader.read()
             except BrokenPipeError as e:
-                err = proc.stderr.read()
+                err = stderr_reader.read()
                 #Check if output file exists. If it does, the re-execution
                 #will also fail. This obscures the cause of the error
                 #and seems to never occur concurrent to the metadata issue
@@ -184,6 +185,7 @@ def ffmpeg_process(args, video_format, video_metadata, file_path, env):
     if res != b'':
         with subprocess.Popen(args + [file_path], stderr=subprocess.PIPE,
                               stdin=subprocess.PIPE, env=env) as proc:
+            stderr_reader = PipeReader(proc.stderr)
             try:
                 while frame_data is not None:
                     proc.stdin.write(frame_data)
@@ -191,9 +193,9 @@ def ffmpeg_process(args, video_format, video_metadata, file_path, env):
                     total_frames_output+=1
                 proc.stdin.flush()
                 proc.stdin.close()
-                res = proc.stderr.read()
+                res = stderr_reader.read()
             except BrokenPipeError as e:
-                res = proc.stderr.read()
+                res = stderr_reader.read()
                 raise Exception("An error occurred in the ffmpeg subprocess:\n" \
                         + res.decode(*ENCODE_ARGS))
     yield total_frames_output
@@ -211,19 +213,22 @@ def gifski_process(args, dimensions, frame_rate, video_format, file_path, env):
                               + ['-q', '-o', file_path, '-'], stderr=subprocess.PIPE,
                               stdin=procff.stdout, stdout=subprocess.PIPE,
                               env=env) as procgs:
+            ff_stderr = PipeReader(procff.stderr)
+            gs_stderr = PipeReader(procgs.stderr)
+            gs_stdout = PipeReader(procgs.stdout)
             try:
                 while frame_data is not None:
                     procff.stdin.write(frame_data)
                     frame_data = yield
                 procff.stdin.flush()
                 procff.stdin.close()
-                resff = procff.stderr.read()
-                resgs = procgs.stderr.read()
-                outgs = procgs.stdout.read()
+                resff = ff_stderr.read()
+                resgs = gs_stderr.read()
+                outgs = gs_stdout.read()
             except BrokenPipeError as e:
                 procff.stdin.close()
-                resff = procff.stderr.read()
-                resgs = procgs.stderr.read()
+                resff = ff_stderr.read()
+                resgs = gs_stderr.read()
                 raise Exception("An error occurred while creating gifski output\n" \
                         + "Make sure you are using gifski --version >=1.32.0\nffmpeg: " \
                         + resff.decode(*ENCODE_ARGS) + '\ngifski: ' + resgs.decode(*ENCODE_ARGS))

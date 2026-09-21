@@ -4,6 +4,7 @@ from typing import Iterable
 import shutil
 import subprocess
 import re
+import threading
 import time
 from collections.abc import Mapping
 from typing import Union
@@ -42,6 +43,27 @@ def ffmpeg_suitability(path):
         if copyright_year.isnumeric():
             score += int(copyright_year)
     return score
+
+class PipeReader:
+    """Drains a subprocess pipe on a thread so the child never blocks writing to it.
+
+    A pipe that is only read after the last frame is written deadlocks: once the
+    child fills the buffer it stops consuming stdin, and the writes never return.
+    """
+    def __init__(self, pipe):
+        self.pipe = pipe
+        self.data = b''
+        self.thread = threading.Thread(target=self._drain, daemon=True)
+        self.thread.start()
+    def _drain(self):
+        try:
+            self.data = self.pipe.read()
+        except (OSError, ValueError):
+            #closed underneath us; whatever was read already stands
+            pass
+    def read(self):
+        self.thread.join()
+        return self.data
 
 class MultiInput(str):
     def __new__(cls, string, allowed_types="*"):
