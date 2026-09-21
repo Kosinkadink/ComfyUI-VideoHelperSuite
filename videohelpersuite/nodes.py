@@ -135,6 +135,7 @@ def ffmpeg_process(args, video_format, video_metadata, file_path, env):
     res = None
     frame_data = yield
     total_frames_output = 0
+    needs_encode = True
     if video_format.get('save_metadata', 'False') != 'False':
         os.makedirs(folder_paths.get_temp_directory(), exist_ok=True)
         metadata_path = os.path.join(folder_paths.get_temp_directory(), "metadata.txt")
@@ -170,6 +171,9 @@ def ffmpeg_process(args, video_format, video_metadata, file_path, env):
                 proc.stdin.flush()
                 proc.stdin.close()
                 res = proc.stderr.read()
+                #ffmpeg writes to stderr on success at most loglevels, so the
+                #exit code is what says whether the metadata pass worked
+                needs_encode = proc.wait() != 0
             except BrokenPipeError as e:
                 err = proc.stderr.read()
                 #Check if output file exists. If it does, the re-execution
@@ -181,7 +185,7 @@ def ffmpeg_process(args, video_format, video_metadata, file_path, env):
                 #Res was not set
                 print(err.decode(*ENCODE_ARGS), end="", file=sys.stderr)
                 logger.warn("An error occurred when saving with metadata")
-    if res != b'':
+    if needs_encode:
         with subprocess.Popen(args + [file_path], stderr=subprocess.PIPE,
                               stdin=subprocess.PIPE, env=env) as proc:
             try:
