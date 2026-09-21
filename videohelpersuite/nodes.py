@@ -140,15 +140,19 @@ def ffmpeg_process(args, video_format, video_metadata, file_path, env):
         metadata_path = os.path.join(folder_paths.get_temp_directory(), "metadata.txt")
         #metadata from file should  escape = ; # \ and newline
         def escape_ffmpeg_metadata(key, value):
-            value = str(value)
-            value = value.replace("\\","\\\\")
-            value = value.replace(";","\\;")
-            value = value.replace("#","\\#")
-            value = value.replace("=","\\=")
-            value = value.replace("\n","\\\n")
-            return f"{key}={value}"
+            def escape(text):
+                text = str(text)
+                text = text.replace("\\","\\\\")
+                text = text.replace(";","\\;")
+                text = text.replace("#","\\#")
+                text = text.replace("=","\\=")
+                text = text.replace("\n","\\\n")
+                return text
+            return f"{escape(key)}={escape(value)}"
 
-        with open(metadata_path, "w") as f:
+        #the escape for a newline is a backslash then a newline, so the file has
+        #to keep bare newlines. Text mode on Windows would make those CRLF
+        with open(metadata_path, "w", newline="\n") as f:
             f.write(";FFMETADATA1\n")
             if "prompt" in video_metadata:
                 f.write(escape_ffmpeg_metadata("prompt", json.dumps(video_metadata["prompt"])) + "\n")
