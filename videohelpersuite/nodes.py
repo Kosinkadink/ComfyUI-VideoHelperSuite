@@ -123,7 +123,8 @@ def apply_format_widgets(format_name, kwargs):
     return video_format
 
 def tensor_to_int(tensor, bits):
-    tensor = tensor.cpu().numpy() * (2**bits-1) + 0.5
+    # .float() so bfloat16 survives: numpy has no bfloat16 dtype and would raise
+    tensor = tensor.cpu().float().numpy() * (2**bits-1) + 0.5
     return np.clip(tensor, 0, (2**bits-1))
 def tensor_to_shorts(tensor):
     return tensor_to_int(tensor, 16).astype(np.uint16)
