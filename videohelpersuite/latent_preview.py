@@ -82,6 +82,19 @@ class WrappedPreviewer(latent_preview.LatentPreviewer):
             ind = (ind + 1) % leng
     def decode_latent_to_preview(self, x0):
         if hasattr(self, 'taesd'):
+            if hasattr(self.taesd, 'first_stage_model'):
+                # Current ComfyUI previews video latents with a comfy.sd.VAE wrapping a
+                # temporal tiny decoder (lighttae*, taeh3), not the old 2D TAESD module.
+                # It takes (B, C, T, H, W) and returns (B, T', H, W, C) in 0..1 with
+                # T' = k*(T-1)+1. The caller folded the frames into the batch, so
+                # unfold them, decode once, keep one output frame per latent frame,
+                # and shift to the -1..1 range process_previews() rescales from.
+                # Treating it like the old module scrambled the axes and crashed
+                # the sampler on its first step.
+                count = x0.size(0)
+                decoded = self.taesd.decode(x0.movedim(0, 1).unsqueeze(0))[0]
+                step = max(1, (decoded.size(0) - 1) // (count - 1)) if count > 1 else 1
+                return decoded[::step][:count] * 2.0 - 1.0
             x_sample = self.taesd.decode(x0).movedim(1, 3)
             return x_sample
         else:

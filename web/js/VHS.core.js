@@ -435,6 +435,14 @@ function fitHeight(node) {
     node.setSize([node.size[0], node.computeSize([node.size[0], node.size[1]])[1]])
     node?.graph?.setDirtyCanvas(true);
 }
+function growToFit(node) {
+    //Like fitHeight, but never shrinks: a node the user has made taller keeps its size
+    const needed = node.computeSize([node.size[0], node.size[1]])[1]
+    if (node.size[1] < needed) {
+        node.setSize([node.size[0], needed])
+    }
+    node?.graph?.setDirtyCanvas(true);
+}
 function startDraggingItems(node, pointer) {
     app.canvas.emitBeforeChange()
     app.canvas.graph?.beforeChange()
@@ -2461,9 +2469,13 @@ function getLatentPreviewCtx(id, width, height) {
         previewWidget.aspectRatio = width / height
         canvasEl.width = width
         canvasEl.height = height
-        fitHeight(node)
+        //ctx was tested above but never stored, so this block ran on every animation
+        //frame and fitHeight forced the node back to its minimum height each time.
+        //A node holding a prompt box collapsed, and a manual resize was undone at once.
+        previewWidget.ctx = canvasEl.getContext("2d")
+        growToFit(node)
     }
-    return canvasEl.getContext("2d")
+    return previewWidget.ctx
 }
 let animateIntervals = {}
 function beginLatentPreview(id, previewImages, rate) {
