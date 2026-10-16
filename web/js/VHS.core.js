@@ -30,6 +30,16 @@ function getNodeById(id, graph=app.graph) {
     return node
 }
 
+function isModernFrontend() {
+    return typeof window !== "undefined" && !!(
+        document.getElementById("vue-app") ||
+        window.comfyAPI ||
+        app?.extensionManager ||
+        document.querySelector(".comfy-vue") ||
+        document.querySelector("#vue-app")
+    );
+}
+
 const convDict = {
     VHS_LoadImages : ["directory", null, "image_load_cap", "skip_first_images", "select_every_nth"],
     VHS_LoadImagesPath : ["directory", "image_load_cap", "skip_first_images", "select_every_nth"],
@@ -334,6 +344,9 @@ function initHelpDOM() {
             }
             let title_width = helpDOM.calculateTitleLength(this.title)
             size[0] = Math.max(size[0], title_width + LiteGraph.NODE_TITLE_HEIGHT*2)
+            if (isModernFrontend()) {
+                size[0] = Math.max(size[0], 340)
+            }
             return size
         }
 
@@ -1571,6 +1584,9 @@ function inner_value_change(widget, value, node, pos) {
   }
 }
 function drawAnnotated(ctx, node, widget_width, y, H) {
+  if (isModernFrontend()) {
+    return
+  }
   const litegraph_base = LiteGraph
   // In vueNodes mode, always show text since Vue renders at 1:1 scale
   const show_text = LiteGraph.vueNodesMode || app.canvas.ds.scale >= (app.canvas.low_quality_zoom_threshold ?? 0.5)
@@ -1673,6 +1689,9 @@ function drawAnnotated(ctx, node, widget_width, y, H) {
   }
 }
 function mouseAnnotated(event, [x, y], node) {
+    if (isModernFrontend()) {
+        return false
+    }
     //NOTE: Mouse actions contain no history element.
     //This can cause overlapping actions since each triggers on different event type (down/move/up)
     //TODO: Consider further rework
@@ -1866,16 +1885,22 @@ app.registerExtension({
                 }
                 chainCallback(nodeType.prototype, "onNodeCreated", function () {
                     helpDOM.addHelp(this, nodeType, description)
-                    this.setSize(this.computeSize())
+                    let sz = this.computeSize()
+                    if (isModernFrontend()) {
+                        sz[0] = Math.max(sz[0], 340)
+                    }
+                    this.setSize(sz)
                 })
             }
-            //set widgetType to use VHS widgets where possible
-            for(let inp of Object.values({...nodeData.input?.required, ...nodeData.input?.optional})) {
-                if (["INT", "FLOAT"].includes(inp[0])) {
-                    if (!inp[1]) {
-                        inp[1] = {}
+            //set widgetType to use VHS widgets where possible (only on legacy LiteGraph)
+            if (!isModernFrontend()) {
+                for(let inp of Object.values({...nodeData.input?.required, ...nodeData.input?.optional})) {
+                    if (["INT", "FLOAT"].includes(inp[0])) {
+                        if (!inp[1]) {
+                            inp[1] = {}
+                        }
+                        inp[1].widgetType ??= "VHS" + inp[0]
                     }
-                    inp[1].widgetType ??= "VHS" + inp[0]
                 }
             }
             chainCallback(nodeType.prototype, "onNodeCreated", function () {
@@ -2296,6 +2321,21 @@ app.registerExtension({
             const batchInput = node.inputs.find((i) => i.name == "batch_manager")
             if (batchInput) {
                 batchInput.name = "meta_batch"
+            }
+            if (isModernFrontend()) {
+                if (node.type === "VHS_VideoCombine") {
+                    const frSlot = node.inputs.findIndex((i) => i.name === "frame_rate" && (i.link == null || i.link === -1));
+                    if (frSlot >= 0 && !node.widgets?.some(w => w.name === "frame_rate")) {
+                        node.removeInput(frSlot);
+                        const frConfig = node.constructor.nodeData?.input?.required?.frame_rate;
+                        if (frConfig && app.widgets?.FLOAT) {
+                            app.widgets.FLOAT(node, "frame_rate", frConfig, app);
+                        }
+                    }
+                }
+                if (node.size && node.size[0] < 340) {
+                    node.setSize([340, node.size[1]]);
+                }
             }
         }
     },
