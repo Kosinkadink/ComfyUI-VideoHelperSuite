@@ -861,6 +861,10 @@ class BatchManager:
     CATEGORY = "Video Helper Suite 🎥🅥🅗🅢"
     FUNCTION = "update_batch"
 
+    @classmethod
+    def IS_CHANGED(s, **kwargs):
+        return float("NaN")
+
     def update_batch(self, frames_per_batch, prompt=None, unique_id=None):
         if unique_id is not None and prompt is not None:
             requeue = prompt[unique_id]['inputs'].get('requeue', 0)

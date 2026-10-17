@@ -167,270 +167,6 @@ function useKVState(nodeType) {
         });
     })
 }
-var helpDOM = app.VHSHelp;
-if (!app.VHSHelp) {
-    helpDOM = document.createElement("div");
-    app.VHSHelp = helpDOM
-} else {
-    app.extensionManager.dialog
-      .showErrorDialog('Please check your custom_nodes directory and manually remove the duplicate.',
-                       { title: 'Duplicate VHS install detected' })
-    throw new Error('Duplicate VHS install detected. Check your custom_nodes directory')
-}
-function initHelpDOM() {
-    let parentDOM = document.createElement("div");
-    parentDOM.className = "VHS_floatinghelp"
-    document.body.appendChild(parentDOM)
-    parentDOM.appendChild(helpDOM)
-    helpDOM.className = "litegraph";
-    let scrollbarStyle = document.createElement('style');
-    scrollbarStyle.innerHTML = `
-            .VHS_floatinghelp {
-                scrollbar-width: 6px;
-                scrollbar-color: #0003  #0000;
-                &::-webkit-scrollbar {
-                    background: transparent;
-                    width: 6px;
-                }
-                &::-webkit-scrollbar-thumb {
-                    background: #0005;
-                    border-radius: 20px
-                }
-                &::-webkit-scrollbar-button {
-                    display: none;
-                }
-            }
-            .VHS_loopedvideo::-webkit-media-controls-mute-button {
-                display:none;
-            }
-            .VHS_loopedvideo::-webkit-media-controls-fullscreen-button {
-                display:none;
-            }
-    `
-    scrollbarStyle.id = 'scroll-properties'
-    parentDOM.appendChild(scrollbarStyle)
-    chainCallback(app.canvas, "onDrawForeground", function (ctx, visible_rect){
-        let n = helpDOM.node
-        if (!n || !n?.graph) {
-            parentDOM.style['left'] = '-5000px'
-            return
-        }
-        //draw : function(ctx, node, widgetWidth, widgetY, height) {
-        //update widget position, even if off screen
-        const transform = ctx.getTransform();
-        const scale = app.canvas.ds.scale;//gets the litegraph zoom
-        //calculate coordinates with account for browser zoom
-        const bcr = app.canvas.canvas.getBoundingClientRect()
-        const x = transform.e*scale/transform.a + bcr.x;
-        const y = transform.f*scale/transform.a + bcr.y;
-        //TODO: text reflows at low zoom. investigate alternatives
-        Object.assign(parentDOM.style, {
-            left: (x+(n.pos[0] + n.size[0]+15)*scale) + "px",
-            top: (y+(n.pos[1]-LiteGraph.NODE_TITLE_HEIGHT)*scale) + "px",
-            width: "400px",
-            minHeight: "100px",
-            maxHeight: "600px",
-            overflowY: 'scroll',
-            transformOrigin: '0 0',
-            transform: 'scale(' + scale + ',' + scale +')',
-            fontSize: '18px',
-            backgroundColor: LiteGraph.NODE_DEFAULT_BGCOLOR,
-            boxShadow: '0 0 10px black',
-            borderRadius: '4px',
-            padding: '3px',
-            zIndex: 3,
-            position: "absolute",
-            display: 'inline',
-        });
-    });
-    function setCollapse(el, doCollapse) {
-        if (doCollapse) {
-            el.children[0].children[0].innerHTML = '+'
-            Object.assign(el.children[1].style, {
-                color: '#CCC',
-                overflowX: 'hidden',
-                width: '0px',
-                minWidth: 'calc(100% - 20px)',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-            })
-            for (let child of el.children[1].children) {
-                if (child.style.display != 'none'){
-                    child.origDisplay = child.style.display
-                }
-                child.style.display = 'none'
-            }
-        } else {
-            el.children[0].children[0].innerHTML = '-'
-            Object.assign(el.children[1].style, {
-                color: '',
-                overflowX: '',
-                width: '100%',
-                minWidth: '',
-                textOverflow: '',
-                whiteSpace: '',
-            })
-            for (let child of el.children[1].children) {
-                child.style.display = child.origDisplay
-            }
-        }
-    }
-    helpDOM.collapseOnClick = function() {
-        let doCollapse = this.children[0].innerHTML == '-'
-        setCollapse(this.parentElement, doCollapse)
-    }
-    helpDOM.selectHelp = function(name, value) {
-        //attempt to navigate to name in help
-        function collapseUnlessMatch(items,t) {
-            var match = items.querySelector('[vhs_title="' + t + '"]')
-            if (!match) {
-                for (let i of items.children) {
-                    if (i.innerHTML.slice(0,t.length+5).includes(t)) {
-                        match = i
-                        break
-                    }
-                }
-            }
-            if (!match) {
-                return null
-            }
-            //For longer documentation items with fewer collapsable elements,
-            //scroll to make sure the entirety of the selected item is visible
-            //This has the unfortunate side effect of trying to scroll the main
-            //window if the documentation windows is forcibly offscreen,
-            //but it's easy to simply scroll the main window back and seems to
-            //have no visual side effects
-            match.scrollIntoView(false)
-            window.scrollTo(0,0)
-            for (let i of items.querySelectorAll('.VHS_collapse')) {
-                if (i.contains(match)) {
-                    setCollapse(i, false)
-                } else {
-                    setCollapse(i, true)
-                }
-            }
-            return match
-        }
-        let target = collapseUnlessMatch(helpDOM, name)
-        if (target && value) {
-            collapseUnlessMatch(target, value)
-        }
-    }
-    let titleContext = document.createElement("canvas").getContext("2d")
-    titleContext.font = app.canvas.title_text_font;
-    helpDOM.calculateTitleLength = function(text) {
-        return titleContext.measureText(text).width
-    }
-    helpDOM.addHelp = function(node, nodeType, description) {
-        if (!description) {
-            return
-        }
-        //Pad computed size for the clickable question mark
-        let originalComputeSize = node.computeSize
-        node.computeSize = function() {
-            let size = originalComputeSize.apply(this, arguments)
-            if (!this.title) {
-                return size
-            }
-            let title_width = helpDOM.calculateTitleLength(this.title)
-            size[0] = Math.max(size[0], title_width + LiteGraph.NODE_TITLE_HEIGHT*2)
-            return size
-        }
-
-        node.description = description
-        chainCallback(node, "onDrawForeground", function (ctx) {
-            if (this?.flags?.collapsed) {
-                return
-            }
-            //draw question mark
-            ctx.save()
-            ctx.font = 'bold 20px Arial'
-            ctx.fillText("?", this.size[0]-17, -8)
-            ctx.restore()
-        })
-        chainCallback(node, "onMouseDown", function (e, pos, canvas) {
-            if (this?.flags?.collapsed) {
-                return
-            }
-            //On click would be preferred, but this'll be good enough
-            if (pos[1] < 0 && pos[0] + LiteGraph.NODE_TITLE_HEIGHT > this.size[0]) {
-                //corner question mark clicked
-                if (helpDOM.node == this) {
-                    helpDOM.node = undefined
-                } else {
-                    helpDOM.node = this;
-                    helpDOM.innerHTML = this.description || "no help provided "
-                    for (let e of helpDOM.querySelectorAll('.VHS_collapse')) {
-                        e.children[0].onclick = helpDOM.collapseOnClick
-                        e.children[0].style.cursor = 'pointer'
-                    }
-                    for (let e of helpDOM.querySelectorAll('.VHS_precollapse')) {
-                        setCollapse(e, true)
-                    }
-                    for (let e of helpDOM.querySelectorAll('.VHS_loopedvideo')) {
-                        e?.play()
-                    }
-                    helpDOM.parentElement.scrollTo(0,0)
-                }
-                return true
-            }
-        })
-        let timeout = null
-        chainCallback(node, "onMouseMove", function (e, pos, canvas) {
-            if (timeout) {
-                clearTimeout(timeout)
-                timeout = null
-            }
-            if (helpDOM.node != this) {
-                return
-            }
-            timeout = setTimeout(() => {
-                let n = this
-                if (pos[0] > 0 && pos[0] < n.size[0]
-                    && pos[1] > 0 && pos[1] < n.size[1]) {
-                    //TODO: provide help specific to element clicked
-                    let inputRows = Math.max(n.inputs?.length || 0, n.outputs?.length || 0)
-                    if (pos[1] < LiteGraph.NODE_SLOT_HEIGHT * inputRows) {
-                        let row = Math.floor((pos[1] - 7) / LiteGraph.NODE_SLOT_HEIGHT)
-                        if (pos[0] < n.size[0]/2) {
-                            if (row < n.inputs.length) {
-                                helpDOM.selectHelp(n.inputs[row].name)
-                            }
-                        } else {
-                            if (row < n.outputs.length) {
-                                helpDOM.selectHelp(n.outputs[row].name)
-                            }
-                        }
-                    } else {
-                        //probably widget, but widgets have variable height.
-                        let basey = LiteGraph.NODE_SLOT_HEIGHT * inputRows + 6
-                        for (let w of n.widgets) {
-                            if (w.y) {
-                                basey = w.y
-                            }
-                            let wheight = LiteGraph.NODE_WIDGET_HEIGHT+4
-                            if (w.computeSize) {
-                                wheight = w.computeSize(n.size[0])[1]
-                            }
-                            if (pos[1] < basey + wheight) {
-                                helpDOM.selectHelp(w.name, w.value)
-                                break
-                            }
-                            basey += wheight
-                        }
-                    }
-                }
-            }, 500)
-        })
-        chainCallback(node, "onMouseLeave", function (e, pos, canvas) {
-            if (timeout) {
-                clearTimeout(timeout)
-                timeout = null
-            }
-        });
-    }
-}
-
 function fitHeight(node) {
     node.setSize([node.size[0], node.computeSize([node.size[0], node.size[1]])[1]])
     node?.graph?.setDirtyCanvas(true);
@@ -586,38 +322,6 @@ function addDateFormatting(nodeType, field, timestamp_widget = false) {
         widget.serializeValue = () => {
             return applyTextReplacements(app, widget.value);
         };
-    });
-}
-function addTimestampWidget(nodeType, nodeData, targetWidget) {
-    const newWidgets = {};
-    for (let key in nodeData.input.required) {
-        if (key == targetWidget) {
-            //TODO: account for duplicate entries?
-            newWidgets["timestamp_directory"] = ["BOOLEAN", {"default": true}]
-        }
-        newWidgets[key] = nodeData.input.required[key];
-    }
-    nodeDta.input.required = newWidgets;
-    chainCallback(nodeType.prototype, "onNodeCreated", function () {
-        const directoryWidget = this.widgets.find((w) => w.name === "directory_name");
-        const timestampWidget = this.widgets.find((w) => w.name === "timestamp_directory");
-        directoryWidget.serializeValue = () => {
-            if (timestampWidget.value) {
-                //ignore actual value and return timestamp
-                return formatDate("yyyy-MM-ddThh:mm:ss", new Date());
-            }
-            return directoryWidget.value
-        };
-        timestampWidget._value = value;
-        Object.definteProperty(timestampWidget, "value", {
-            set : function(value) {
-                this._value = value;
-                directoryWidget.disabled = value;
-            },
-            get : function() {
-                return this._value;
-            }
-        });
     });
 }
 function initializeLoadFormat(nodeType, nodeData) {
@@ -796,7 +500,7 @@ function addUploadWidget(nodeType, nodeData, widgetName, type="video") {
 
     });
 }
-function addAudioPreview(nodeType, isInput=true) {
+function addAudioPreview(nodeType) {
     chainCallback(nodeType.prototype, "onNodeCreated", function() {
         var element = document.createElement("audio");
         element.controls = true
@@ -843,14 +547,7 @@ function addAudioPreview(nodeType, isInput=true) {
                 return;
             }
             let params =  {}
-            let advp = app.ui.settings.getSettingValue("VHS.AdvancedPreviews")
-            if (advp == 'Never') {
-                advp = false
-            } else if (advp == 'Input Only') {
-                advp = isInput
-            } else {
-                advp = true
-            }
+            let advp = app.ui.settings.getSettingValue("VHS.AdvancedPreviews") != 'Never'
             Object.assign(params, this.value.params);//shallow copy
             params.timestamp = Date.now()
             if (!advp) {
@@ -1852,23 +1549,6 @@ app.registerExtension({
     async beforeRegisterNodeDef(nodeType, nodeData, app) {
         if(nodeData?.name?.startsWith("VHS_")) {
             useKVState(nodeType);
-            if (nodeData.description) {
-                let description = nodeData.description
-                let el = document.createElement("div")
-                el.innerHTML = description
-                if (!el.children.length) {
-                    //Is plaintext. Do minor convenience formatting
-                    let chunks = description.split('\n')
-                    nodeData.description = chunks[0]
-                    description = chunks.join('<br>')
-                } else {
-                    nodeData.description = el.querySelector('#VHS_shortdesc')?.innerHTML || el.children[1]?.firstChild?.innerHTML
-                }
-                chainCallback(nodeType.prototype, "onNodeCreated", function () {
-                    helpDOM.addHelp(this, nodeType, description)
-                    this.setSize(this.computeSize())
-                })
-            }
             //set widgetType to use VHS widgets where possible
             for(let inp of Object.values({...nodeData.input?.required, ...nodeData.input?.optional})) {
                 if (["INT", "FLOAT"].includes(inp[0])) {
@@ -2020,16 +1700,6 @@ app.registerExtension({
             addPreviewOptions(nodeType);
             addFormatWidgets(nodeType, nodeData);
             addVAEInputToggle(nodeType, nodeData)
-        } else if (nodeData?.name == "VHS_SaveImageSequence") {
-            //Disabled for safety as VHS_SaveImageSequence is not currently merged
-            //addDateFormating(nodeType, "directory_name", timestamp_widget=true);
-            //addTimestampWidget(nodeType, nodeData, "directory_name")
-        } else if (nodeData?.name == "VHS_BatchManager") {
-            chainCallback(nodeType.prototype, "onNodeCreated", function() {
-                this.widgets.push({name: "count", type: "dummy", value: 0,
-                    computeSize: () => {return [0,-4]},
-                    afterQueued: function() {this.value++;}});
-            });
         } else if (nodeData?.name == "VHS_SelectLatest") {
             chainCallback(nodeType.prototype, "onNodeCreated", function() {
                 this.isVirtualNode = true
@@ -2290,20 +1960,6 @@ app.registerExtension({
             },
         }
     },
-    async loadedGraphNode(node) {
-        //Check and migrate inputs named batch_manager from old workflows
-        if (node.type?.startsWith("VHS_") && node.inputs) {
-            const batchInput = node.inputs.find((i) => i.name == "batch_manager")
-            if (batchInput) {
-                batchInput.name = "meta_batch"
-            }
-        }
-    },
-    async beforeConfigureGraph(graphData, missingNodeTypes) {
-        if(helpDOM?.node) {
-            helpDOM.node = undefined
-        }
-    },
     async setup() {
         let originalGraphToPrompt = app.graphToPrompt
         let graphToPrompt = async function() {
@@ -2323,72 +1979,22 @@ app.registerExtension({
                 }
             let data = e.clipboardData || window.clipboardData
             let filepath = data.getData('text/plain')
-            let video
-            for (const item of data.items) {
-                if (item.type.startsWith('video/')) {
-                    video = item
-                    break
-                }
-            }
-            if (filepath && copiedPath == filepath) {
-                //Add a Load Video (Path) and populate filepath
-                const pastedNode = LiteGraph.createNode('VHS_LoadVideoPath')
-                app.canvas.graph.add(pastedNode)
-                pastedNode.pos[0] = app.canvas.graph_mouse[0]
-                pastedNode.pos[1] = app.canvas.graph_mouse[1]
-                pastedNode.widgets[0].value = filepath
-                pastedNode.widgets[0].callback?.(filepath)
-            } else if (video && false) {
-                //Disabled due to lack of testing
-                //Add a Load Video (Upload), then upload the file, then select the file
-                const pastedNode = LiteGraph.createNode('VHS_LoadVideo')
-                app.canvas.graph.add(pastedNode)
-                pastedNode.pos[0] = app.canvas.graph_mouse[0]
-                pastedNode.pos[1] = app.canvas.graph_mouse[1]
-                const pathWidget = pastedNode.widgets[0]
-                //TODO: upload to pasted dir?
-                const blob = video.getAsFile()
-                const resp = await uploadFile(blob)
-                if (resp.status != 200) {
-                    //upload failed and file can not be added to options
-                    return;
-                }
-                const filename = (await resp.json()).name;
-                pathWidget.options.values.push(filename);
-                pathWidget.value = filename;
-                pathWidget.callback?.(filename)
-            } else {
+            if (!filepath || copiedPath != filepath) {
                 return
             }
+            //Add a Load Video (Path) and populate filepath
+            const pastedNode = LiteGraph.createNode('VHS_LoadVideoPath')
+            app.canvas.graph.add(pastedNode)
+            pastedNode.pos[0] = app.canvas.graph_mouse[0]
+            pastedNode.pos[1] = app.canvas.graph_mouse[1]
+            pastedNode.widgets[0].value = filepath
+            pastedNode.widgets[0].callback?.(filepath)
             e.preventDefault()
             e.stopImmediatePropagation()
             return false
         }, true)
     },
-    async init() {
-        if (app.ui.settings.getSettingValue("VHS.AdvancedPreviews") == true) {
-            app.ui.settings.setSettingValue("VHS.AdvancedPreviews", 'Always')
-        }
-        if (app.ui.settings.getSettingValue("VHS.AdvancedPreviews") == false) {
-            app.ui.settings.setSettingValue("VHS.AdvancedPreviews", 'Never')
-        }
-        if (app.VHSHelp != helpDOM) {
-            helpDOM = app.VHSHelp
-        } else {
-            initHelpDOM()
-        }
-        let e = app.extensions.filter((w) => w.name == 'UVR5.AudioPreviewer')
-        if (e.length) {
-            let orig = e[0].beforeRegisterNodeDef
-            e[0].beforeRegisterNodeDef = function(nodeType, nodeData, app) {
-                if(!nodeData?.name?.startsWith("VHS_")) {
-                    return orig.apply(this, arguments);
-                }
-            }
-        }
-    },
 });
-let previewImages = []
 api.addEventListener('executing', ({ detail }) => {
     if (detail === null) {
         for (let graph of [app.graph, ...app.graph.subgraphs.values()]) {
