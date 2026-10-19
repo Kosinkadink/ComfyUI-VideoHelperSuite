@@ -1,0 +1,15 @@
+{
+  "settingsCategories": {
+    "Previews": "预览",
+    "Sampling": "采样",
+    "Output": "输出",
+    "Advanced Previews": "高级预览",
+    "Min Width": "最小宽度",
+    "Deadline": "编码时限",
+    "Default Mute": "默认静音",
+    "Latent Previews": "潜变量预览",
+    "Latent Preview Rate": "潜变量预览帧率",
+    "MetadataImage": "元数据图片",
+    "Keep Intermediate": "保留中间文件"
+  }
+}

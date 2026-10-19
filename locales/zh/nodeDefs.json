@@ -1,0 +1,1244 @@
+{
+  "VHS_VideoCombine": {
+    "display_name": "视频合成 🎥🅥🅗🅢",
+    "inputs": {
+      "images": {
+        "name": "图像",
+        "tooltip": "要合成视频的图像序列"
+      },
+      "audio": {
+        "name": "音频",
+        "tooltip": "（可选）要混入视频的音频"
+      },
+      "frame_rate": {
+        "name": "帧率",
+        "tooltip": "输出视频的帧率。建议转为输入并连接 加载视频→视频信息（已加载）→已载帧率🟦。混入音频时帧率不对会导致音画不同步"
+      },
+      "loop_count": {
+        "name": "循环次数",
+        "tooltip": "视频额外重复播放的次数。长序列（100+ 帧）时可能影响性能"
+      },
+      "filename_prefix": {
+        "name": "文件名前缀",
+        "tooltip": "输出文件名前缀，可包含子文件夹或格式化字符串"
+      },
+      "format": {
+        "name": "格式",
+        "tooltip": "选择输出格式。'video' 开头的格式需要 ffmpeg，选定后会追加该格式专用的参数项"
+      },
+      "pingpong": {
+        "name": "回弹播放",
+        "tooltip": "正放后再倒放一遍来回循环，常用于消除短动画的跳变感"
+      },
+      "save_output": {
+        "name": "保存到输出目录",
+        "tooltip": "关闭时输出保存到临时目录而非输出目录"
+      },
+      "meta_batch": {
+        "name": "元批次",
+        "tooltip": "（可选）连接元批次管理器，把超长序列拆成子批处理"
+      },
+      "vae": {
+        "name": "VAE",
+        "tooltip": "（可选）提供 VAE 后可直接接收潜变量输入，处理长序列（100+ 帧）时大幅降低 RAM（非显存）占用。注意：多个视频合成输出会各自解码一遍；改动输出设置会触发重新解码（结果不缓存）"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "文件名列表",
+        "tooltip": "所有输出文件的路径列表，可连接清理输出文件 / 选择文件名节点"
+      }
+    },
+    "description": "把图像序列合成为视频文件，可选混入音频。接 VAE 后可直接接收潜变量输入，长序列时更省 RAM。"
+  },
+  "VHS_LoadVideo": {
+    "display_name": "加载视频（上传）🎥🅥🅗🅢",
+    "inputs": {
+      "video": {
+        "name": "视频",
+        "tooltip": "要加载的视频文件，列出 input 目录中所有视频扩展名的文件"
+      },
+      "force_rate": {
+        "name": "强制帧率",
+        "tooltip": "丢帧或补帧使输出达到目标帧率。许多运动模型按特定帧率训练，输入匹配该帧率效果更好。设为 0 返回全部帧。调低可大幅降低耗时和内存占用"
+      },
+      "custom_width": {
+        "name": "自定义宽度",
+        "tooltip": "自定义宽度；宽高都设置时会裁剪以保持宽高比。设 0 禁用"
+      },
+      "custom_height": {
+        "name": "自定义高度",
+        "tooltip": "自定义高度；宽高都设置时会裁剪以保持宽高比。设 0 禁用"
+      },
+      "frame_load_cap": {
+        "name": "帧数上限",
+        "tooltip": "最多加载的帧数。0 表示全部加载"
+      },
+      "skip_first_frames": {
+        "name": "跳过起始帧数",
+        "tooltip": "在产出输出前先丢弃的帧数"
+      },
+      "select_every_nth": {
+        "name": "隔N帧取一",
+        "tooltip": "每 N 帧保留第一帧、丢弃其余。与强制帧率同用时在此之后生效（等效帧率 = 强制帧率 ÷ 隔N帧取一）。对 gif 等可变帧率输入兼容性更好"
+      },
+      "meta_batch": {
+        "name": "元批次",
+        "tooltip": "（可选）连接元批次管理器，把超长序列拆成子批处理"
+      },
+      "vae": {
+        "name": "VAE",
+        "tooltip": "（可选）提供 VAE 后直接输出潜变量而非图像，处理长序列（100+ 帧）时大幅降低 RAM（非显存）占用"
+      },
+      "format": {
+        "name": "格式",
+        "tooltip": "选择输出格式。'video' 开头的格式需要 ffmpeg，选定后会追加该格式专用的参数项"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "图像",
+        "tooltip": "加载的图像序列"
+      },
+      "1": {
+        "name": "帧数",
+        "tooltip": "本次返回的帧数"
+      },
+      "2": {
+        "name": "音频",
+        "tooltip": "视频中的音频"
+      },
+      "3": {
+        "name": "视频信息",
+        "tooltip": "视频的帧率、总长等元信息"
+      }
+    },
+    "description": "从 input 目录加载视频，输出图像序列、帧数、音频和视频信息。"
+  },
+  "VHS_LoadVideoPath": {
+    "display_name": "加载视频（路径）🎥🅥🅗🅢",
+    "inputs": {
+      "video": {
+        "name": "视频",
+        "tooltip": "要加载的视频文件路径，也可以选图片当作单帧加载"
+      },
+      "force_rate": {
+        "name": "强制帧率",
+        "tooltip": "丢帧或补帧使输出达到目标帧率。许多运动模型按特定帧率训练，输入匹配该帧率效果更好。设为 0 返回全部帧。调低可大幅降低耗时和内存占用"
+      },
+      "custom_width": {
+        "name": "自定义宽度",
+        "tooltip": "自定义宽度；宽高都设置时会裁剪以保持宽高比。设 0 禁用"
+      },
+      "custom_height": {
+        "name": "自定义高度",
+        "tooltip": "自定义高度；宽高都设置时会裁剪以保持宽高比。设 0 禁用"
+      },
+      "frame_load_cap": {
+        "name": "帧数上限",
+        "tooltip": "最多加载的帧数。0 表示全部加载"
+      },
+      "skip_first_frames": {
+        "name": "跳过起始帧数",
+        "tooltip": "在产出输出前先丢弃的帧数"
+      },
+      "select_every_nth": {
+        "name": "隔N帧取一",
+        "tooltip": "每 N 帧保留第一帧、丢弃其余。与强制帧率同用时在此之后生效（等效帧率 = 强制帧率 ÷ 隔N帧取一）。对 gif 等可变帧率输入兼容性更好"
+      },
+      "meta_batch": {
+        "name": "元批次",
+        "tooltip": "（可选）连接元批次管理器，把超长序列拆成子批处理"
+      },
+      "vae": {
+        "name": "VAE",
+        "tooltip": "（可选）提供 VAE 后直接输出潜变量而非图像，处理长序列（100+ 帧）时大幅降低 RAM（非显存）占用"
+      },
+      "format": {
+        "name": "格式",
+        "tooltip": "选择输出格式。'video' 开头的格式需要 ffmpeg，选定后会追加该格式专用的参数项"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "图像",
+        "tooltip": "加载的图像序列"
+      },
+      "1": {
+        "name": "帧数",
+        "tooltip": "本次返回的帧数"
+      },
+      "2": {
+        "name": "音频",
+        "tooltip": "视频中的音频"
+      },
+      "3": {
+        "name": "视频信息",
+        "tooltip": "视频的帧率、总长等元信息"
+      }
+    },
+    "description": "从任意路径加载视频，也可以选图片当作单帧加载。"
+  },
+  "VHS_LoadVideoFFmpeg": {
+    "display_name": "FFmpeg 加载视频（上传）🎥🅥🅗🅢",
+    "inputs": {
+      "video": {
+        "name": "视频",
+        "tooltip": "要加载的视频文件，列出 input 目录中所有视频扩展名的文件"
+      },
+      "force_rate": {
+        "name": "强制帧率",
+        "tooltip": "丢帧或补帧使输出达到目标帧率。许多运动模型按特定帧率训练，输入匹配该帧率效果更好。设为 0 返回全部帧。调低可大幅降低耗时和内存占用"
+      },
+      "custom_width": {
+        "name": "自定义宽度",
+        "tooltip": "自定义宽度；宽高都设置时会裁剪以保持宽高比。设 0 禁用"
+      },
+      "custom_height": {
+        "name": "自定义高度",
+        "tooltip": "自定义高度；宽高都设置时会裁剪以保持宽高比。设 0 禁用"
+      },
+      "frame_load_cap": {
+        "name": "帧数上限",
+        "tooltip": "最多加载的帧数。0 表示全部加载"
+      },
+      "start_time": {
+        "name": "起始时间",
+        "tooltip": "从视频开头起算的秒数，从该时间点开始加载帧"
+      },
+      "meta_batch": {
+        "name": "元批次",
+        "tooltip": "（可选）连接元批次管理器，把超长序列拆成子批处理"
+      },
+      "vae": {
+        "name": "VAE",
+        "tooltip": "（可选）提供 VAE 后直接输出潜变量而非图像，处理长序列（100+ 帧）时大幅降低 RAM（非显存）占用"
+      },
+      "format": {
+        "name": "格式",
+        "tooltip": "选择输出格式。'video' 开头的格式需要 ffmpeg，选定后会追加该格式专用的参数项"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "图像",
+        "tooltip": "加载的图像序列"
+      },
+      "1": {
+        "name": "遮罩",
+        "tooltip": "视频的透明度数据"
+      },
+      "2": {
+        "name": "音频",
+        "tooltip": "视频中的音频"
+      },
+      "3": {
+        "name": "视频信息",
+        "tooltip": "视频的帧率、总长等元信息"
+      }
+    },
+    "description": "用 ffmpeg（而非 opencv）从 input 目录加载视频。速度更快，支持透明通道，可按秒指定起始时间。"
+  },
+  "VHS_LoadVideoFFmpegPath": {
+    "display_name": "FFmpeg 加载视频（路径）🎥🅥🅗🅢",
+    "inputs": {
+      "video": {
+        "name": "视频",
+        "tooltip": "要加载的视频文件路径，也可以选图片当作单帧加载"
+      },
+      "force_rate": {
+        "name": "强制帧率",
+        "tooltip": "丢帧或补帧使输出达到目标帧率。许多运动模型按特定帧率训练，输入匹配该帧率效果更好。设为 0 返回全部帧。调低可大幅降低耗时和内存占用"
+      },
+      "custom_width": {
+        "name": "自定义宽度",
+        "tooltip": "自定义宽度；宽高都设置时会裁剪以保持宽高比。设 0 禁用"
+      },
+      "custom_height": {
+        "name": "自定义高度",
+        "tooltip": "自定义高度；宽高都设置时会裁剪以保持宽高比。设 0 禁用"
+      },
+      "frame_load_cap": {
+        "name": "帧数上限",
+        "tooltip": "最多加载的帧数。0 表示全部加载"
+      },
+      "start_time": {
+        "name": "起始时间",
+        "tooltip": "从视频开头起算的秒数，从该时间点开始加载帧"
+      },
+      "meta_batch": {
+        "name": "元批次",
+        "tooltip": "（可选）连接元批次管理器，把超长序列拆成子批处理"
+      },
+      "vae": {
+        "name": "VAE",
+        "tooltip": "（可选）提供 VAE 后直接输出潜变量而非图像，处理长序列（100+ 帧）时大幅降低 RAM（非显存）占用"
+      },
+      "format": {
+        "name": "格式",
+        "tooltip": "选择输出格式。'video' 开头的格式需要 ffmpeg，选定后会追加该格式专用的参数项"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "图像",
+        "tooltip": "加载的图像序列"
+      },
+      "1": {
+        "name": "遮罩",
+        "tooltip": "视频的透明度数据"
+      },
+      "2": {
+        "name": "音频",
+        "tooltip": "视频中的音频"
+      },
+      "3": {
+        "name": "视频信息",
+        "tooltip": "视频的帧率、总长等元信息"
+      }
+    },
+    "description": "用 ffmpeg 从任意路径加载视频。速度更快，支持透明通道，可按秒指定起始时间。"
+  },
+  "VHS_LoadImagePath": {
+    "display_name": "加载图像（路径）🎥🅥🅗🅢",
+    "inputs": {
+      "image": {
+        "name": "图像",
+        "tooltip": "要加载的图片文件路径"
+      },
+      "custom_width": {
+        "name": "自定义宽度",
+        "tooltip": "自定义宽度；宽高都设置时会裁剪以保持宽高比。设 0 禁用"
+      },
+      "custom_height": {
+        "name": "自定义高度",
+        "tooltip": "自定义高度；宽高都设置时会裁剪以保持宽高比。设 0 禁用"
+      },
+      "vae": {
+        "name": "VAE",
+        "tooltip": "（可选）提供 VAE 后输出潜变量而非图像"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "图像",
+        "tooltip": "加载的图像"
+      },
+      "1": {
+        "name": "遮罩",
+        "tooltip": "图片的 alpha 通道"
+      }
+    },
+    "description": "从给定路径加载单张图片。"
+  },
+  "VHS_LoadImages": {
+    "display_name": "加载图片（上传）🎥🅥🅗🅢",
+    "inputs": {
+      "directory": {
+        "name": "目录",
+        "tooltip": "图片所在目录，仅处理 jpg/png/ppm/bmp/tif/webp"
+      },
+      "image_load_cap": {
+        "name": "图片数上限",
+        "tooltip": "最多加载的图片数。0 表示全部加载"
+      },
+      "skip_first_images": {
+        "name": "跳过起始图片数",
+        "tooltip": "在产出输出前先丢弃的图片数"
+      },
+      "select_every_nth": {
+        "name": "隔N张取一",
+        "tooltip": "每 N 张保留第一张、丢弃其余"
+      },
+      "meta_batch": {
+        "name": "元批次",
+        "tooltip": "（可选）连接元批次管理器，把超长序列拆成子批处理"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "图像",
+        "tooltip": "加载的图像序列"
+      },
+      "1": {
+        "name": "遮罩",
+        "tooltip": "图片的 alpha 通道"
+      },
+      "2": {
+        "name": "帧数",
+        "tooltip": "本次返回的图片数量"
+      }
+    },
+    "description": "从 input 目录的子目录加载一组图片序列。"
+  },
+  "VHS_LoadImagesPath": {
+    "display_name": "加载图片（路径）🎥🅥🅗🅢",
+    "inputs": {
+      "directory": {
+        "name": "目录",
+        "tooltip": "图片所在目录路径，仅处理 jpg/png/ppm/bmp/tif/webp"
+      },
+      "image_load_cap": {
+        "name": "图片数上限",
+        "tooltip": "最多加载的图片数。0 表示全部加载"
+      },
+      "skip_first_images": {
+        "name": "跳过起始图片数",
+        "tooltip": "在产出输出前先丢弃的图片数"
+      },
+      "select_every_nth": {
+        "name": "隔N张取一",
+        "tooltip": "每 N 张保留第一张、丢弃其余"
+      },
+      "meta_batch": {
+        "name": "元批次",
+        "tooltip": "（可选）连接元批次管理器，把超长序列拆成子批处理"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "图像",
+        "tooltip": "加载的图像序列"
+      },
+      "1": {
+        "name": "遮罩",
+        "tooltip": "图片的 alpha 通道"
+      },
+      "2": {
+        "name": "帧数",
+        "tooltip": "本次返回的图片数量"
+      }
+    },
+    "description": "从任意路径加载一组图片序列。"
+  },
+  "VHS_LoadAudio": {
+    "display_name": "加载音频（路径）🎥🅥🅗🅢",
+    "inputs": {
+      "audio_file": {
+        "name": "音频文件",
+        "tooltip": "要加载的音频文件路径"
+      },
+      "seek_seconds": {
+        "name": "定位时间（秒）",
+        "tooltip": "从音频文件开头的偏移秒数，从该位置开始读取"
+      },
+      "duration": {
+        "name": "时长",
+        "tooltip": "音频最长时长限制。0 表示不限"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "音频",
+        "tooltip": "加载的音频"
+      },
+      "1": {
+        "name": "时长",
+        "tooltip": "加载的音频时长（秒）"
+      }
+    },
+    "description": "从任意路径加载音频文件。"
+  },
+  "VHS_LoadAudioUpload": {
+    "display_name": "加载音频（上传）🎥🅥🅗🅢",
+    "inputs": {
+      "audio": {
+        "name": "音频",
+        "tooltip": "要加载的音频文件"
+      },
+      "start_time": {
+        "name": "起始时间",
+        "tooltip": "从音频文件开头的偏移秒数，从该位置开始读取"
+      },
+      "duration": {
+        "name": "时长",
+        "tooltip": "音频最长时长限制。0 表示不限"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "音频",
+        "tooltip": "加载的音频"
+      },
+      "1": {
+        "name": "时长",
+        "tooltip": "加载的音频时长（秒）"
+      }
+    },
+    "description": "从 input 目录加载音频文件，比内置 LoadAudio 多起始时间和时长限制。"
+  },
+  "VHS_AudioToVHSAudio": {
+    "display_name": "音频转旧版 VHS 音频 🎥🅥🅗🅢",
+    "inputs": {
+      "audio": {
+        "name": "音频",
+        "tooltip": "标准 AUDIO 格式的输入"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "旧版音频",
+        "tooltip": "旧版 VHS_AUDIO 格式输出，供仍使用该格式的外部节点使用"
+      }
+    },
+    "description": "兼容工具：把标准 AUDIO 格式转回旧版 VHS_AUDIO，供仍使用该格式的第三方节点使用。"
+  },
+  "VHS_VHSAudioToAudio": {
+    "display_name": "旧版 VHS 音频转音频 🎥🅥🅗🅢",
+    "inputs": {
+      "vhs_audio": {
+        "name": "旧版音频",
+        "tooltip": "外部节点产出的旧版 VHS_AUDIO 格式输入"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "音频",
+        "tooltip": "标准 AUDIO 格式输出"
+      }
+    },
+    "description": "兼容工具：把旧版 VHS_AUDIO 格式转回标准 AUDIO。"
+  },
+  "VHS_PruneOutputs": {
+    "display_name": "清理输出文件 🎥🅥🅗🅢",
+    "inputs": {
+      "filenames": {
+        "name": "文件名列表",
+        "tooltip": "连接视频合成节点的文件名列表输出，指定要清理的输出"
+      },
+      "options": {
+        "name": "选项",
+        "tooltip": "Intermediate＝只删中间产物（如带音频时生成的无音轨视频）；Intermediate and Utility＝删掉除最终成品外所有文件（含首帧 PNG）"
+      }
+    },
+    "description": "自动删除视频合成节点产生的多余输出文件（如带音频时的无音轨版本、首帧 PNG）。"
+  },
+  "VHS_BatchManager": {
+    "display_name": "元批次管理器 🎥🅥🅗🅢",
+    "inputs": {
+      "frames_per_batch": {
+        "name": "每批帧数",
+        "tooltip": "每次子执行处理的帧数。按图片加载时每帧约占 50MB RAM，一般设 100–1000；全程在潜空间加载与合成时可设到 2000–20000"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "元批次",
+        "tooltip": "把所有连接的节点加入此元批次"
+      }
+    },
+    "description": "把超长视频的处理拆成多个元批次子执行，突破 RAM 限制（不影响显存）。需同时连接至少一个加载节点和一个视频合成节点；子批边界处无法做时序平滑，输出会有跳变。"
+  },
+  "VHS_VideoInfo": {
+    "display_name": "视频信息 🎥🅥🅗🅢",
+    "inputs": {
+      "video_info": {
+        "name": "视频信息",
+        "tooltip": "连接加载视频节点的视频信息输出"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "源帧率🟨",
+        "tooltip": "视频文件的原始帧率"
+      },
+      "1": {
+        "name": "源帧数🟨",
+        "tooltip": "文件包含的总帧数（未考虑加载设置）"
+      },
+      "2": {
+        "name": "源时长🟨",
+        "tooltip": "视频时长（秒）"
+      },
+      "3": {
+        "name": "源宽度🟨",
+        "tooltip": "原始宽度"
+      },
+      "4": {
+        "name": "源高度🟨",
+        "tooltip": "原始高度"
+      },
+      "5": {
+        "name": "已载帧率🟦",
+        "tooltip": "应用强制帧率和隔帧选取后的实际帧率。可连接到视频合成的帧率输入以保持音画同步"
+      },
+      "6": {
+        "name": "已载帧数🟦",
+        "tooltip": "本次执行返回的帧数"
+      },
+      "7": {
+        "name": "已载时长🟦",
+        "tooltip": "考虑帧数上限后的输出时长（秒）"
+      },
+      "8": {
+        "name": "已载宽度🟦",
+        "tooltip": "缩放后的宽度"
+      },
+      "9": {
+        "name": "已载高度🟦",
+        "tooltip": "缩放后的高度"
+      }
+    },
+    "description": "把视频信息拆成多个输出：🟨 为源文件原始值，🟦 为按加载设置生效后的值。"
+  },
+  "VHS_VideoInfoSource": {
+    "display_name": "视频信息（源）🎥🅥🅗🅢",
+    "inputs": {
+      "video_info": {
+        "name": "视频信息",
+        "tooltip": "连接加载视频节点的视频信息输出"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "帧率🟨",
+        "tooltip": "视频文件的原始帧率"
+      },
+      "1": {
+        "name": "帧数🟨",
+        "tooltip": "文件包含的总帧数"
+      },
+      "2": {
+        "name": "时长🟨",
+        "tooltip": "视频时长（秒）"
+      },
+      "3": {
+        "name": "宽度🟨",
+        "tooltip": "原始宽度"
+      },
+      "4": {
+        "name": "高度🟨",
+        "tooltip": "原始高度"
+      }
+    },
+    "description": "输出视频文件本身的原始信息（未考虑任何加载设置）。"
+  },
+  "VHS_VideoInfoLoaded": {
+    "display_name": "视频信息（已加载）🎥🅥🅗🅢",
+    "inputs": {
+      "video_info": {
+        "name": "视频信息",
+        "tooltip": "连接加载视频节点的视频信息输出"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "帧率🟦",
+        "tooltip": "应用强制帧率和隔帧选取后的实际帧率。可连接到视频合成的帧率输入以保持音画同步"
+      },
+      "1": {
+        "name": "帧数🟦",
+        "tooltip": "本次执行返回的帧数"
+      },
+      "2": {
+        "name": "时长🟦",
+        "tooltip": "考虑帧数上限后的输出时长（秒）"
+      },
+      "3": {
+        "name": "宽度🟦",
+        "tooltip": "缩放后的宽度"
+      },
+      "4": {
+        "name": "高度🟦",
+        "tooltip": "缩放后的高度"
+      }
+    },
+    "description": "输出应用加载设置后的实际信息。把已载帧率🟦 接到视频合成的帧率输入可保证音画同步。"
+  },
+  "VHS_SelectFilename": {
+    "display_name": "选择文件名 🎥🅥🅗🅢",
+    "inputs": {
+      "filenames": {
+        "name": "文件名列表",
+        "tooltip": "视频合成节点输出的文件名列表"
+      },
+      "index": {
+        "name": "索引",
+        "tooltip": "要选择的文件索引。默认 -1 选择最终成品"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "文件名",
+        "tooltip": "所选文件的完整路径字符串"
+      }
+    },
+    "description": "从视频合成的文件名列表输出中按索引选出一个文件路径字符串。注意与清理输出文件节点连用时执行顺序不保证，可能选到已被删除的文件。"
+  },
+  "VHS_VAEEncodeBatched": {
+    "display_name": "VAE 分批编码 🎥🅥🅗🅢",
+    "inputs": {
+      "pixels": {
+        "name": "像素",
+        "tooltip": "要编码的图像"
+      },
+      "vae": {
+        "name": "VAE",
+        "tooltip": "用于编码的 VAE"
+      },
+      "per_batch": {
+        "name": "每批数量",
+        "tooltip": "每批最多编码的图像数"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "潜变量",
+        "tooltip": "编码后的潜变量"
+      }
+    },
+    "description": "分批编码图像为潜变量，可手动指定每批数量，规避大批量编码的显存问题。没有此类问题时直接用原生 VAE 编码更简单。"
+  },
+  "VHS_VAEDecodeBatched": {
+    "display_name": "VAE 分批解码 🎥🅥🅗🅢",
+    "inputs": {
+      "samples": {
+        "name": "潜变量",
+        "tooltip": "要解码的潜变量"
+      },
+      "vae": {
+        "name": "VAE",
+        "tooltip": "用于解码的 VAE"
+      },
+      "per_batch": {
+        "name": "每批数量",
+        "tooltip": "每批最多解码的图像数"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "图像",
+        "tooltip": "解码出的图像"
+      }
+    },
+    "description": "分批解码潜变量为图像，可手动指定每批数量，规避大批量解码的显存问题。没有此类问题时直接用原生 VAE 解码更简单。"
+  },
+  "VHS_SplitLatents": {
+    "display_name": "分割潜变量 🎥🅥🅗🅢",
+    "inputs": {
+      "latents": {
+        "name": "潜变量",
+        "tooltip": "要分割的潜变量"
+      },
+      "split_index": {
+        "name": "分割索引",
+        "tooltip": "第二组输出的起始索引"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "潜变量A",
+        "tooltip": "第一组潜变量"
+      },
+      "1": {
+        "name": "A数量",
+        "tooltip": "A 组数量（等于分割索引，输入不足时为输入长度）"
+      },
+      "2": {
+        "name": "潜变量B",
+        "tooltip": "第二组潜变量"
+      },
+      "3": {
+        "name": "B数量",
+        "tooltip": "B 组数量"
+      }
+    },
+    "description": "把一组潜变量按索引分成两组。"
+  },
+  "VHS_SplitImages": {
+    "display_name": "分割图像 🎥🅥🅗🅢",
+    "inputs": {
+      "images": {
+        "name": "图像",
+        "tooltip": "要分割的图像"
+      },
+      "split_index": {
+        "name": "分割索引",
+        "tooltip": "第二组输出的起始索引"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "图像A",
+        "tooltip": "第一组图像"
+      },
+      "1": {
+        "name": "A数量",
+        "tooltip": "A 组数量（等于分割索引，输入不足时为输入长度）"
+      },
+      "2": {
+        "name": "图像B",
+        "tooltip": "第二组图像"
+      },
+      "3": {
+        "name": "B数量",
+        "tooltip": "B 组数量"
+      }
+    },
+    "description": "把一组图像按索引分成两组。"
+  },
+  "VHS_SplitMasks": {
+    "display_name": "分割遮罩 🎥🅥🅗🅢",
+    "inputs": {
+      "mask": {
+        "name": "遮罩",
+        "tooltip": "要分割的遮罩"
+      },
+      "split_index": {
+        "name": "分割索引",
+        "tooltip": "第二组输出的起始索引"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "遮罩A",
+        "tooltip": "第一组遮罩"
+      },
+      "1": {
+        "name": "A数量",
+        "tooltip": "A 组数量（等于分割索引，输入不足时为输入长度）"
+      },
+      "2": {
+        "name": "遮罩B",
+        "tooltip": "第二组遮罩"
+      },
+      "3": {
+        "name": "B数量",
+        "tooltip": "B 组数量"
+      }
+    },
+    "description": "把一组遮罩按索引分成两组。"
+  },
+  "VHS_MergeLatents": {
+    "display_name": "合并潜变量 🎥🅥🅗🅢",
+    "inputs": {
+      "latents_A": {
+        "name": "潜变量A",
+        "tooltip": "第一组潜变量"
+      },
+      "latents_B": {
+        "name": "潜变量B",
+        "tooltip": "第二组潜变量"
+      },
+      "merge_strategy": {
+        "name": "合并策略",
+        "tooltip": "输入分辨率不一致时输出分辨率的取法：match A=用 A；match B=用 B；match smaller=取面积较小者；match larger=取面积较大者"
+      },
+      "scale_method": {
+        "name": "缩放方法",
+        "tooltip": "需要缩放时使用的缩放方法"
+      },
+      "crop": {
+        "name": "裁剪",
+        "tooltip": "尺寸不一致时是改变宽高比还是裁剪以保持宽高比"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "潜变量",
+        "tooltip": "合并后的潜变量"
+      },
+      "1": {
+        "name": "数量",
+        "tooltip": "合并后的总数量"
+      }
+    },
+    "description": "把两组潜变量合并成一组，分辨率不一致时按合并策略处理。"
+  },
+  "VHS_MergeImages": {
+    "display_name": "合并图像 🎥🅥🅗🅢",
+    "inputs": {
+      "images_A": {
+        "name": "图像A",
+        "tooltip": "第一组图像"
+      },
+      "images_B": {
+        "name": "图像B",
+        "tooltip": "第二组图像"
+      },
+      "merge_strategy": {
+        "name": "合并策略",
+        "tooltip": "输入分辨率不一致时输出分辨率的取法：match A=用 A；match B=用 B；match smaller=取面积较小者；match larger=取面积较大者"
+      },
+      "scale_method": {
+        "name": "缩放方法",
+        "tooltip": "需要缩放时使用的缩放方法"
+      },
+      "crop": {
+        "name": "裁剪",
+        "tooltip": "尺寸不一致时是改变宽高比还是裁剪以保持宽高比"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "图像",
+        "tooltip": "合并后的图像"
+      },
+      "1": {
+        "name": "数量",
+        "tooltip": "合并后的总数量"
+      }
+    },
+    "description": "把两组图像合并成一组，分辨率不一致时按合并策略处理。"
+  },
+  "VHS_MergeMasks": {
+    "display_name": "合并遮罩 🎥🅥🅗🅢",
+    "inputs": {
+      "mask_A": {
+        "name": "遮罩A",
+        "tooltip": "第一组遮罩"
+      },
+      "mask_B": {
+        "name": "遮罩B",
+        "tooltip": "第二组遮罩"
+      },
+      "merge_strategy": {
+        "name": "合并策略",
+        "tooltip": "输入分辨率不一致时输出分辨率的取法：match A=用 A；match B=用 B；match smaller=取面积较小者；match larger=取面积较大者"
+      },
+      "scale_method": {
+        "name": "缩放方法",
+        "tooltip": "需要缩放时使用的缩放方法"
+      },
+      "crop": {
+        "name": "裁剪",
+        "tooltip": "尺寸不一致时是改变宽高比还是裁剪以保持宽高比"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "遮罩",
+        "tooltip": "合并后的遮罩"
+      },
+      "1": {
+        "name": "数量",
+        "tooltip": "合并后的总数量"
+      }
+    },
+    "description": "把两组遮罩合并成一组，分辨率不一致时按合并策略处理。"
+  },
+  "VHS_GetLatentCount": {
+    "display_name": "获取潜变量数量 🎥🅥🅗🅢",
+    "inputs": {
+      "latents": {
+        "name": "潜变量",
+        "tooltip": "输入的潜变量"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "数量",
+        "tooltip": "输入中的潜变量数量"
+      }
+    },
+    "description": "返回输入中潜变量的数量。"
+  },
+  "VHS_GetImageCount": {
+    "display_name": "获取图像数量 🎥🅥🅗🅢",
+    "inputs": {
+      "images": {
+        "name": "图像",
+        "tooltip": "输入的图像"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "数量",
+        "tooltip": "输入中的图像数量"
+      }
+    },
+    "description": "返回输入中图像的数量。"
+  },
+  "VHS_GetMaskCount": {
+    "display_name": "获取遮罩数量 🎥🅥🅗🅢",
+    "inputs": {
+      "mask": {
+        "name": "遮罩",
+        "tooltip": "输入的遮罩"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "数量",
+        "tooltip": "输入中的遮罩数量"
+      }
+    },
+    "description": "返回输入中遮罩的数量。"
+  },
+  "VHS_DuplicateLatents": {
+    "display_name": "重复潜变量 🎥🅥🅗🅢",
+    "inputs": {
+      "latents": {
+        "name": "潜变量",
+        "tooltip": "要重复的潜变量"
+      },
+      "multiply_by": {
+        "name": "重复倍数",
+        "tooltip": "重复倍数。1（默认）表示不重复"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "潜变量",
+        "tooltip": "重复后的潜变量"
+      },
+      "1": {
+        "name": "数量",
+        "tooltip": "输出数量 = 输入长度 × 重复倍数"
+      }
+    },
+    "description": "把一组潜变量自我拼接重复 N 倍。"
+  },
+  "VHS_DuplicateImages": {
+    "display_name": "重复图像 🎥🅥🅗🅢",
+    "inputs": {
+      "images": {
+        "name": "图像",
+        "tooltip": "要重复的图像"
+      },
+      "multiply_by": {
+        "name": "重复倍数",
+        "tooltip": "重复倍数。1（默认）表示不重复"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "图像",
+        "tooltip": "重复后的图像"
+      },
+      "1": {
+        "name": "数量",
+        "tooltip": "输出数量 = 输入长度 × 重复倍数"
+      }
+    },
+    "description": "把一组图像自我拼接重复 N 倍。"
+  },
+  "VHS_DuplicateMasks": {
+    "display_name": "重复遮罩 🎥🅥🅗🅢",
+    "inputs": {
+      "mask": {
+        "name": "遮罩",
+        "tooltip": "要重复的遮罩"
+      },
+      "multiply_by": {
+        "name": "重复倍数",
+        "tooltip": "重复倍数。1（默认）表示不重复"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "遮罩",
+        "tooltip": "重复后的遮罩"
+      },
+      "1": {
+        "name": "数量",
+        "tooltip": "输出数量 = 输入长度 × 重复倍数"
+      }
+    },
+    "description": "把一组遮罩自我拼接重复 N 倍。"
+  },
+  "VHS_SelectEveryNthLatent": {
+    "display_name": "隔N选取潜变量 🎥🅥🅗🅢",
+    "inputs": {
+      "latents": {
+        "name": "潜变量",
+        "tooltip": "输入的潜变量"
+      },
+      "select_every_nth": {
+        "name": "隔N取一",
+        "tooltip": "保留间隔，1 表示不跳帧"
+      },
+      "skip_first_latents": {
+        "name": "跳过起始潜变量数",
+        "tooltip": "先从头跳过的潜变量数，在隔帧选取之前生效。多个节点设不同跳过数可把序列拆分成组"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "潜变量",
+        "tooltip": "选出的潜变量"
+      },
+      "1": {
+        "name": "数量",
+        "tooltip": "选出的数量"
+      }
+    },
+    "description": "每隔 N 个潜变量保留第一个、丢弃其余，实现降采样。"
+  },
+  "VHS_SelectEveryNthImage": {
+    "display_name": "隔N选取图像 🎥🅥🅗🅢",
+    "inputs": {
+      "images": {
+        "name": "图像",
+        "tooltip": "输入的图像"
+      },
+      "select_every_nth": {
+        "name": "隔N取一",
+        "tooltip": "保留间隔，1 表示不跳帧"
+      },
+      "skip_first_images": {
+        "name": "跳过起始图片数",
+        "tooltip": "先从头跳过的图片数，在隔帧选取之前生效。多个节点设不同跳过数可把序列拆分成组"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "图像",
+        "tooltip": "选出的图像"
+      },
+      "1": {
+        "name": "数量",
+        "tooltip": "选出的数量"
+      }
+    },
+    "description": "每隔 N 张图像保留第一张、丢弃其余，实现降采样。"
+  },
+  "VHS_SelectEveryNthMask": {
+    "display_name": "隔N选取遮罩 🎥🅥🅗🅢",
+    "inputs": {
+      "mask": {
+        "name": "遮罩",
+        "tooltip": "输入的遮罩"
+      },
+      "select_every_nth": {
+        "name": "隔N取一",
+        "tooltip": "保留间隔，1 表示不跳帧"
+      },
+      "skip_first_masks": {
+        "name": "跳过起始遮罩数",
+        "tooltip": "先从头跳过的遮罩数，在隔帧选取之前生效。多个节点设不同跳过数可把序列拆分成组"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "遮罩",
+        "tooltip": "选出的遮罩"
+      },
+      "1": {
+        "name": "数量",
+        "tooltip": "选出的数量"
+      }
+    },
+    "description": "每隔 N 个遮罩保留第一个、丢弃其余，实现降采样。"
+  },
+  "VHS_SelectLatents": {
+    "display_name": "按索引选取潜变量 🎥🅥🅗🅢",
+    "inputs": {
+      "latent": {
+        "name": "潜变量",
+        "tooltip": "输入潜变量"
+      },
+      "indexes": {
+        "name": "索引",
+        "tooltip": "要选取的索引，支持逗号分隔和范围写法（如 0..5）"
+      },
+      "err_if_missing": {
+        "name": "缺失时报错",
+        "tooltip": "索引超出范围时是否报错"
+      },
+      "err_if_empty": {
+        "name": "为空时报错",
+        "tooltip": "结果为空时是否报错"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "潜变量",
+        "tooltip": "选出的潜变量"
+      }
+    },
+    "description": "按索引从潜变量中选取，支持逗号分隔和范围写法（如 0..5）。"
+  },
+  "VHS_SelectImages": {
+    "display_name": "按索引选取图像 🎥🅥🅗🅢",
+    "inputs": {
+      "image": {
+        "name": "图像",
+        "tooltip": "输入图像"
+      },
+      "indexes": {
+        "name": "索引",
+        "tooltip": "要选取的索引，支持逗号分隔和范围写法（如 0..5）"
+      },
+      "err_if_missing": {
+        "name": "缺失时报错",
+        "tooltip": "索引超出范围时是否报错"
+      },
+      "err_if_empty": {
+        "name": "为空时报错",
+        "tooltip": "结果为空时是否报错"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "图像",
+        "tooltip": "选出的图像"
+      }
+    },
+    "description": "按索引从图像中选取，支持逗号分隔和范围写法（如 0..5）。"
+  },
+  "VHS_SelectMasks": {
+    "display_name": "按索引选取遮罩 🎥🅥🅗🅢",
+    "inputs": {
+      "mask": {
+        "name": "遮罩",
+        "tooltip": "输入遮罩"
+      },
+      "indexes": {
+        "name": "索引",
+        "tooltip": "要选取的索引，支持逗号分隔和范围写法（如 0..5）"
+      },
+      "err_if_missing": {
+        "name": "缺失时报错",
+        "tooltip": "索引超出范围时是否报错"
+      },
+      "err_if_empty": {
+        "name": "为空时报错",
+        "tooltip": "结果为空时是否报错"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "遮罩",
+        "tooltip": "选出的遮罩"
+      }
+    },
+    "description": "按索引从遮罩中选取，支持逗号分隔和范围写法（如 0..5）。"
+  },
+  "VHS_Unbatch": {
+    "display_name": "解批 🎥🅥🅗🅢",
+    "inputs": {
+      "batched": {
+        "name": "批数据",
+        "tooltip": "可能带批的任意输入"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "解批数据",
+        "tooltip": "解批后的单个元素。张量沿 dim0 拼接；其他类型做加法（字符串/数组等效拼接）"
+      }
+    },
+    "description": "把一批数据解成单个元素：张量沿 dim0 拼接，其他类型做加法。与元批次系统无关。"
+  },
+  "VHS_SelectLatest": {
+    "display_name": "选择最新文件 🎥🅥🅗🅢",
+    "inputs": {
+      "filename_prefix": {
+        "name": "文件名前缀",
+        "tooltip": "候选文件须匹配的路径（可含文件夹和前缀）"
+      },
+      "filename_postfix": {
+        "name": "文件名后缀",
+        "tooltip": "所选文件须以此结尾的字符串，可用于限定扩展名"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "文件名",
+        "tooltip": "最近修改文件的完整路径"
+      }
+    },
+    "description": "实验性虚拟节点：选取指定文件夹中最近修改的文件，用于把上次执行的输出接到下次执行。"
+  }
+}

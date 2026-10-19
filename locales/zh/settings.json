@@ -1,0 +1,40 @@
+{
+  "VHS_AdvancedPreviews": {
+    "name": "高级预览",
+    "tooltip": "按需自动转码预览，部分高级功能依赖此项",
+    "options": {
+      "Never": "从不",
+      "Always": "总是",
+      "Input Only": "仅输入节点"
+    }
+  },
+  "VHS_AdvancedPreviewsMinWidth": {
+    "name": "预览最小宽度",
+    "tooltip": "高级预览会降采样到节点大小以提升性能。拉大节点可以提高预览质量，这里设置一个预览不会被降采样突破的最小宽度。预览永远不会被放大，所以设大一点也没有副作用"
+  },
+  "VHS_AdvancedPreviewsDeadline": {
+    "name": "预览编码时限（Deadline）",
+    "tooltip": "控制编码高级预览可花费的时间。realtime 画质较低但不卡顿；good 初始生成时可能卡顿",
+    "options": {
+      "realtime": "实时",
+      "good": "高质量"
+    }
+  },
+  "VHS_AdvancedPreviewsDefaultMute": {
+    "name": "默认静音视频预览"
+  },
+  "VHS_LatentPreview": {
+    "name": "采样时显示动态预览",
+    "tooltip": "采样过程中在采样器节点上循环播放整个视频的潜变量预览帧，而不是只显示单帧静态图"
+  },
+  "VHS_LatentPreviewRate": {
+    "name": "潜变量预览播放帧率覆盖",
+    "tooltip": "强制指定潜变量预览的播放帧率。这不是输出帧率，对视频模型二者本来就不一致。0 为按模型自动选择"
+  },
+  "VHS_MetadataImage": {
+    "name": "保存首帧 PNG 以携带工作流元数据"
+  },
+  "VHS_KeepIntermediate": {
+    "name": "执行成功后保留必需的中间文件"
+  }
+}
