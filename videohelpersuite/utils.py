@@ -250,21 +250,42 @@ def get_audio(file, start_time=0, duration=0):
 class LazyAudioMap(Mapping):
     def __init__(self, file, start_time, duration):
         self.file = file
-        self.start_time=start_time
-        self.duration=duration
-        self._dict=None
+        self.start_time = start_time
+        self.duration = duration
+        self._dict = None
+        self._loaded = False
+
+    def _load(self):
+        if not self._loaded:
+            try:
+                self._dict = get_audio(self.file, self.start_time, self.duration)
+                if (self._dict is not None  # Treat empty extraction as "no audio"
+                        and self._dict.get('waveform') is not None
+                        and self._dict['waveform'].numel() == 0):
+                    self._dict = None
+            except Exception:  # Videos without an audio track (or any ffmpeg failure)
+                self._dict = None
+            self._loaded = True
+        return self._dict
+
     def __getitem__(self, key):
-        if self._dict is None:
-            self._dict = get_audio(self.file, self.start_time, self.duration)
-        return self._dict[key]
+        audio = self._load()
+        if audio is None:
+            return None
+        return audio[key]
+
     def __iter__(self):
-        if self._dict is None:
-            self._dict = get_audio(self.file, self.start_time, self.duration)
-        return iter(self._dict)
+        audio = self._load()
+        if audio is None:
+            return iter(())
+        return iter(audio)
+
     def __len__(self):
-        if self._dict is None:
-            self._dict = get_audio(self.file, self.start_time, self.duration)
-        return len(self._dict)
+        audio = self._load()
+        if audio is None:
+            return 0
+        return len(audio)
+        
 def lazy_get_audio(file, start_time=0, duration=0, **kwargs):
     return LazyAudioMap(file, start_time, duration)
 
