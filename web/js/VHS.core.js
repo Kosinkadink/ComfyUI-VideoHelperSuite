@@ -922,7 +922,7 @@ function addVideoPreview(nodeType, isInput=true) {
             e.preventDefault()
             return app.canvas._mousedown_callback(e)
         }, true);
-        element.addEventListener('mousewheel', (e)  => {
+        element.addEventListener('wheel', (e)  => {
             e.preventDefault()
             return app.canvas._mousewheel_callback(e)
         }, true);
@@ -2430,7 +2430,7 @@ function getLatentPreviewCtx(id, width, height) {
             e.preventDefault()
             return app.canvas._mousedown_callback(e)
         }, true);
-        canvasEl.addEventListener('mousewheel', (e)  => {
+        canvasEl.addEventListener('wheel', (e)  => {
             e.preventDefault()
             return app.canvas._mousewheel_callback(e)
         }, true);
