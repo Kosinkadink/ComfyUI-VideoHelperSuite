@@ -15,7 +15,7 @@ import nodes
 from comfy.k_diffusion.utils import FolderOfImages
 from .logger import logger
 from .utils import BIGMAX, DIMMAX, calculate_file_hash, get_sorted_dir_files_from_directory,\
-        lazy_get_audio, hash_path, validate_path, strip_path, try_download_video,  \
+        lazy_get_audio, has_audio_stream, hash_path, validate_path, strip_path, try_download_video,  \
         is_url, imageOrLatent, ffmpeg_path, ENCODE_ARGS, floatOrInt
 
 
@@ -400,7 +400,10 @@ def load_video(meta_batch=None, unique_id=None, memory_limit_mb=None, vae=None,
         start_time = kwargs['skip_first_frames'] * target_frame_time
     target_frame_time *= kwargs.get('select_every_nth', 1)
     #Setup lambda for lazy audio capture
-    audio = lazy_get_audio(kwargs['video'], start_time, kwargs['frame_load_cap']*target_frame_time)
+    if has_audio_stream(kwargs['video']):
+        audio = lazy_get_audio(kwargs['video'], start_time, kwargs['frame_load_cap']*target_frame_time)
+    else:
+        audio = None
     #Adjust target_frame_time for select_every_nth
     video_info = {
         "source_fps": fps,
