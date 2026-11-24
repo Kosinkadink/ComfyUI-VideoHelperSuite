@@ -1,5 +1,6 @@
 import os
 import itertools
+import math
 import numpy as np
 import torch
 from PIL import Image, ImageOps
@@ -14,6 +15,10 @@ from comfy.utils import common_upscale, ProgressBar
 import nodes
 from comfy.k_diffusion.utils import FolderOfImages
 from .logger import logger
+from .resource_limits import (
+        MAX_AUDIO_SECONDS, MAX_VIDEO_FRAMES, MAX_VIDEO_PIXELS,
+        available_memory_bytes, bounded_audio_duration, effective_frame_cap,
+        max_loadable_frames, validate_video_pixels)
 from .utils import BIGMAX, DIMMAX, calculate_file_hash, get_sorted_dir_files_from_directory,\
         lazy_get_audio, hash_path, validate_path, strip_path, try_download_video,  \
         is_url, imageOrLatent, ffmpeg_path, ENCODE_ARGS, floatOrInt
@@ -76,9 +81,9 @@ def target_size(width, height, custom_width, custom_height, downscale_ratio=8) -
     return (width, height)
 
 def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
-                       select_every_nth, meta_batch=None, unique_id=None):
+                       select_every_nth, max_pixels=0, meta_batch=None, unique_id=None):
     video_cap = cv2.VideoCapture(video)
-    if not video_cap.isOpened() or not video_cap.grab():
+    if not video_cap.isOpened():
         raise ValueError(f"{video} could not be loaded with cv.")
 
     # extract video metadata
@@ -86,13 +91,21 @@ def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
     width = int(video_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(video_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     total_frames = int(video_cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    if not math.isfinite(fps) or fps <= 0:
+        raise ValueError(f"{video} has an invalid frame rate: {fps}")
     duration = total_frames / fps
 
-    width = 0
-
     if width <=0 or height <=0:
+        if max_pixels > 0:
+            raise ValueError(f"{video} has no resolution metadata; refusing to decode before enforcing the pixel limit")
+        if not video_cap.grab():
+            raise ValueError(f"{video} could not be loaded with cv.")
         _, frame = video_cap.retrieve()
         height, width, _ = frame.shape
+    else:
+        validate_video_pixels(width, height, width, height, max_pixels)
+        if not video_cap.grab():
+            raise ValueError(f"{video} could not be loaded with cv.")
 
     # set video_cap to look at start_index frame
     total_frame_count = 0
@@ -145,6 +158,8 @@ def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
         # follow up: can videos ever have an alpha channel?
         # To my testing: No. opencv has no support for alpha
         unused, frame = video_cap.retrieve()
+        frame_height, frame_width = frame.shape[:2]
+        validate_video_pixels(frame_width, frame_height, frame_width, frame_height, max_pixels)
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         # convert frame to comfyui's expected format
         # TODO: frame contains no exif information. Check if opencv2 has already applied
@@ -170,7 +185,7 @@ def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
 
 def ffmpeg_frame_generator(video, force_rate, frame_load_cap, start_time,
                            custom_width, custom_height, downscale_ratio=8,
-                           meta_batch=None, unique_id=None):
+                           max_pixels=0, meta_batch=None, unique_id=None):
     args_input = ["-i", video]
     args_dummy = [ffmpeg_path] + args_input +['-c', 'copy', '-frames:v', '1', "-f", "null", "-"]
     size_base = None
@@ -206,6 +221,7 @@ def ffmpeg_frame_generator(video, force_rate, frame_load_cap, start_time,
             break
     else:
         raise Exception("Failed to parse video/image information. FFMPEG output:\n" + lines)
+    validate_video_pixels(size_base[0], size_base[1], size_base[0], size_base[1], max_pixels)
 
     durs_match = re.search("Duration: (\\d+:\\d+:\\d+\\.\\d+),", lines)
     if durs_match:
@@ -291,8 +307,8 @@ def batched_vae_encode(images, vae, frames_per_batch):
     for batch in batched(images, frames_per_batch):
         image_batch = torch.from_numpy(np.array(batch))
         yield from vae.encode(image_batch).numpy()
-def resized_cv_frame_gen(custom_width, custom_height, downscale_ratio, **kwargs):
-    gen = cv_frame_generator(**kwargs)
+def resized_cv_frame_gen(custom_width, custom_height, downscale_ratio, max_pixels=0, **kwargs):
+    gen = cv_frame_generator(max_pixels=max_pixels, **kwargs)
     info =  next(gen)
     width, height = info[0], info[1]
     frames_per_batch = (1920 * 1080 * 16) // (width * height) or 1
@@ -320,6 +336,14 @@ def load_video(meta_batch=None, unique_id=None, memory_limit_mb=None, vae=None,
         logger.warn("force_size has been removed. Did you reload the webpage after updating?")
     format = get_format(format)
     kwargs['video'] = strip_path(kwargs['video'])
+    max_frames = max(1, min(kwargs.pop('max_frames', MAX_VIDEO_FRAMES) or MAX_VIDEO_FRAMES, MAX_VIDEO_FRAMES))
+    max_pixels = max(1, min(kwargs.get('max_pixels', MAX_VIDEO_PIXELS) or MAX_VIDEO_PIXELS, MAX_VIDEO_PIXELS))
+    max_audio_seconds = max(1, min(
+        kwargs.pop('max_audio_seconds', MAX_AUDIO_SECONDS) or MAX_AUDIO_SECONDS,
+        MAX_AUDIO_SECONDS,
+    ))
+    kwargs['max_pixels'] = max_pixels
+    kwargs['frame_load_cap'] = effective_frame_cap(kwargs['frame_load_cap'], max_frames)
     if vae is not None:
         downscale_ratio = getattr(vae, "downscale_ratio", 8)
     else:
@@ -327,6 +351,11 @@ def load_video(meta_batch=None, unique_id=None, memory_limit_mb=None, vae=None,
     if meta_batch is None or unique_id not in meta_batch.inputs:
         gen = generator(meta_batch=meta_batch, unique_id=unique_id, downscale_ratio=downscale_ratio, **kwargs)
         (width, height, fps, duration, total_frames, target_frame_time, yieldable_frames, new_width, new_height, alpha) = next(gen)
+        try:
+            validate_video_pixels(width, height, new_width, new_height, max_pixels)
+        except ValueError:
+            gen.close()
+            raise
 
         if meta_batch is not None:
             meta_batch.inputs[unique_id] = (gen, width, height, fps, duration, total_frames, target_frame_time, yieldable_frames, new_width, new_height, alpha)
@@ -336,24 +365,21 @@ def load_video(meta_batch=None, unique_id=None, memory_limit_mb=None, vae=None,
     else:
         (gen, width, height, fps, duration, total_frames, target_frame_time, yieldable_frames, new_width, new_height, alpha) = meta_batch.inputs[unique_id]
 
-    memory_limit = None
     if memory_limit_mb is not None:
-        memory_limit *= 2 ** 20
+        memory_limit = memory_limit_mb * 2 ** 20
     else:
         #TODO: verify if garbage collection should be performed here.
         #leaves ~128 MB unreserved for safety
         try:
-            memory_limit = (psutil.virtual_memory().available + psutil.swap_memory().free) - 2 ** 27
-        except:
+            memory_limit = available_memory_bytes(psutil.virtual_memory().available)
+        except (OSError, ValueError):
             logger.warn("Failed to calculate available memory. Memory load limit has been disabled")
             memory_limit = BIGMAX
     if vae is not None:
         #space required to load as f32, exist as latent with wiggle room, decode to f32
-        max_loadable_frames = int(memory_limit//(width*height*3*(4+4+1/10)))
+        loadable_frames = max_loadable_frames(memory_limit, new_width, new_height, 3, 4 + 4 + 1 / 10)
     else:
-        #TODO: use better estimate for when vae is not None
-        #Consider completely ignoring for load_latent case?
-        max_loadable_frames = int(memory_limit//(width*height*3*(.1)))
+        loadable_frames = max_loadable_frames(memory_limit, new_width, new_height, 4 if alpha else 3)
     if meta_batch is not None:
         if 'frames' in format:
             if meta_batch.frames_per_batch % format['frames'][0] != format['frames'][1]:
@@ -362,12 +388,12 @@ def load_video(meta_batch=None, unique_id=None, memory_limit_mb=None, vae=None,
                 if error > format['frames'][0] / 2:
                     suggested += format['frames'][0]
                 raise RuntimeError(f"The chosen frames per batch is incompatible with the selected format. Try {suggested}")
-        if meta_batch.frames_per_batch > max_loadable_frames:
-            raise RuntimeError(f"Meta Batch set to {meta_batch.frames_per_batch} frames but only {max_loadable_frames} can fit in memory")
+        if meta_batch.frames_per_batch > loadable_frames:
+            raise RuntimeError(f"Meta Batch set to {meta_batch.frames_per_batch} frames but only {loadable_frames} can fit in memory")
         gen = itertools.islice(gen, meta_batch.frames_per_batch)
     else:
         original_gen = gen
-        gen = itertools.islice(gen, max_loadable_frames)
+        gen = itertools.islice(gen, loadable_frames)
     frames_per_batch = (1920 * 1080 * 16) // (width * height) or 1
     if vae is not None:
         gen = batched_vae_encode(gen, vae, frames_per_batch)
@@ -400,7 +426,11 @@ def load_video(meta_batch=None, unique_id=None, memory_limit_mb=None, vae=None,
         start_time = kwargs['skip_first_frames'] * target_frame_time
     target_frame_time *= kwargs.get('select_every_nth', 1)
     #Setup lambda for lazy audio capture
-    audio = lazy_get_audio(kwargs['video'], start_time, kwargs['frame_load_cap']*target_frame_time)
+    audio_duration = bounded_audio_duration(len(images), target_frame_time, max_audio_seconds)
+    audio = lazy_get_audio(
+        kwargs['video'], start_time, audio_duration,
+        sample_rate=48_000, channels=2, timeout=120,
+    )
     #Adjust target_frame_time for select_every_nth
     video_info = {
         "source_fps": fps,
@@ -439,6 +469,9 @@ class LoadVideoUpload:
                     "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1, "disable": 0}),
                     "skip_first_frames": ("INT", {"default": 0, "min": 0, "max": BIGMAX, "step": 1}),
                     "select_every_nth": ("INT", {"default": 1, "min": 1, "max": BIGMAX, "step": 1}),
+                    "max_frames": ("INT", {"default": MAX_VIDEO_FRAMES, "min": 1, "max": MAX_VIDEO_FRAMES, "step": 1}),
+                    "max_pixels": ("INT", {"default": MAX_VIDEO_PIXELS, "min": 1, "max": MAX_VIDEO_PIXELS, "step": 1}),
+                    "max_audio_seconds": ("FLOAT", {"default": MAX_AUDIO_SECONDS, "min": 1, "max": MAX_AUDIO_SECONDS, "step": 1}),
                     },
                 "optional": {
                     "meta_batch": ("VHS_BatchManager",),
