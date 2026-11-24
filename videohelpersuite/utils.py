@@ -221,6 +221,15 @@ def requeue_workflow(requeue_required=(-1,True)):
     if requeue_guard[1] == requeue_guard[2] and max(requeue_guard[3].values()):
         requeue_workflow_unchecked()
 
+def has_audio_stream(file):
+    if ffmpeg_path is None:
+        #Defer to get_audio for reporting the missing ffmpeg
+        return True
+    res = subprocess.run([ffmpeg_path, "-hide_banner", "-i", file],
+                         capture_output=True)
+    return re.search(r'Stream #\d+:\d+.*: Audio: ',
+                     res.stderr.decode(*ENCODE_ARGS)) is not None
+
 def get_audio(file, start_time=0, duration=0):
     args = [ffmpeg_path, "-i", file]
     if start_time > 0:
