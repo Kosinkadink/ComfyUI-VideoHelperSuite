@@ -229,8 +229,8 @@ async def resolve_path(query):
 
     #Path code misformats urls on windows and must be skipped
     if is_url(filename):
-        file = await asyncio.to_thread(try_download_video, filename) or file
-        filname, output_dir = os.path.split(file)
+        file = await asyncio.to_thread(try_download_video, filename) or filename
+        output_dir, filename = os.path.split(file)
         return file, filename, output_dir
     else:
         filename, output_dir = folder_paths.annotated_filepath(filename)
